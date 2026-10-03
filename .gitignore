@@ -1,0 +1,13 @@
+# папка публикации — собирается командой `node build.mjs`
+dist/
+
+# зависимости для теста схемы (supabase/test)
+node_modules/
+package-lock.json
+
+.DS_Store
+*.log
+
+# секреты никогда не кладём в репозиторий (ключи Telegram, service_role и т.п.)
+.env
+.env.*

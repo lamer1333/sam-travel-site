@@ -1,0 +1,40 @@
+# HTTP-заголовки для Cloudflare Pages (тот же формат понимает Netlify).
+# Основная политика CSP задана в <meta> каждой страницы; здесь — то, что через
+# <meta> задать нельзя, и правила кеширования.
+
+/*
+  # запрет встраивать сайт в чужую рамку (кликджекинг)
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Strict-Transport-Security: max-age=31536000
+
+# страницы всегда свежие: правки из репозитория видны сразу
+/
+  Cache-Control: public, max-age=0, must-revalidate
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+# у стилей и скриптов нет хеша в имени — короткий кеш с перепроверкой
+/css/*
+  Cache-Control: public, max-age=600, must-revalidate
+/js/*
+  Cache-Control: public, max-age=600, must-revalidate
+
+# картинки и иконки меняются редко
+/img/*
+  Cache-Control: public, max-age=2592000
+/*.png
+  Cache-Control: public, max-age=604800
+/*.jpg
+  Cache-Control: public, max-age=604800
+/favicon.ico
+  Cache-Control: public, max-age=604800
+
+# панель и кабинет — не для поисковиков
+/admin.html
+  X-Robots-Tag: noindex, nofollow
+/cabinet.html
+  X-Robots-Tag: noindex, nofollow

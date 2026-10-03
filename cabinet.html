@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; form-action 'self'; base-uri 'self'; object-src 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="robots" content="noindex">
+<title>My account — SAM TRAVEL</title>
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  :root{
+    --ground:#000; --ink:#fff; --ink-dim:rgba(255,255,255,.5);
+    --brand:#5ba3f2; --card:#0d1220; --line:rgba(255,255,255,.12);
+    --err:#ff6b6b; --ok:#54d18c;
+    --font-ui:'Manrope',system-ui,-apple-system,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font-ui)}
+  .wrap{max-width:760px;margin:0 auto;padding:24px 20px 60px}
+  header.top{display:flex;align-items:center;justify-content:space-between;gap:12px 14px;flex-wrap:wrap;
+    padding:14px 0 22px;border-bottom:1px solid var(--line);margin-bottom:24px}
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand img{height:24px}.brand span{font-weight:700;letter-spacing:.14em;font-size:13px}
+  .logout{padding:9px 14px;border:1px solid var(--line);border-radius:10px;background:transparent;
+    color:var(--ink);font:inherit;font-size:13px;cursor:pointer}
+  .logout:hover{background:rgba(255,255,255,.06)}
+  a.logout{text-decoration:none;display:inline-block}
+  h1{font-size:22px;margin:0 0 4px}
+  .hello{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .badge{font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:3px 8px;border-radius:999px;
+    background:rgba(91,163,242,.18);color:var(--brand)}
+  .lead{color:var(--ink-dim);font-size:14px;margin:0 0 28px}
+  h2{font-size:15px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em;margin:0 0 14px}
+  .booking{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:12px}
+  .booking__head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .booking h3{margin:0;font-size:16px}
+  .booking__status{font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:3px 9px;border-radius:999px}
+  .status--new{background:rgba(91,163,242,.18);color:var(--brand)}
+  .status--in_progress{background:rgba(255,193,7,.16);color:#ffce54}
+  .status--confirmed{background:rgba(84,209,140,.16);color:var(--ok)}
+  .status--cancelled{background:rgba(255,107,107,.14);color:var(--err)}
+  .booking__dates{margin:8px 0 0;font-size:13px}
+  .booking__details{margin:6px 0 0;font-size:13px;color:var(--ink-dim)}
+  .booking__meta{margin:6px 0 0;font-size:11px;color:var(--ink-dim);font-family:ui-monospace,monospace}
+  .booking__time{display:block;margin-top:10px;font-size:11px;color:var(--ink-dim)}
+  .empty{color:var(--ink-dim);font-size:14px;background:var(--card);border:1px dashed var(--line);
+    border-radius:14px;padding:22px;text-align:center}
+  .msg{font-size:13px;padding:10px 12px;border-radius:10px}
+  .msg[data-kind=err]{background:rgba(255,107,107,.12);color:var(--err)}
+  /* onboarding / consent modal */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:grid;place-items:center;padding:22px;z-index:50}
+  .modal[hidden]{display:none}
+  .modal__card{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);
+    border-radius:18px;padding:26px}
+  .modal__card h3{margin:0 0 8px;font-size:18px}
+  .modal__card p{margin:0 0 16px;color:var(--ink-dim);font-size:14px}
+  .modal .consent{display:flex;gap:9px;align-items:flex-start;font-size:13px;margin-bottom:20px}
+  .modal .primary{width:100%;padding:12px;border:0;border-radius:11px;background:var(--brand);
+    color:#04121f;font:inherit;font-weight:700;cursor:pointer}
+  .top-right{display:flex;align-items:center;gap:10px}
+  .lang{display:inline-flex;gap:2px;background:rgba(255,255,255,.06);border-radius:999px;padding:3px}
+  .lang button{border:0;background:transparent;color:var(--ink-dim);font:inherit;font-size:12px;font-weight:600;
+    padding:5px 9px;border-radius:999px;cursor:pointer}
+  .lang button[aria-pressed=true]{background:var(--ink);color:#04121f}
+</style>
+</head>
+<body data-page="cabinet">
+  <div class="wrap">
+    <header class="top">
+      <div class="brand"><img src="sam-logo.png" alt=""><span>SAM TRAVEL</span></div>
+      <div class="top-right">
+        <span class="lang" role="group" aria-label="Language">
+          <button type="button" data-lang="en" aria-pressed="true">EN</button>
+          <button type="button" data-lang="ru" aria-pressed="false">RU</button>
+          <button type="button" data-lang="hy" aria-pressed="false">HY</button>
+        </span>
+        <a id="btn-panel" class="logout" href="admin.html" hidden data-i18n="panel">Control panel</a>
+        <button id="btn-logout" class="logout" data-i18n="signOut">Sign out</button>
+      </div>
+    </header>
+
+    <div class="hello">
+      <h1><span data-i18n="hi">Hi</span>, <span id="greet">…</span></h1>
+      <span id="role-badge" class="badge" hidden></span>
+    </div>
+    <p class="lead" data-i18n="lead">Your trips and requests are below.</p>
+
+    <h2 data-i18n="bookingsH">Bookings</h2>
+    <div id="bookings"></div>
+    <p id="bookings-empty" class="empty" hidden data-i18n="empty">No bookings yet. Send a request from the site and it will show up here.</p>
+  </div>
+
+  <!-- First-login consent (Google / Mail.ru users have no checkbox at sign-up) -->
+  <div id="onboard" class="modal" hidden>
+    <div class="modal__card">
+      <h3 data-i18n="onbTitle">One quick thing</h3>
+      <p data-i18n="onbText">Would you like to hear about deals and discounts?</p>
+      <label class="consent">
+        <input id="onboard-consent" type="checkbox">
+        <span data-i18n="onbConsent">Yes, send me deals, discounts and coupons by email. I can unsubscribe anytime.</span>
+      </label>
+      <button id="onboard-save" class="primary" data-i18n="onbContinue">Continue</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/auth.js"></script>
+</body>
+</html>
