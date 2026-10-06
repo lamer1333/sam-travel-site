@@ -3,7 +3,7 @@
 //
 // The URL and the "anon" key are safe to ship in the browser: they grant NO
 // special access on their own. Every table is protected by Row Level Security
-// (see supabase/schema.sql), so the anon key can only do what the logged-in
+// (see supabase/migrations/001_schema.sql), so the anon key can only do what the logged-in
 // user is allowed to do.
 //
 // NEVER put the service_role key here. That one bypasses RLS and belongs only
@@ -14,7 +14,7 @@
 // ---------------------------------------------------------------------------
 window.SAM_SUPABASE = {
   url: 'https://kxbxbjkcvoeuyqyztqmw.supabase.co',
-  // Publishable key — safe in the browser: RLS (see supabase/schema.sql) is what
+  // Publishable key — safe in the browser: RLS (see supabase/migrations/001_schema.sql) is what
   // actually protects the data. The secret key is NEVER placed here.
   anonKey: 'sb_publishable_KC5fmQvydoqsU4pUrWzMNg_jDuKWg7D',
 };

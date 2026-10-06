@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // Data access for the panels. Two implementations with one interface:
-//   LiveApi — Supabase (tables + RPCs from supabase/admin.sql), RLS enforced
+//   LiveApi — Supabase (tables + RPCs from supabase/migrations/), RLS enforced
 //   DemoApi — generated data in this browser (admin.html?demo), see demo.js
 // Views only ever talk to this interface.
 // ---------------------------------------------------------------------------
@@ -28,7 +28,7 @@ export class LiveApi {
   async updateLead(id, patch) {
     const run = (p) => this.sb.from('leads').update(clean(p)).eq('id', id).select().single();
     let r = await run(patch);
-    // leads.profit arrived in a later admin.sql: on a database that has not been re-run yet,
+    // leads.profit arrived in a later 002_admin.sql: on a database that has not been migrated yet,
     // save everything else instead of losing the sale, and say what is missing.
     if (r.error && 'profit' in patch && /profit/.test(r.error.message || '')) {
       const { profit, ...rest } = patch;
@@ -122,7 +122,7 @@ export function errText(e) {
   if (/duplicate key.*code/i.test(m)) return 'Такой промокод уже существует';
   if (/duplicate key.*slug/i.test(m)) return 'Тур с таким адресом (slug) уже есть';
   if (/violates check constraint.*url/i.test(m)) return 'Нужна ссылка вида https://www.instagram.com/reel/…';
-  if (/Could not find the function|does not exist/i.test(m)) return 'База не обновлена: выполните supabase/admin.sql в SQL Editor';
+  if (/Could not find the function|does not exist/i.test(m)) return 'База не обновлена: накатите миграции из supabase/migrations/';
   if (/Failed to fetch|NetworkError/i.test(m)) return 'Нет связи с сервером';
   return m;
 }

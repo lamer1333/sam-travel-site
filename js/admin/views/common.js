@@ -52,10 +52,10 @@ export function tourName(ctx, slug) {
   return (t && ((t.i18n.ru && t.i18n.ru.title) || (t.i18n.en && t.i18n.en.title))) || slug;
 }
 export const CHANNELS = {
-  instagram: 'Instagram', facebook: 'Facebook', google: 'Google Ads', tiktok: 'TikTok', telegram: 'Telegram', email: 'Email-рассылка',
+  instagram: 'Instagram', facebook: 'Facebook', google: 'Google Ads', tiktok: 'TikTok', email: 'Email-рассылка',
   offline: 'Офлайн / QR', youtube: 'YouTube', influencer: 'Блогер', other: 'Другое',
 };
-export const SRC_NAME = { direct: 'Прямые заходы', 'google.com': 'Google (поиск)', 'instagram.com': 'Instagram (органика)', 'facebook.com': 'Facebook (органика)', 'yandex.ru': 'Яндекс', 't.me': 'Telegram', 'tripadvisor.com': 'Tripadvisor', instagram: 'Instagram (реклама)', facebook: 'Facebook (реклама)', google: 'Google Ads', telegram: 'Telegram (посевы)', newsletter: 'Email-рассылка', flyer: 'Флаеры / QR' };
+export const SRC_NAME = { direct: 'Прямые заходы', 'google.com': 'Google (поиск)', 'instagram.com': 'Instagram (органика)', 'facebook.com': 'Facebook (органика)', 'yandex.ru': 'Яндекс', 'tripadvisor.com': 'Tripadvisor', instagram: 'Instagram (реклама)', facebook: 'Facebook (реклама)', google: 'Google Ads', newsletter: 'Email-рассылка', flyer: 'Флаеры / QR' };
 export const srcName = (s) => SRC_NAME[s] || s;
 export const SECTION_NAME = { 'band-prices': 'Первый экран', hot: 'Горящие туры', how: 'Как это работает', services: 'Услуги', about: 'О нас', reviews: 'Отзывы', blog: 'Рилсы', contacts: 'Контакты и форма' };
 export const CTA_NAME = { wa_click: 'Клик в WhatsApp', tel_click: 'Клик по телефону', mail_click: 'Клик по email', tour_open: 'Открыли тур', plan_open: 'Открыли «Подбор тура»', plan_send: 'Отправили подбор в WhatsApp', checklist_open: 'Открыли чек-лист', form_start: 'Начали заполнять форму', lead_submit: 'Отправили форму', lang_switch: 'Сменили язык', auth_open: 'Открыли вход', promo_view: 'Показ промо', promo_click: 'Клик по промо', promo_close: 'Закрыли промо' };

@@ -6,7 +6,7 @@
    opening of the page. What is recorded: which blocks were seen, which buttons
    were pressed, where the visitor came from (UTM tags / referrer domain),
    device class and language. Events are sent in small batches to the
-   `track` RPC (supabase/admin.sql), and only after js/cms.js has confirmed the
+   `track` RPC (supabase/migrations/002_admin.sql), and only after js/cms.js has confirmed the
    backend is there — a site without the database never sends anything.
    ========================================================================== */
 (function () {

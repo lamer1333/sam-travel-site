@@ -203,7 +203,7 @@ export async function changeStatus(ctx, l, st) {
     const upd = await ctx.api.updateLead(l.id, patch);
     Object.assign(l, upd || patch);
     toast(l.name + ': ' + STATUS_NAME[st], '', { icon: 'check' });
-    if (ctx.api.missingProfit && patch.profit != null) toast('Доход агентства не сохранён: база не обновлена. Выполните supabase/admin.sql в SQL Editor.', 'bad');
+    if (ctx.api.missingProfit && patch.profit != null) toast('Доход агентства не сохранён: база не обновлена. Накатите миграции из supabase/migrations/.', 'bad');
     return true;
   } catch (e) { ctx.err(e); return false; }
 }
@@ -286,7 +286,7 @@ export function createLead(ctx, after, { sale = false } = {}) {
         const i = list.findIndex((x) => x.id === l.id);   // the live channel may have delivered it first
         if (i >= 0) Object.assign(list[i], l); else list.unshift(l);
         toast(sold ? 'Продажа записана: ' + fmt.money(l.value) : 'Заявка создана', '', { icon: 'check' });
-        if (ctx.api.missingProfit && row.profit != null) toast('Доход агентства не сохранён: база не обновлена. Выполните supabase/admin.sql в SQL Editor.', 'bad');
+        if (ctx.api.missingProfit && row.profit != null) toast('Доход агентства не сохранён: база не обновлена. Накатите миграции из supabase/migrations/.', 'bad');
         after && after(); openLead(ctx, l.id, after);
       } catch (e) { ctx.err(e); return false; }
     } }],

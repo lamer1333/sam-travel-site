@@ -1,7 +1,7 @@
 -- ============================================================================
 -- SAM TRAVEL — backend for the owner / marketing panels  (migration #2)
 -- ============================================================================
--- Run AFTER schema.sql, once, in Supabase → SQL Editor. Safe to re-run.
+-- Migration 002 (was supabase/admin.sql). Run AFTER 001_schema.sql. Safe to re-run.
 --
 -- What it adds:
 --   • role "marketer" + role helpers (is_owner / is_marketing / is_team)
@@ -12,7 +12,7 @@
 --   • audit_log               — who changed what in the panels
 --   • storage bucket "media"  — photos uploaded from the panels
 --   • RPCs the site and panels call (public_site, submit_lead, track, stats…)
---   • security fixes for two leaks in schema.sql (see "fixes" below)
+--   • security fixes for two leaks in 001_schema.sql (see "fixes" below)
 --
 -- Roles after this migration:
 --   admin    = owner: everything
@@ -48,7 +48,7 @@ returns boolean language sql stable security definer set search_path = public as
 $$;
 
 -- ============================================================================
--- fixes for schema.sql
+-- fixes for 001_schema.sql
 -- ============================================================================
 -- 1) The view marketing_audience joins auth.users and runs with its creator's
 --    rights, and Supabase grants SELECT on public views to anon/authenticated by
@@ -156,7 +156,7 @@ create table if not exists public.promos (
 create table if not exists public.campaigns (
   id           uuid primary key default gen_random_uuid(),
   name         text not null,
-  channel      text not null default 'instagram',  -- instagram | facebook | google | tiktok | telegram | email | offline | other
+  channel      text not null default 'instagram',  -- instagram | facebook | google | tiktok | email | offline | other
   utm_source   text not null,
   utm_medium   text not null,
   utm_campaign text not null unique,

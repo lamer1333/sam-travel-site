@@ -51,7 +51,6 @@ function generate() {
     { name: 'Горящий Шарм — октябрь', channel: 'instagram', utm_source: 'instagram', utm_medium: 'paid_social', utm_campaign: 'sharm_oct', utm_content: 'reels_v2', landing: '#hot', spend: 450, s: -35, e: 10, w: 1.4, tour: 'sharm' },
     { name: 'Дубай в ноябре — Facebook', channel: 'facebook', utm_source: 'facebook', utm_medium: 'cpc', utm_campaign: 'dubai_nov', utm_content: 'carousel', landing: '#hot', spend: 380, s: -20, e: 25, w: 1.0, tour: 'dubai' },
     { name: 'Google Ads — туры из Еревана', channel: 'google', utm_source: 'google', utm_medium: 'cpc', utm_campaign: 'search_tours_yvn', utm_content: '', landing: '', spend: 620, s: -60, e: null, w: 0.9, tour: null },
-    { name: 'Telegram — канал Travel Armenia', channel: 'telegram', utm_source: 'telegram', utm_medium: 'referral', utm_campaign: 'tg_travel_am', utm_content: 'post_1', landing: '#plan', spend: 150, s: -45, e: -30, w: 1.2, tour: null },
     { name: 'Флаеры в офисе (QR)', channel: 'offline', utm_source: 'flyer', utm_medium: 'qr', utm_campaign: 'office_qr', utm_content: '', landing: '#checklist', spend: 60, s: -90, e: null, w: 0.15, tour: null },
     { name: 'Рассылка — зимние направления', channel: 'email', utm_source: 'newsletter', utm_medium: 'email', utm_campaign: 'winter_mail', utm_content: 'hero_button', landing: '#hot', spend: 0, s: -12, e: -9, w: 2.2, tour: 'georgia' },
   ].map((c) => ({ id: uuid(), ...c, currency: 'USD', starts_on: iso(now + c.s * DAY).slice(0, 10), ends_on: c.e == null ? null : iso(now + c.e * DAY).slice(0, 10), notes: '', archived: false, created_at: iso(now + c.s * DAY - DAY), updated_at: iso(now - 2 * DAY) }));
@@ -68,7 +67,7 @@ function generate() {
       audience: { frequency: 'once', delay_s: 12 } },
   ].map((p) => ({ id: uuid(), created_at: iso(now - 40 * DAY), updated_at: iso(now - 3 * DAY), ...p }));
 
-  const organic = [['direct', 34], ['google.com', 22], ['instagram.com', 12], ['facebook.com', 5], ['yandex.ru', 3], ['t.me', 3], ['tripadvisor.com', 1]];
+  const organic = [['direct', 34], ['google.com', 22], ['instagram.com', 12], ['facebook.com', 5], ['yandex.ru', 3], ['tripadvisor.com', 1]];
   const tourW = TOURS.filter((t) => t.published).map((t) => [t.slug, t.slug === 'sharm' ? 3 : t.slug === 'dubai' ? 3 : 2]);
   const visits = [];
   const managers = [M1, M1, M2, M2, OWNER];

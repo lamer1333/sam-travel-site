@@ -10,7 +10,6 @@ const PRESETS = [
   ['facebook_ads', 'Facebook — реклама', 'facebook', 'facebook', 'paid_social'],
   ['google_ads', 'Google Ads', 'google', 'google', 'cpc'],
   ['tiktok', 'TikTok — реклама', 'tiktok', 'tiktok', 'paid_social'],
-  ['telegram', 'Telegram — пост / посев', 'telegram', 'telegram', 'referral'],
   ['email', 'Email-рассылка', 'email', 'newsletter', 'email'],
   ['influencer', 'Блогер', 'influencer', 'blogger', 'influencer'],
   ['offline_qr', 'Флаер / плакат с QR', 'offline', 'flyer', 'qr'],

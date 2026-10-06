@@ -1,0 +1,12 @@
+{
+  "name": "sam-travel-site",
+  "private": true,
+  "description": "SAM TRAVEL — статический сайт и панель; зависимости нужны только тестам базы",
+  "scripts": {
+    "test": "node supabase/test/run.mjs",
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.0"
+  }
+}

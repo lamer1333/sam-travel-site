@@ -1,43 +1,6 @@
-// RLS / RPC tests for schema.sql + admin.sql on a real Postgres (PGlite, in-process).
-// Stubs the bits of Supabase the SQL touches: auth.users, auth.uid(), storage, realtime.
-// Run from the project root:
-//   npm i --no-save @electric-sql/pglite@0.3 && node supabase/test/rls.test.mjs
-// Exit code 1 if any check fails.
-import { PGlite } from '@electric-sql/pglite';
-import fs from 'node:fs';
-const R = new URL('../', import.meta.url).pathname;
-const db = new PGlite();
-const ok = (m) => console.log('  ✓', m), bad = (m) => { console.log('  ✗', m); process.exitCode = 1; };
-await db.exec(`
-create role anon nologin; create role authenticated nologin;
-create schema auth;
-create table auth.users (id uuid primary key default gen_random_uuid(), email text, raw_user_meta_data jsonb default '{}', raw_app_meta_data jsonb default '{}', last_sign_in_at timestamptz);
-create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.uid', true),'')::uuid $$;
-create schema storage;
-create table storage.buckets(id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
-create table storage.objects(id uuid default gen_random_uuid(), bucket_id text, name text);
-alter table storage.objects enable row level security;
-create publication supabase_realtime;
-grant usage on schema public, auth, storage to anon, authenticated;
-alter default privileges in schema public grant all on tables to anon, authenticated;
-alter default privileges in schema public grant all on functions to anon, authenticated;
-alter default privileges in schema public grant all on sequences to anon, authenticated;
-`);
-await db.exec(fs.readFileSync(R + 'schema.sql', 'utf8'));
-await db.exec(fs.readFileSync(R + 'admin.sql', 'utf8'));
-await db.exec(fs.readFileSync(R + 'admin.sql', 'utf8'));   // idempotent?
-ok('schema.sql + admin.sql ×2 ran');
-const U = {};
-for (const [k, role] of [['owner','admin'],['mkt','marketer'],['mgr','manager'],['cli','client']]) {
-  const r = await db.query(`insert into auth.users(email, raw_user_meta_data) values ($1, $2) returning id`, [k + '@t.am', JSON.stringify({ full_name: k, marketing_consent: k==='cli', consent_source: 'signup_form' })]);
-  U[k] = r.rows[0].id;
-  await db.query(`update public.profiles set role = $1::user_role where id = $2`, [role, U[k]]);
-}
-async function as(who, sql, params) {
-  await db.exec(who === 'anon' ? `set role anon; select set_config('request.uid','',false);` : `set role authenticated; select set_config('request.uid','${U[who]}',false);`);
-  try { return await db.query(sql, params); } finally { await db.exec(`reset role;`); }
-}
-async function expectErr(who, sql, params, label) { try { await as(who, sql, params); bad(label + ' — should fail'); } catch (e) { ok(label + ' → ' + e.message.slice(0, 60)); } }
+// Права (RLS) и функции базовой схемы: миграции 001_schema + 002_admin.
+// Запуск: npm test  (или node supabase/test/run.mjs 00)
+import { db, U, as, ok, bad, expectErr } from './_db.mjs';
 
 const ps = (await as('anon', `select public_site() s`)).rows[0].s;
 ps.tours.length === 5 ? ok('public_site: 5 published tours') : bad('tours ' + ps.tours.length);

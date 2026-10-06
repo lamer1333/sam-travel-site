@@ -12,7 +12,7 @@ handles hashing, email confirmation and password reset.
 
 | File | Purpose |
 |---|---|
-| `supabase/schema.sql` | Tables, roles, consent fields, coupons, Row Level Security. Run once. |
+| `supabase/migrations/001_schema.sql` | Tables, roles, consent fields, coupons, Row Level Security. Run first, then the other migrations in order. |
 | `index.html` `#auth` | Sign in / register form, in-page (email/password + Google + Mail.ru). Opened from the burger menu "Sign in". Logic lives in `js/app.js`; strings in `js/pages.js` (`AUI`, all three languages). |
 | `cabinet.html` | Client cabinet (own bookings); staff see all. First-login consent screen. |
 | `js/supabase-config.js` | **Your public keys go here.** |
@@ -28,7 +28,7 @@ signed-out visitors back to `index.html#auth`.
 
 - ✅ Supabase project **SamTravel** created — ref `kxbxbjkcvoeuyqyztqmw`, region Sydney.
 - ✅ Publishable key + URL inserted into `js/supabase-config.js`.
-- ✅ `schema.sql` run in the SQL Editor (tables, RLS, triggers, view).
+- ✅ `001_schema.sql` (then named `schema.sql`) run in the SQL Editor (tables, RLS, triggers, view).
 - ✅ Auth → URL Configuration: Site URL `https://samtravel.am`; redirect URLs for localhost preview + samtravel.am.
 - ✅ Verified end-to-end with a test user (`demo@samtravel.am`) — login, auto-profile, RLS, cabinet all work.
 
@@ -56,7 +56,7 @@ promote your admin (step 6), plus **custom SMTP** and **deleting the demo user**
 
 ## 2. Create the tables
 
-Supabase → **SQL Editor** → paste all of `supabase/schema.sql` → **Run**.
+Supabase → **SQL Editor** → paste all of `supabase/migrations/001_schema.sql` → **Run**.
 It creates the tables, the auto-profile trigger, and all RLS policies.
 
 ## 3. Turn on email/password

@@ -12,7 +12,7 @@ export default async function seoView(root, ctx) {
   LANGS.forEach(([l]) => { seo[l] = { title: '', description: '', ...(seo[l] || {}) }; });
   let lang = 'ru';
 
-  root.append(pageHead('SEO и пиксели', 'Как сайт выглядит в Google и когда ссылку присылают в WhatsApp, Telegram, Facebook. Пустой язык берёт английский текст — лучше заполнить все три.'));
+  root.append(pageHead('SEO и пиксели', 'Как сайт выглядит в Google и когда ссылку присылают в WhatsApp, Facebook. Пустой язык берёт английский текст — лучше заполнить все три.'));
   const g = h('div.dash'); root.append(g);
   const edBox = h('div'), pvBox = h('div.stack');
   const tabs = h('div.langtabs');

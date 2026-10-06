@@ -1,7 +1,7 @@
 -- ============================================================================
 -- SAM TRAVEL — auth & client base schema (Supabase / Postgres)
 -- ============================================================================
--- Run this once in Supabase → SQL Editor.
+-- Migration 001 (was supabase/schema.sql). Run first, before 002_admin.sql.
 -- It is idempotent-ish: safe to re-run, but review before running on prod data.
 --
 -- What it sets up:
