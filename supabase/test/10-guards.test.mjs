@@ -1,6 +1,8 @@
 // Этап 1 — права и правила продажи: миграция 010_guards (ТЗ §2, §4.3, §4.4, §4.5; приёмка §9 п.1 и п.5).
 // Запуск: npm test  (или node supabase/test/run.mjs 10)
-import { db, U, as, ok, bad, expectErr } from './_db.mjs';
+import { db, U, as, ok, bad, expectErr, formBack } from './_db.mjs';
+
+await formBack();   // форма заявки снята этапом 7; здесь проверяется то, что осталось в базе на случай её возврата
 
 const one = async (sql, params) => (await db.query(sql, params)).rows[0];
 const check = (cond, msg, got) => (cond ? ok(msg) : bad(msg + (got === undefined ? '' : ' — получено: ' + JSON.stringify(got))));

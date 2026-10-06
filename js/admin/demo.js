@@ -3,13 +3,16 @@
 // Same interface as LiveApi. Nothing leaves the browser: edits persist in
 // localStorage, and the public part is mirrored to 'sam-cms-demo' so the site
 // opened with ?cms=demo renders what the panel shows.
-// Visits are generated first; leads come out of those visits, so campaign →
-// lead → sale attribution in the reports is internally consistent.
+// The site has no request form (TZ-BACKEND.md §4.11): visitors write on WhatsApp and
+// the journal holds only the sales the owner typed in. So site events are generated
+// first; a part of the WhatsApp clicks becomes a sale carrying the click's reference
+// number — campaign → click → sale attribution in the reports is internally consistent.
 // ---------------------------------------------------------------------------
 import { TOURS } from './demo-seed.js';
-import { channelOf, cohortStats, marginOf, salesStats, couponStats, inWorkingSet } from './metrics.js';
+import { salesStats, trafficStats, couponStats, refOf, refNorm, refOk, eventChannel } from './metrics.js';
 
 const STORE_KEY = 'sam-admin-demo-v1';
+const WA_KEY = 'sam-demo-wa';   // WhatsApp clicks made on the site opened with ?cms=demo (js/track.js)
 const DAY = 86400e3, MIN = 60e3;
 const SECTIONS = ['band-prices', 'hot', 'how', 'services', 'about', 'reviews', 'blog', 'contacts'];
 
@@ -59,6 +62,39 @@ export function guardLead(old, row, currency, now = Date.now()) {
   if (n.status === 'lost' && (statusCh || (n.lost_reason || null) !== (old.lost_reason || null)) && !String(n.lost_reason || '').trim()) fail('lost_reason_required');
   return n;
 }
+// ------------------------------------------------------------------ reference number of a sale
+// The same rules as wa_ref_lookup() and the leads_attribution trigger in 070_whatsapp.sql.
+/** the last wa_click with this number in 90 days → what the site knows about that visit, or null */
+export function waRefLookup(events, promos, code, now = Date.now()) {
+  const ref = refNorm(code);
+  if (!refOk(ref)) return null;
+  const since = now - 90 * DAY, t = (e) => new Date(e.ts).getTime();
+  // newest first; clicks of one moment — in the order they were written, the last one wins
+  const c = events.map((e, i) => [e, i]).filter(([e]) => e.name === 'wa_click' && e.ref === ref && t(e) > since).sort((a, b) => t(b[0]) - t(a[0]) || b[1] - a[1]).map((x) => x[0]);
+  if (!c.length) return null;
+  const e = c[0], withTour = c.find((x) => x.tour);
+  const coupon = c.map((x) => x.promo_id && (promos.find((p) => p.id === x.promo_id) || {}).coupon_code).find(Boolean);
+  return { ref, ts: iso(t(e)), label: e.label || null, lang: e.lang || null, device: e.device || null,
+    utm_source: e.utm_source || null, utm_medium: e.utm_medium || null, utm_campaign: e.utm_campaign || null, utm_content: e.utm_content || null,
+    ref_host: e.ref_host || null, channel: eventChannel(e), tour: withTour ? withTour.tour : null, coupon_code: coupon || null, clicks: c.length };
+}
+/** what the database does to a sale when its reference number is set, changed or removed */
+export function attributeLead(old, row, lookup) {
+  const n = { ...row, ref: refNorm(row.ref) };
+  if (old && (n.ref || null) === (old.ref || null)) return n;
+  if (!n.ref) {
+    if (old) { Object.assign(n, { utm_source: null, utm_medium: null, utm_campaign: null, utm_content: null, utm_term: null, referrer: null }); const { ref_at, ref_label, ...d } = n.details || {}; n.details = d; }
+    return n;
+  }
+  if (!refOk(n.ref)) fail('ref_invalid');
+  const e = lookup(n.ref);
+  if (!e) fail('ref_not_found');
+  return { ...n, source: 'manual', utm_source: e.utm_source, utm_medium: e.utm_medium, utm_campaign: e.utm_campaign, utm_content: e.utm_content, utm_term: null,
+    referrer: e.ref_host ? 'https://' + e.ref_host + '/' : null, lang: e.lang || n.lang, device: e.device,
+    tour: String(n.tour || '').trim() || e.tour, coupon_code: String(n.coupon_code || '').trim() || e.coupon_code,
+    details: { ...(n.details || {}), ref_at: e.ts, ref_label: e.label } };
+}
+
 /** used_count of a promo code = sold leads with it, always recounted (leads_coupon_recount) */
 const couponUsed = (leads, code) => leads.filter((l) => l.status === 'won' && l.coupon_code && l.coupon_code.toUpperCase() === String(code).toUpperCase()).length;
 
@@ -107,29 +143,30 @@ function generate() {
     { name: 'Новый год у моря', kind: 'popup', theme: 'brand', active: true, starts_at: iso(now + 20 * DAY), ends_at: iso(now + 60 * DAY), link: '#plan', coupon_code: 'NY2027',
       i18n: { ru: { title: 'Новый год у моря', text: 'Мальдивы, Дубай, Шарм — соберём тур под ваши даты. Скидка 5% до 1 декабря.', cta: 'Подобрать тур' }, en: { title: 'New Year by the sea', text: 'Maldives, Dubai, Sharm — a trip for your dates. 5% off until December 1.', cta: 'Plan my trip' }, hy: { title: 'Նոր տարին ծովափին', text: '', cta: '' } },
       audience: { langs: ['ru', 'hy'], devices: [], delay_s: 8, frequency: 'session' } },
-    { name: 'Лето 2026 — ранее бронирование', kind: 'popup', theme: 'sea', active: false, starts_at: iso(now - 150 * DAY), ends_at: iso(now - 60 * DAY), link: '#contacts', coupon_code: null,
-      i18n: { ru: { title: 'Лето уже скоро', text: 'Бронируйте Анталию до мая — лучшие отели ещё свободны.', cta: 'Оставить заявку' }, en: { title: 'Summer is close', text: 'Book Antalya before May — the best hotels are still free.', cta: 'Leave a request' } },
+    { name: 'Лето 2026 — ранее бронирование', kind: 'popup', theme: 'sea', active: false, starts_at: iso(now - 150 * DAY), ends_at: iso(now - 60 * DAY), link: 'wa', coupon_code: null,
+      i18n: { ru: { title: 'Лето уже скоро', text: 'Бронируйте Анталию до мая — лучшие отели ещё свободны.', cta: 'Написать в WhatsApp' }, en: { title: 'Summer is close', text: 'Book Antalya before May — the best hotels are still free.', cta: 'Write on WhatsApp' } },
       audience: { frequency: 'once', delay_s: 12 } },
   ].map((p) => ({ id: uuid(), created_at: iso(now - 40 * DAY), updated_at: iso(now - 3 * DAY), ...p }));
 
   const organic = [['direct', 34], ['google.com', 22], ['instagram.com', 12], ['facebook.com', 5], ['yandex.ru', 3], ['tripadvisor.com', 1]];
   const tourW = TOURS.filter((t) => t.published).map((t) => [t.slug, t.slug === 'sharm' ? 3 : t.slug === 'dubai' ? 3 : 2]);
-  const visits = [];
-  const managers = [M1, M1, M2, M2, OWNER];
+  const events = [];
+  const managers = [OWNER, OWNER, OWNER, M1, M2];
   const leads = [];
-  const msgs = {
-    sharm: ['Шарм на 7 ночей, 2 взрослых + ребёнок 6 лет, конец октября', 'Хотим в Шарм, всё включено, бюджет до 2000$', 'Sharm, 2 adults, Oct 20–27, reef hotel please'],
-    dubai: ['Дубай в ноябре на 5 ночей, отель на пляже', 'Дубай + сафари, 3 человека', 'Dubai for 4 nights, early November, city hotel'],
-    maldives: ['Медовый месяц на Мальдивах, водная вилла', 'Мальдивы в декабре, 2 взрослых, полупансион'],
-    georgia: ['Гудаури на выходные, 4 человека, нужен инструктор', 'Лыжи в январе, семья с 2 детьми'],
-    phuket: ['Пхукет в феврале на 10 ночей', 'Таиланд, тихий пляж, 2 взрослых'],
-    null: ['Куда можно поехать в ноябре с детьми недорого?', 'Нужна шенгенская виза и тур в Париж', 'Групповая поездка на 12 человек, корпоратив', 'Հետաքրքրում է Դուբայը նոյեմբերին', 'Подскажите по визе в ОАЭ', ''],
+  const bought = {
+    sharm: ['Шарм, 7 ночей, всё включено, 2 взрослых + ребёнок', 'Шарм-эль-Шейх, отель у рифа, 2 взрослых'],
+    dubai: ['Дубай, 5 ночей, отель на пляже + сафари', 'Дубай на 4 ночи, городской отель, 3 человека'],
+    maldives: ['Мальдивы, водная вилла, полупансион, 7 ночей', 'Мальдивы, медовый месяц, 9 ночей'],
+    georgia: ['Гудаури, 4 ночи, ски-пассы, семья с 2 детьми', 'Гудаури на выходные, 4 человека + инструктор'],
+    phuket: ['Пхукет, 10 ночей, два пляжа', 'Пхукет, тихий пляж, 2 взрослых'],
+    null: ['Шенгенская виза + Париж на 5 ночей', 'Групповая поездка, 12 человек', 'Анталия, всё включено, 7 ночей', 'Страховка и авиабилеты'],
   };
+  const sidOf = () => { let x = ''; for (let i = 0; i < 12; i++) x += 'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(R() * 36)]; return x; };
   let dayIdx = 0;
   for (let d = 120; d >= 0; d--) {
     const dayStart = new Date(yv(now - d * DAY).toISOString().slice(0, 10) + 'T00:00:00+04:00').getTime();
     const dow = yv(dayStart).getUTCDay();
-    let base = (62 + dayIdx * 0.35) * (dow === 0 || dow === 6 ? 0.78 : 1) * (0.85 + R() * 0.3);
+    const base = (62 + dayIdx * 0.35) * (dow === 0 || dow === 6 ? 0.78 : 1) * (0.85 + R() * 0.3);
     dayIdx++;
     const live = campaigns.filter((c) => now + c.s * DAY <= dayStart + DAY && (c.e == null || now + c.e * DAY >= dayStart));
     const promoLive = promos.filter((p) => p.active && new Date(p.starts_at) <= dayStart + DAY && new Date(p.ends_at) >= dayStart);
@@ -140,78 +177,62 @@ function generate() {
     while (src.length < total) src.push(null);
     for (const c of src) {
       const hour = wpick([[0, 1], [1, .5], [2, .3], [7, .6], [8, 1.2], [9, 2], [10, 3], [11, 3.5], [12, 4.5], [13, 4.8], [14, 4], [15, 3.4], [16, 3], [17, 3], [18, 3.5], [19, 4.2], [20, 5], [21, 5.5], [22, 4.8], [23, 2.6]]);
-      const ts = dayStart + hour * 3600e3 + R() * 3600e3;
+      const ts = dayStart + hour * 3600e3 + R() * 3600e3, sid = sidOf();
       if (ts > now) continue;
-      const v = { ts, sid: Math.random().toString(36).slice(2, 12),
-        device: wpick([['mobile', 68], ['desktop', 27], ['tablet', 5]]), lang: wpick([['ru', 45], ['hy', 35], ['en', 20]]),
-        ref_host: null, utm_source: null, utm_medium: null, utm_campaign: null, utm_content: null, ev: {} };
+      const v = { ts: iso(ts), sid, device: wpick([['mobile', 68], ['desktop', 27], ['tablet', 5]]), lang: wpick([['ru', 45], ['hy', 35], ['en', 20]]),
+        ref_host: null, utm_source: null, utm_medium: null, utm_campaign: null, utm_content: null };
       if (c) Object.assign(v, { utm_source: c.utm_source, utm_medium: c.utm_medium, utm_campaign: c.utm_campaign, utm_content: c.utm_content || null });
       else { const o = wpick(organic); v.ref_host = o === 'direct' ? null : o; }
+      const ev = (name, more) => events.push({ ...v, name, section: null, tour: null, promo_id: null, label: null, ref: null, ...more });
       const q = c ? (c.channel === 'email' ? 1.35 : c.channel === 'offline' ? 1.5 : c.channel === 'google' ? 1.15 : 0.9) : (v.ref_host === 'google.com' ? 1.1 : v.ref_host ? 0.85 : 1.15);
+      ev('page_view');
       let depth = 0; while (depth < SECTIONS.length && R() < (depth < 2 ? 0.93 : 0.8) * Math.min(1.05, q)) depth++;
-      v.sections = SECTIONS.slice(0, depth);
-      if (R() < 0.24 * q) v.ev.tour_open = (c && c.tour && R() < 0.6) ? c.tour : wpick(tourW);
-      if (c && c.landing === '#plan' && R() < 0.4) v.ev.plan_open = 1;
-      if (c && c.landing === '#checklist' && R() < 0.6) v.ev.checklist_open = 1;
-      if (R() < 0.08 * q) v.ev.plan_open = 1;
-      if (R() < 0.05) v.ev.checklist_open = 1;
-      if (R() < 0.065 * q * (c && c.channel === 'instagram' ? 1.5 : 1)) v.ev.wa_click = 1;
-      if (R() < 0.014 * q) v.ev.tel_click = 1;
-      if (R() < 0.012) v.ev.lang_switch = 1;
-      if (v.ev.plan_open && R() < 0.35) v.ev.plan_send = 1;
-      if (depth >= 7 && R() < 0.08 * q) v.ev.form_start = 1;
+      SECTIONS.slice(0, depth).forEach((section) => ev('section_view', { section }));
+      const opened = R() < 0.24 * q ? ((c && c.tour && R() < 0.6) ? c.tour : wpick(tourW)) : null;
+      if (opened) ev('tour_open', { tour: opened });
+      let plan = (c && c.landing === '#plan' && R() < 0.4);
+      if (c && c.landing === '#checklist' && R() < 0.6) ev('checklist_open');
+      if (R() < 0.08 * q) plan = true;
+      if (plan) ev('plan_open');
+      if (R() < 0.05) ev('checklist_open');
+      if (R() < 0.012) ev('lang_switch');
       promoLive.forEach((p) => {
-        if (p.kind === 'bar' || R() < 0.7) { v.ev['promo_view:' + p.id] = 1; if (R() < 0.07) v.ev['promo_click:' + p.id] = 1; else if (R() < 0.3) v.ev['promo_close:' + p.id] = 1; }
+        if (p.kind === 'bar' || R() < 0.7) { ev('promo_view', { promo_id: p.id }); if (R() < 0.07) ev('promo_click', { promo_id: p.id }); else if (R() < 0.3) ev('promo_close', { promo_id: p.id }); }
       });
-      visits.push(v);
-      // conversions: the form, the Plan page, or WhatsApp that a manager logs by hand
-      let src2 = null;
-      if (v.ev.form_start && R() < 0.38) src2 = 'form';
-      else if (v.ev.plan_send && R() < 0.3) src2 = 'plan';
-      else if (v.ev.wa_click && R() < 0.16) src2 = 'manual';
-      if (src2) leads.push(makeLead(ts + (2 + R() * 10) * MIN, v, src2));
+      if (R() < 0.014 * q) ev('tel_click', { label: 'contacts' });
+      // a WhatsApp click: from the tour (card or description) when one was opened, else a general button
+      const wrote = R() < (opened ? 0.17 : 0.03) * q * (c && c.channel === 'instagram' ? 1.4 : 1);
+      if (plan && R() < 0.35) { ev('plan_send'); ev('wa_click', { label: 'plan', ref: refOf(sid) }); }
+      if (!wrote) continue;
+      const about = opened && R() < 0.8 ? opened : null;
+      ev('wa_click', { tour: about, label: about ? pick(['sheet', 'carou-stage']) : pick(['topbar', 'contacts_cta', 'services', 'top']), ref: refOf(sid) });
+      // the chat became a sale: the owner types it in with the number from the message
+      const days = 0.2 + R() * 6, qq = v.utm_campaign === 'winter_mail' ? 1.6 : v.utm_medium === 'cpc' ? 1.1 : 1;
+      if (R() < 0.075 * qq && ts + days * DAY < now) leads.push(makeSale(ts + days * DAY, 'manual', { ...v, ref: refOf(sid), tour: about || (R() < 0.3 ? wpick(tourW) : null), ts }));
     }
   }
-  // offline leads: calls, walk-ins, Instagram DMs
-  for (let d = 120; d >= 0; d--) if (R() < 0.55) {
-    const ts = now - d * DAY + (R() - 0.5) * DAY; if (ts > now) continue;
-    leads.push(makeLead(ts, { device: null, lang: 'ru', ev: {}, utm_source: null }, wpick([['phone', 3], ['walk_in', 1], ['instagram', 2]])));
+  // sales that did not start on the site: a call, a visit to the office, Instagram Direct, a WhatsApp chat without a number
+  for (let d = 120; d >= 0; d--) if (R() < 0.18) {
+    const ts = now - d * DAY - R() * 0.5 * DAY;
+    leads.push(makeSale(ts, wpick([['phone', 3], ['walk_in', 2], ['instagram', 2], ['manual', 2]]), { lang: 'ru', device: null, tour: R() < 0.6 ? wpick(tourW) : null }));
   }
-  function makeLead(ts, v, source) {
-    const tour = v.ev.tour_open || (R() < 0.25 ? wpick(tourW) : null);
-    const age = (now - ts) / DAY;
-    let status;
-    if (age < 0.05) status = 'new';
-    else if (age < 1.2) status = wpick([['new', 0.25], ['contacted', 3], ['quoted', 1]]);
-    else if (age < 6) status = wpick([['contacted', 2], ['quoted', 3], ['won', 1.1], ['lost', 1.6], ['spam', 0.15]]);
-    else status = wpick([['won', 1.5], ['lost', 3.6], ['quoted', 0.3], ['contacted', 0.2], ['spam', 0.25]]);
-    const q = v.utm_campaign === 'winter_mail' || source === 'walk_in' ? 1.6 : v.utm_medium === 'cpc' ? 1.1 : 1;
-    if (status === 'lost' && R() < 0.12 * q) status = 'won';
-    const manual = MANUAL.includes(source);
-    if (manual && status === 'new') status = 'contacted';
-    const yh = yv(ts).getUTCHours(), inHours = yh >= 10 && yh < 19;
-    const resp = status === 'new' ? null : Math.max(1, Math.round((inHours ? 8 : 60) * Math.exp(R() * 2.4)));
-    const nm = name();
-    const value = status === 'won' ? Math.round((600 + R() * 4200) / 10) * 10 : status === 'quoted' ? Math.round((800 + R() * 3000) / 10) * 10 : null;
+  function makeSale(ts, source, v) {
+    const nm = name(), value = Math.round((600 + R() * 4200) / 10) * 10;
+    const refunded = (now - ts) / DAY > 3 && R() < 0.07;
     return {
-      id: uuid(), created_at: iso(ts), updated_at: iso(Math.min(now, ts + (resp || 0) * MIN + R() * DAY)),
-      name: nm, phone: phone(), email: R() < 0.2 ? slugMail(nm) + '@gmail.com' : null,
-      message: source === 'phone' ? 'Звонок в офис' : source === 'walk_in' ? 'Пришли в офис' : pick(msgs[tour] || msgs.null),
-      source, tour, details: source === 'plan' ? { people: 1 + Math.floor(R() * 4), from: iso(ts + 20 * DAY).slice(0, 10), to: iso(ts + 27 * DAY).slice(0, 10), meals: ['breakfast'] } : {},
-      lang: v.lang, device: v.device, page: v.utm_campaign ? '/?utm_campaign=' + v.utm_campaign : '/', referrer: v.ref_host ? 'https://' + v.ref_host + '/' : null,
+      id: uuid(), created_at: iso(ts), updated_at: iso(ts),
+      name: nm, phone: phone(), email: null, message: pick(bought[v.tour] || bought.null),
+      source, tour: v.tour || null, details: v.ref ? { ref_at: iso(v.ts), ref_label: null } : {},
+      lang: v.lang || 'ru', device: v.device || null, page: null, referrer: v.ref_host ? 'https://' + v.ref_host + '/' : null,
       utm_source: v.utm_source || null, utm_medium: v.utm_medium || null, utm_campaign: v.utm_campaign || null, utm_content: v.utm_content || null, utm_term: null,
       coupon_code: v.utm_campaign === 'sharm_oct' && R() < 0.4 ? 'AUTUMN7' : R() < 0.05 ? 'WELCOME5' : null,
-      status, lost_reason: status === 'lost' ? pick(['Дорого', 'Выбрали другое агентство', 'Перенесли поездку', 'Не отвечает', 'Не подошли даты']) : null,
-      value, profit: status === 'won' && R() < 0.75 ? Math.round(value * (0.08 + R() * 0.08) / 5) * 5 : null, currency: 'USD', assigned_to: status === 'new' && R() < 0.7 ? null : pick(managers),
+      status: refunded ? 'lost' : 'won', lost_reason: refunded ? pick(['Возврат', 'Клиент передумал', 'Отказ в визе', 'Перенос поездки']) : null,
+      value, profit: R() < 0.75 ? Math.round(value * (0.08 + R() * 0.08) / 5) * 5 : null, currency: 'USD', assigned_to: pick(managers),
       tags: R() < 0.15 ? [pick(['семья', 'vip', 'повторный', 'группа', 'медовый месяц'])] : [],
-      follow_up_at: (status === 'quoted' || status === 'contacted') && R() < 0.6 ? iso(now + (R() * 4 - 1.5) * DAY) : null,
-      first_response_at: manual ? iso(ts) : resp ? iso(ts + resp * MIN) : null,
-      closed_at: ['won', 'lost', 'spam'].includes(status) ? iso(Math.min(now, ts + (1 + R() * 6) * DAY)) : null, user_id: null,
+      follow_up_at: null, first_response_at: iso(ts), closed_at: iso(refunded ? Math.min(now, ts + (2 + R() * 9) * DAY) : ts), user_id: null, ref: v.ref || null,
     };
   }
-  // one fresh, unanswered lead so "needs attention" has something in it
-  leads.push({ ...makeLead(now - 95 * MIN, { device: 'mobile', lang: 'ru', ev: { tour_open: 'maldives' }, utm_source: 'instagram', utm_medium: 'paid_social', utm_campaign: 'sharm_oct' }, 'form'), status: 'new', assigned_to: null, first_response_at: null, closed_at: null, value: null, lost_reason: null, name: 'Мариам Акопян', message: 'Мальдивы на медовый месяц, декабрь, 8–10 ночей' });
-  leads.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  leads.sort((a, b) => b.closed_at.localeCompare(a.closed_at));
 
   const coupons = [
     { code: 'AUTUMN7', description: 'Осенняя акция, баннер на сайте', discount_pct: 7, discount_amt: null, valid_from: iso(now - 10 * DAY), valid_until: iso(now + 12 * DAY), max_uses: 200, used_count: 0, active: true },
@@ -221,9 +242,6 @@ function generate() {
     { code: 'SUMMER10', description: 'Лето 2026', discount_pct: 10, discount_amt: null, valid_from: iso(now - 150 * DAY), valid_until: iso(now - 60 * DAY), max_uses: 300, used_count: 118, active: false },
   ].map((c) => ({ id: uuid(), created_at: c.valid_from, ...c }));
   coupons.forEach((c) => { c.used_count = couponUsed(leads, c.code); });
-  // leads that came through the site form carry the server's verdict on their promo code
-  leads.forEach((l) => { if (l.coupon_code && ['form', 'plan', 'tour', 'promo'].includes(l.source)) l.details = { ...l.details, coupon_valid: couponState(coupons, l.coupon_code) }; });
-
   const reviews = [
     { author: 'Гаяне и Тигран', trip: 'Шарм-эль-Шейх · окт 2025', rating: 5, source: 'google', published: true, featured: true, body: { ru: 'Анна подобрала отель у рифа ровно под наш бюджет и была на связи всю неделю — даже когда задержали обратный рейс. Поедем снова только через SAM TRAVEL.', en: 'Anna found a reef hotel right in our budget and stayed in touch all week — even when the return flight was delayed.' } },
     { author: 'Нарек Оганесян', trip: 'Дубай · ноя 2025', rating: 5, source: 'instagram', published: true, featured: false, body: { ru: 'Визу сделали за два дня, трансфер ждал у выхода. Сафари — лучшее, что было в поездке.', hy: 'Վիզան պատրաստեցին երկու օրում, տրանսֆերը սպասում էր ելքի մոտ։' } },
@@ -253,22 +271,20 @@ function generate() {
   };
   const reels = [{ id: uuid(), url: 'https://www.instagram.com/reel/DceFC3aCMGX/', published: true, sort: 0, created_at: iso(now - 30 * DAY) }];
   const wa_templates = [
-    ['Первый ответ', 'ru', 'Здравствуйте, {name}! Это {manager} из SAM TRAVEL. Получили вашу заявку{tour}. Уточните, пожалуйста, даты и сколько вас будет?'],
-    ['Предложение готово', 'ru', '{name}, подобрали варианты{tour} — отправляю подборку. Цены держатся 24 часа, если что-то приглянулось — скажите, забронируем.'],
-    ['Не дозвонились', 'ru', '{name}, добрый день! Не смогли до вас дозвониться по заявке{tour}. Когда вам удобно поговорить?'],
-    ['First reply', 'en', 'Hi {name}! This is {manager} from SAM TRAVEL. We got your request{tour}. Could you confirm the dates and how many travellers?'],
-    ['Առաջին պատասխան', 'hy', 'Բարև, {name}։ {manager}-ն է, SAM TRAVEL-ից։ Ստացանք ձեր հայտը{tour}։ Կճշտե՞ք ամսաթվերը և քանի հոգի եք։'],
+    ['Документы готовы', 'ru', 'Здравствуйте, {name}! Это {manager} из SAM TRAVEL. Документы по вашей поездке{tour} готовы — отправляю ваучер и билеты. Проверьте, пожалуйста, имена и даты.'],
+    ['Перед вылетом', 'ru', '{name}, добрый день! До вылета{tour} осталось несколько дней. Напоминаю про паспорт и страховку; если есть вопросы — я на связи.'],
+    ['После поездки', 'ru', '{name}, с возвращением! Как прошла поездка{tour}? Будем благодарны за короткий отзыв — он помогает другим путешественникам.'],
+    ['Documents are ready', 'en', 'Hi {name}! This is {manager} from SAM TRAVEL. The documents for your trip{tour} are ready — sending the voucher and tickets. Please check the names and dates.'],
+    ['Փաստաթղթերը պատրաստ են', 'hy', 'Բարև, {name}։ {manager}-ն է, SAM TRAVEL-ից։ Ձեր ուղևորության փաստաթղթերը{tour} պատրաստ են՝ ուղարկում եմ վաուչերը և տոմսերը։'],
   ].map(([title, lang, body], i) => ({ id: uuid(), title, lang, body, sort: i, created_at: iso(now - 50 * DAY) }));
-  const clients = users.filter((x) => x.role === 'client');
-  // Stage 4 (ТЗ §4.9): date of birth, e-mail confirmation, and which requests came from a
-  // signed-in client. A separate generator, so the rest of the demo data stays as it was.
+  // Stage 4 (ТЗ §4.9): date of birth and e-mail confirmation. A separate generator, so the
+  // rest of the demo data stays as it was.
   const R4 = rng(4040);
   users.forEach((x) => {
     x.birth_date = iso(now - (18 + R4() * 50) * 365.25 * DAY).slice(0, 10);
     // social logins are confirmed by the provider; a few e-mail sign-ups never opened the letter
     x.email_confirmed = x.role !== 'client' || x.provider !== 'email' || R4() > 0.12;
   });
-  leads.forEach((l) => { if (['form', 'plan', 'tour', 'promo'].includes(l.source) && R4() < 0.3) l.user_id = clients[Math.floor(R4() * clients.length)].id; });
   const audit = [];
   const aud = (d, actor, table_name, action, before, after) => audit.push({ id: audit.length + 1, at: iso(now - d * DAY), actor, table_name, row_id: (after || before).id || (after || before).key, action, before, after });
   aud(0.2, MK, 'promos', 'update', { ...promos[0], active: false }, promos[0]);
@@ -281,71 +297,7 @@ function generate() {
   aud(12, OWNER, 'team', 'update', { ...team[0], i18n: { ...team[0].i18n, en: { name: 'Anna G.', role: 'Beach · 8 years' } } }, team[0]);
   audit.reverse();
 
-  return { v: 6, generated: now, me: OWNER, role: 'admin', users, campaigns, promos, visits, leads, activity: {}, coupons, reviews, team, tours, settings, reels, wa_templates, audit };
-}
-
-// ------------------------------------------------------------------ promo code in a lead (same as coupon_state() in SQL)
-// yes — usable now; expired — exists but is not usable (past its date, off, used up, not started); no — no such code
-export function couponState(coupons, code) {
-  const now = Date.now(), want = String(code || '').trim().toUpperCase();
-  const found = (coupons || []).filter((c) => String(c.code).toUpperCase() === want);
-  if (!found.length) return 'no';
-  const usable = (c) => c.active && new Date(c.valid_from) <= now && (!c.valid_until || new Date(c.valid_until) > now) && (c.max_uses == null || (c.used_count || 0) < c.max_uses);
-  return found.some(usable) ? 'yes' : 'expired';
-}
-
-// ------------------------------------------------------------------ stats (same shape and formulas as stats_traffic, 030_stats.sql)
-export function computeStats(visits, leads, from, to, settings) {
-  const f = from.getTime(), t = to.getTime();
-  const vs = visits.filter((v) => v.ts >= f && v.ts < t);
-  const co = cohortStats(leads, from, to, settings), ls = co.leads;   // leads that came in the period, money «по заявкам периода»
-  const day = (x) => yv(x).toISOString().slice(0, 10);
-  const srcOfV = (v) => channelOf(null, v.utm_source, v.ref_host);   // one rule for visits and leads
-  const inc = (o, k, n = 1) => { o[k] = (o[k] || 0) + n; };
-  const daily = {};
-  for (let d = new Date(day(f) + 'T00:00:00Z'); d.toISOString().slice(0, 10) <= day(t - 1000); d = new Date(d.getTime() + DAY)) daily[d.toISOString().slice(0, 10)] = { d: d.toISOString().slice(0, 10), visits: 0, contacts: 0, leads: 0 };
-  const sources = {}, camps = {}, devices = {}, langs = {}, sections = {}, ctas = {}, tours = {}, heat = {}, lheat = {}, promos = {};
-  const S = (k) => sources[k] || (sources[k] = { src: k, visits: 0, leads: 0, won: 0, revenue: 0, profit_total: 0, estimated: false });
-  const C = (k) => camps[k] || (camps[k] = { campaign: k, visits: 0, contacts: 0, leads: 0, won: 0, revenue: 0, profit: 0, revenue_est: 0, profit_total: 0, estimated: false });
-  const T = (k) => tours[k] || (tours[k] = { tour: k, opens: 0, leads: 0 });
-  let engaged = 0, intent = 0, contact = 0;
-  for (const v of vs) {
-    const dd = daily[day(v.ts)]; if (dd) dd.visits++;
-    S(srcOfV(v)).visits++; if (v.utm_campaign) C(v.utm_campaign).visits++;
-    inc(devices, v.device || '?'); inc(langs, v.lang || '?');
-    v.sections.forEach((s) => inc(sections, s));
-    const y = yv(v.ts), hk = (y.getUTCDay() || 7) + ':' + y.getUTCHours(); inc(heat, hk);
-    if (v.sections.some((s) => s !== 'band-prices')) engaged++;
-    const e = v.ev; let isContact = false, isIntent = false;
-    for (const k in e) {
-      if (k.startsWith('promo_')) { const [nm, id] = k.split(':'); const p = promos[id] || (promos[id] = { id, views: 0, clicks: 0, closes: 0 }); p[nm === 'promo_view' ? 'views' : nm === 'promo_click' ? 'clicks' : 'closes']++; inc(ctas, nm); continue; }
-      inc(ctas, k);
-      if (k === 'tour_open') T(e[k]).opens++;
-      if (['tour_open', 'plan_open', 'checklist_open', 'form_start', 'wa_click', 'tel_click'].includes(k)) isIntent = true;
-      if (['wa_click', 'tel_click', 'plan_send'].includes(k)) isContact = true;
-      if ((k === 'wa_click' || k === 'tel_click') && dd) dd.contacts++;
-      if ((k === 'wa_click' || k === 'tel_click') && v.utm_campaign) C(v.utm_campaign).contacts++;
-    }
-    if (isIntent) intent++; if (isContact) contact++;
-  }
-  for (const l of ls) {
-    const dd = daily[day(l.created_at)]; if (dd) dd.leads++;
-    if (l.tour) T(l.tour).leads++;
-    const y = yv(l.created_at); inc(lheat, (y.getUTCDay() || 7) + ':' + y.getUTCHours());
-    if (['form', 'plan'].includes(l.source)) contact++;
-  }
-  Object.entries(co.sources).forEach(([k, x]) => Object.assign(S(k), { leads: x.leads, won: x.won, revenue: x.revenue, profit_total: x.profit_total, estimated: x.estimated }));
-  Object.entries(co.campaigns).forEach(([k, x]) => Object.assign(C(k), x));
-  const cells = (o, key) => Object.entries(o).map(([k, n]) => { const [dow, h] = k.split(':').map(Number); return { dow, h, [key]: n }; });
-  return {
-    margin_pct: marginOf(settings), raw_from: null,   // the demo keeps every visit, nothing is rolled up
-    daily: Object.values(daily),
-    sources: Object.values(sources).sort((a, b) => b.visits - a.visits || b.leads - a.leads),
-    campaigns: Object.values(camps), devices, langs, sections, ctas,
-    tours: Object.values(tours).sort((a, b) => b.opens - a.opens),
-    heat: cells(heat, 'visits'), lead_heat: cells(lheat, 'leads'), promos: Object.values(promos),
-    funnel: { visits: vs.length, visits_detailed: vs.length, engaged, intent, contact: Math.min(contact, intent + ls.length), leads: ls.length, won: co.won },
-  };
+  return { v: 7, generated: now, me: OWNER, role: 'admin', users, campaigns, promos, events, leads, activity: {}, coupons, reviews, team, tours, settings, reels, wa_templates, audit };
 }
 
 // ------------------------------------------------------------------ public snapshot (same shape as public_site)
@@ -378,18 +330,17 @@ export class DemoApi {
     try { st = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) {}
     const fresh = generate();
     if (!st || st.v !== fresh.v) st = fresh;
-    else st.visits = fresh.visits;   // visits are regenerated (deterministic), never stored
+    else st.events = fresh.events;   // site events are regenerated (deterministic), never stored
     this.st = st;
-    this.listeners = [];
     this.persist();
   }
   persist() {
-    const { visits, ...rest } = this.st;
+    const { events, ...rest } = this.st;
     try { localStorage.setItem(STORE_KEY, JSON.stringify(rest)); } catch (e) {}
     this.publish();
   }
   publish() { try { localStorage.setItem('sam-cms-demo', JSON.stringify(publicSnapshot(this.st))); } catch (e) {} }
-  reset() { localStorage.removeItem(STORE_KEY); localStorage.removeItem('sam-cms-demo'); }
+  reset() { localStorage.removeItem(STORE_KEY); localStorage.removeItem('sam-cms-demo'); localStorage.removeItem(WA_KEY); }
   /** demo only: look at the panel as another role */
   switchRole(role) { this.st.role = role; const u = this.st.users.find((x) => x.role === role); this.st.me = u.id; this.persist(); }
   guard(what) { if (!ROLE_OK[what].includes(this.st.role)) { const e = new Error('permission denied (' + what + ')'); throw e; } }
@@ -401,34 +352,34 @@ export class DemoApi {
   async signOut() {}
   async whoami() { const m = this.me; return this.wait({ id: m.id, email: m.email, full_name: m.full_name, role: this.st.role, lang: m.lang }, 60); }
 
-  // The same loading rule as LiveApi: open leads + closed (or created) in the last `days`
-  // stay in memory, the rest come by search and pages.
-  async leads({ days = 90 } = {}) { this.guard('leads'); const since = Date.now() - days * DAY; return this.wait(this.st.leads.filter((l) => inWorkingSet(l, since)), 180); }
-  async findLeads({ q, phone, source, manager, tour, spam, mine, noProfit, since, offset = 0, limit = 500 } = {}) {
+  /** generated events + the WhatsApp clicks made on the site opened with ?cms=demo in this browser */
+  events_() {
+    let mine = [];
+    try { mine = JSON.parse(localStorage.getItem(WA_KEY) || '[]'); } catch (e) {}
+    return mine.length ? this.st.events.concat(mine.filter((e) => e && e.name === 'wa_click' && refOk(e.ref))) : this.st.events;
+  }
+  /** wa_ref(code): what the site knows about the visit with this reference number — owner and manager */
+  async waRef(code) { this.guard('leads'); return this.wait(waRefLookup(this.events_(), this.st.promos, code), 120); }
+
+  // The sales journal: sales and refunds, newest first, page by page — the same as LiveApi.
+  async journal({ q, status, noProfit, since, offset = 0, limit = 500 } = {}) {
     this.guard('leads');
-    const text = String(q || '').toLowerCase(), qd = text.replace(/\D/g, ''), pd = String(phone || '').replace(/\D/g, '');
+    const text = String(q || '').trim().toLowerCase(), qd = text.replace(/\D/g, ''), qr = refNorm(text);
     const digits = (l) => String(l.phone || '').replace(/\D/g, '');
-    const all = this.st.leads.filter((l) => (spam || l.status !== 'spam')
-      && (!source || l.source === source) && (!manager || (manager === 'none' ? !l.assigned_to : l.assigned_to === manager))
-      && (!mine || l.assigned_to === mine) && (!tour || l.tour === tour) && (!since || l.created_at >= since)
-      && (!noProfit || (l.status === 'won' && (l.profit == null || !(+l.value > 0))))
-      && (!pd || digits(l).includes(pd))
-      && (!text || (l.name || '').toLowerCase().includes(text) || (l.message || '').toLowerCase().includes(text) || (qd.length >= 3 && digits(l).includes(qd)) || (l.tags || []).includes(text)))
-      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    const all = this.st.leads.filter((l) => (status ? l.status === status : ['won', 'lost'].includes(l.status))
+      && (!since || (l.closed_at && l.closed_at >= since))
+      && (!noProfit || (l.status === 'won' && l.profit == null))
+      && (!text || (l.name || '').toLowerCase().includes(text) || (l.message || '').toLowerCase().includes(text) || (qd.length >= 3 && digits(l).includes(qd)) || (l.ref && l.ref === qr) || (l.tags || []).includes(text)))
+      .sort((a, b) => (a.closed_at < b.closed_at ? 1 : -1));
     return this.wait({ rows: all.slice(offset, offset + limit), total: all.length }, 140);
   }
-  async lead(id) { this.guard('leads'); return this.wait(this.st.leads.find((l) => l.id === id) || null, 60); }
-  async leadActivity(id) {
+  async sale(id) { this.guard('leads'); return this.wait(this.st.leads.find((l) => l.id === id) || null, 60); }
+  async saleActivity(id) {
     this.guard('leads');
     const l = this.st.leads.find((x) => x.id === id);
     if (!this.st.activity[id] && l) {
-      const a = [{ id: uuid(), lead_id: id, created_at: l.created_at, actor: null, kind: 'system', body: 'Создана с сайта (' + l.source + ')', meta: {} }];
-      if (l.first_response_at) {
-        a.push({ id: uuid(), lead_id: id, created_at: l.first_response_at, actor: l.assigned_to, kind: 'whatsapp', body: 'Первый ответ в WhatsApp', meta: {} });
-        if (l.status !== 'new') a.push({ id: uuid(), lead_id: id, created_at: l.first_response_at, actor: l.assigned_to, kind: 'status', body: 'contacted', meta: { from: 'new', to: 'contacted' } });
-      }
-      if (['quoted', 'won', 'lost'].includes(l.status)) a.push({ id: uuid(), lead_id: id, created_at: iso(new Date(l.first_response_at || l.created_at).getTime() + 5 * 3600e3), actor: l.assigned_to, kind: 'note', body: 'Отправил(а) 3 варианта отелей, ждём ответа до завтра.', meta: {} });
-      if (['won', 'lost'].includes(l.status) && l.closed_at) a.push({ id: uuid(), lead_id: id, created_at: l.closed_at, actor: l.assigned_to, kind: 'status', body: l.status, meta: { from: 'quoted', to: l.status } });
+      const a = [{ id: uuid(), lead_id: id, created_at: l.created_at, actor: l.assigned_to, kind: 'system', body: 'Продажа внесена', meta: {} }];
+      if (l.status === 'lost') a.push({ id: uuid(), lead_id: id, created_at: l.closed_at, actor: l.assigned_to, kind: 'status', body: 'lost', meta: { from: 'won', to: 'lost' } });
       this.st.activity[id] = a;
     }
     return this.wait(this.st.activity[id] || [], 80);
@@ -443,14 +394,15 @@ export class DemoApi {
       if (c) c.used_count = couponUsed(this.st.leads, code);
     });
   }
-  async updateLead(id, patch) {
+  lookup_() { return (ref) => waRefLookup(this.events_(), this.st.promos, ref); }
+  async updateSale(id, patch) {
     this.guard('leads');
     const l = this.st.leads.find((x) => x.id === id);
-    await this.leadActivity(id);
-    const old = { ...l }, next = guardLead(old, { ...l, ...patch }, this.currency);
+    await this.saleActivity(id);
+    const old = { ...l }, next = guardLead(old, attributeLead(old, { ...l, ...patch }, this.lookup_()), this.currency);
     if (next.status !== old.status) this.logAct(id, 'status', next.status, { from: old.status, to: next.status });
     if ((next.assigned_to || null) !== (old.assigned_to || null)) this.logAct(id, 'assign', null, { to: next.assigned_to });
-    // the lead was already closed and stays closed: every money edit leaves «было → стало»
+    // the row was already closed and stays closed: every money edit leaves «было → стало»
     if (CLOSED.includes(old.status) && CLOSED.includes(next.status)) {
       const m = {};
       if (num(next.value) !== num(old.value)) m.value = { from: num(old.value), to: num(next.value) };
@@ -462,50 +414,28 @@ export class DemoApi {
     this.recount(old.coupon_code, next.coupon_code);
     this.persist(); return this.wait(l, 60);
   }
-  async updateLeads(ids, patch) { for (const id of ids) await this.updateLead(id, patch); }
-  async createLead(row) {
+  async createSale(row) {
     this.guard('leads');
-    const l = guardLead(null, { id: uuid(), created_at: iso(Date.now()), updated_at: iso(Date.now()), status: 'new', tags: [], details: {}, ...row }, this.currency);
-    this.st.leads.unshift(l); this.st.activity[l.id] = [{ id: uuid(), lead_id: l.id, created_at: l.created_at, actor: this.st.me, kind: 'system', body: 'Добавлена вручную', meta: {} }];
+    const base = { id: uuid(), created_at: iso(Date.now()), updated_at: iso(Date.now()), status: 'new', tags: [], details: {}, ...row };
+    const l = guardLead(null, attributeLead(null, base, this.lookup_()), this.currency);
+    this.st.leads.unshift(l); this.st.activity[l.id] = [{ id: uuid(), lead_id: l.id, created_at: l.created_at, actor: this.st.me, kind: 'system', body: 'Продажа внесена', meta: {} }];
     this.recount(l.coupon_code);
     this.persist(); return this.wait(l, 60);
   }
-  async deleteLead(id) {
+  async deleteSale(id) {
     this.guard('write_owner');
     const cur = this.st.leads.find((l) => l.id === id);
     if (!cur) return;
     this.st.leads = this.st.leads.filter((l) => l.id !== id);
     delete this.st.activity[id];
-    this.audit_('leads', 'delete', cur, null);   // a deleted lead leaves a line in the audit log
+    this.audit_('leads', 'delete', cur, null);   // a deleted sale leaves a line in the audit log
     this.recount(cur.coupon_code);
     this.persist();
   }
   async addActivity(lead_id, kind, body, meta) {
-    this.guard('leads'); await this.leadActivity(lead_id);
+    this.guard('leads'); await this.saleActivity(lead_id);
     this.logAct(lead_id, kind, body, meta);
-    const l = this.st.leads.find((x) => x.id === lead_id);
-    if (l && !l.first_response_at && ['call', 'whatsapp', 'email', 'note'].includes(kind)) l.first_response_at = iso(Date.now());
     this.persist(); return this.wait(this.st.activity[lead_id].slice(-1)[0], 40);
-  }
-  /** a new lead "arrives" now and then, so the live toast can be seen */
-  onLead(cb) {
-    const names = ['Сона Григорян', 'Hayk Petrosyan', 'Эдгар Варданян', 'Кристина Мелконян'];
-    let i = 0;
-    const t = setInterval(() => {
-      if (!ROLE_OK.leads.includes(this.st.role) || i >= names.length) return;
-      const tour = ['dubai', 'sharm', 'maldives', 'phuket'][i];
-      const l = { id: uuid(), created_at: iso(Date.now()), updated_at: iso(Date.now()), name: names[i++], phone: '+374 9' + (1 + i) + ' 555 01' + i, message: 'Заявка с сайта: ' + tour + ', даты гибкие', source: 'form', tour, lang: 'ru', device: 'mobile', status: 'new', tags: [], details: {}, currency: this.currency, utm_source: 'instagram', utm_medium: 'paid_social', utm_campaign: 'sharm_oct', assigned_to: null };
-      this.st.leads.unshift(l); this.persist(); cb(l);
-    }, 75000);
-    // a lead sent from the site opened with ?cms=demo in another tab lands here
-    const onStorage = (e) => {
-      if (e.key !== STORE_KEY || !e.newValue || !ROLE_OK.leads.includes(this.st.role)) return;
-      let theirs; try { theirs = JSON.parse(e.newValue).leads || []; } catch (x) { return; }
-      const known = new Set(this.st.leads.map((l) => l.id));
-      theirs.filter((l) => !known.has(l.id)).reverse().forEach((l) => { this.st.leads.unshift(l); cb(l); });
-    };
-    window.addEventListener('storage', onStorage);
-    return () => { clearInterval(t); window.removeEventListener('storage', onStorage); };
   }
 
   // «заявок» — без спама, «покупок» — проданные с суммой: как users_list / audience_list в 040_clients.sql
@@ -593,21 +523,10 @@ export class DemoApi {
     return !cur || Number(cur.spend) !== Number(row.spend) ? this.currency : cur.currency;
   }
   // The reports: the same formulas as the database, see metrics.js
-  async stats(from, to) { this.guard('stats'); return this.wait(computeStats(this.st.visits, this.st.leads, from, to, this.st.settings), 220); }
-  async sales(from, to) {
-    this.guard('stats');
-    const f = from.getTime(), t = to.getTime();
-    return this.wait(salesStats({ leads: this.st.leads, users: this.st.users, settings: this.st.settings, from, to, visits: this.st.visits.filter((v) => v.ts >= f && v.ts < t).length }), 200);
-  }
+  async stats(from, to) { this.guard('stats'); return this.wait(trafficStats({ leads: this.st.leads, events: this.events_(), settings: this.st.settings, from, to }), 220); }
+  async sales(from, to) { this.guard('stats'); return this.wait(salesStats({ leads: this.st.leads, events: this.events_(), users: this.st.users, settings: this.st.settings, from, to }), 200); }
   async couponStats() { this.guard('stats'); return this.wait(couponStats(this.st.coupons, this.st.leads), 100); }
   async audit() { this.guard('audit'); return this.wait(this.st.audit, 100); }
-  // Те же правила, что в 050_notify.sql: письмо — о каждой заявке с сайта, о ручных — нет;
-  // читает только владелец. Почты в демо нет, поэтому письмо «доставлено» в момент заявки.
-  async notifyStatus() {
-    this.guard('audit');
-    const sent = this.st.leads.filter((l) => !['manual', 'phone', 'walk_in', 'instagram'].includes(l.source) && l.status !== 'spam').map((l) => l.created_at).sort();
-    return this.wait({ last_sent_at: sent.length ? sent[sent.length - 1] : null, pending: 0, failed_7d: 0, last_error: null, last_error_at: null }, 60);
-  }
   async upload(file) {
     return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
   }

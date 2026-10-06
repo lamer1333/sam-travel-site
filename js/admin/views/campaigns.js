@@ -1,6 +1,6 @@
 // Campaigns: UTM link builder with QR, and each campaign's spend → visits →
-// leads → sales → ROMI, over the campaign's whole life. Leads, sales, revenue and the
-// agency income come ready from stats_traffic() — money «по заявкам кампании» (§5).
+// WhatsApp and phone clicks → sales → ROMI, over the campaign's whole life. Everything comes
+// ready from stats_traffic(); a sale belongs to a campaign by its reference number (§4.11).
 import { h, $, mount, clear, icon, fmt, toast, drawer, confirmDlg, field, input, textarea, select, table, copyText, slug, pageHead, card, csv, currency } from '../ui.js';
 import { CHANNELS } from './common.js';
 
@@ -15,7 +15,7 @@ const PRESETS = [
   ['influencer', 'Блогер', 'influencer', 'blogger', 'influencer'],
   ['offline_qr', 'Флаер / плакат с QR', 'offline', 'flyer', 'qr'],
 ];
-const LANDINGS = [['', 'Главная'], ['#hot', 'Горящие туры'], ['#plan', 'Подбор тура'], ['#checklist', 'Чек-лист документов'], ['#services', 'Услуги'], ['#b2b', 'Корпоративным'], ['#contacts', 'Форма заявки']];
+const LANDINGS = [['', 'Главная'], ['#hot', 'Горящие туры'], ['#plan', 'Подбор тура'], ['#checklist', 'Чек-лист документов'], ['#services', 'Услуги'], ['#b2b', 'Корпоративным'], ['#contacts', 'Контакты']];
 const BASE = 'https://samtravel.am/';
 
 export function buildUrl(c, lang) {
@@ -44,7 +44,7 @@ export default async function campaignsView(root, ctx, params) {
   let showArchived = false;
   const tableBox = h('div');
 
-  root.append(pageHead('Кампании и UTM', 'Каждой рекламе — своя ссылка. Сайт запоминает метки при заходе и передаёт их в заявку, поэтому видно, какая реклама приводит клиентов и окупается. Цифры — за всю жизнь кампании.',
+  root.append(pageHead('Кампании и UTM', 'Каждой рекламе — своя ссылка. Сайт запоминает метки при заходе, а в сообщение клиента в WhatsApp дописывает номер обращения. Продажа, внесённая с этим номером, засчитывается кампании — так видно, какая реклама окупается. Цифры — за всю жизнь кампании.',
     h('button.btn', { onclick: () => exportAll() }, icon('download'), 'CSV'),
     h('button.btn.btn--primary', { onclick: () => edit({}) }, icon('plus'), 'Новая кампания')));
 
@@ -58,33 +58,33 @@ export default async function campaignsView(root, ctx, params) {
   if (foreign.length) root.append(h('div.note.note--warn', { style: { marginBottom: '14px' } }, icon('alert'),
     h('span', 'Валюта панели сменилась на ' + currency() + ', а расход этих кампаний введён в другой валюте и не пересчитывается: ', foreign.map((c, i) => [i ? ', ' : '', h('b', c.name), ' (' + c.currency + ')']), '. Впишите расход заново в ' + currency() + ' — иначе цена заявки и ROMI неверны.')));
 
-  root.append(h('div.row', { style: { marginBottom: '12px' } }, h('span.muted', { style: { fontSize: '12.5px', marginRight: 'auto' } }, 'Продажи, выручка и доход — по заявкам кампании: считаются заявки с её меткой, когда бы они ни стали продажей. ROMI считается от дохода агентства: комиссия, которую менеджер указал в продаже; где не указал — ' + 'выручка × маржа ' + marginPct + '%' + (ctx.can('owner') ? ' (меняется в «Контакты и реквизиты»)' : ' (задаёт владелец)') + '. «≈» — в доходе есть такая оценка.'), h('label.switch', h('input', { type: 'checkbox', onchange: (e) => { showArchived = e.target.checked; paint(); } }), h('i'), h('span', 'Показать архив'))), tableBox);
+  root.append(h('div.row', { style: { marginBottom: '12px' } }, h('span.muted', { style: { fontSize: '12.5px', marginRight: 'auto' } }, 'Обращения — клики в WhatsApp и по телефону с метками кампании. Продажи, выручка и доход — продажи, внесённые с номером обращения посетителя этой кампании. ROMI считается от дохода агентства: комиссия, указанная в продаже; где не указана — ' + 'выручка × маржа ' + marginPct + '%' + (ctx.can('owner') ? ' (меняется в «Контакты и реквизиты»)' : ' (задаёт владелец)') + '. «≈» — в доходе есть такая оценка.'), h('label.switch', h('input', { type: 'checkbox', onchange: (e) => { showArchived = e.target.checked; paint(); } }), h('i'), h('span', 'Показать архив'))), tableBox);
 
   function metrics(c) {
-    const s = byC[c.utm_campaign] || { visits: 0, contacts: 0, leads: 0, won: 0, revenue: 0, profit_total: 0, estimated: false };
+    const s = byC[c.utm_campaign] || { visits: 0, contacts: 0, won: 0, revenue: 0, profit_total: 0, estimated: false };
     const profit = +s.profit_total || 0;   // ready from the database, with the «estimated» flag
-    return { ...c, ...s, cpl: s.leads ? c.spend / s.leads : null, cpa: s.won ? c.spend / s.won : null, profit, romi: c.spend ? (profit - c.spend) / c.spend : null, cr: s.visits ? s.leads / s.visits : null };
+    return { ...c, ...s, cpl: s.contacts ? c.spend / s.contacts : null, cpa: s.won ? c.spend / s.won : null, profit, romi: c.spend ? (profit - c.spend) / c.spend : null, cr: s.visits ? s.contacts / s.visits : null };
   }
   function paint() {
     const data = rows.filter((c) => showArchived || !c.archived).map(metrics);
-    const tot = data.reduce((a, r) => ({ spend: a.spend + (+r.spend || 0), visits: a.visits + r.visits, leads: a.leads + r.leads, won: a.won + r.won, revenue: a.revenue + r.revenue, contacts: a.contacts + r.contacts, profit: a.profit + r.profit }), { spend: 0, visits: 0, leads: 0, won: 0, revenue: 0, contacts: 0, profit: 0 });
+    const tot = data.reduce((a, r) => ({ spend: a.spend + (+r.spend || 0), visits: a.visits + r.visits, won: a.won + r.won, revenue: a.revenue + r.revenue, contacts: a.contacts + r.contacts, profit: a.profit + r.profit }), { spend: 0, visits: 0, won: 0, revenue: 0, contacts: 0, profit: 0 });
     mount(tableBox, h('div.card.card--flush', table({
-      rows: data, onRow: (r) => edit(rows.find((c) => c.id === r.id)), initialSort: ['leads', -1], empty: 'Кампаний пока нет — создайте первую, и ссылка будет готова через минуту',
+      rows: data, onRow: (r) => edit(rows.find((c) => c.id === r.id)), initialSort: ['contacts', -1], empty: 'Кампаний пока нет — создайте первую, и ссылка будет готова через минуту',
       columns: [
         { key: 'name', label: 'Кампания', sort: true, cls: 'col-wide', render: (r) => h('div.cell-main', h('b', r.name), h('small', (CHANNELS[r.channel] || r.channel) + ' · ' + r.utm_campaign)) },
         { key: 'st', label: 'Статус', render: (r) => { const [k, l] = status(r); return h('span.badge.badge--' + k, l); } },
         { key: 'spend', label: 'Расход', align: 'r', sort: true, render: (r) => spendCell(r) },
         { key: 'visits', label: 'Посещ.', align: 'r', sort: true, render: (r) => fmt.num(r.visits) },
-        { key: 'leads', label: 'Заявки', align: 'r', sort: true },
-        { key: 'cr', label: 'Конв.', align: 'r', sort: (r) => r.cr || 0, render: (r) => fmt.pct(r.cr, 1) },
+        { key: 'contacts', label: 'Обращения', align: 'r', sort: true, render: (r) => h('span', { title: 'Клики в WhatsApp и по телефону' }, fmt.num(r.contacts)) },
+        { key: 'cr', label: 'Конв.', align: 'r', sort: (r) => r.cr || 0, render: (r) => h('span', { title: 'Обращения ÷ посещения' }, fmt.pct(r.cr, 1)) },
         { key: 'won', label: 'Продажи', align: 'r', sort: true },
-        { key: 'revenue', label: 'Выручка · по заявкам', align: 'r', sort: true, render: (r) => r.revenue ? fmt.money(r.revenue) : '—' },
-        { key: 'cpl', label: 'Цена заявки', align: 'r', sort: (r) => r.cpl ?? 1e9, render: (r) => fmt.money(r.cpl) },
+        { key: 'revenue', label: 'Выручка', align: 'r', sort: true, render: (r) => r.revenue ? fmt.money(r.revenue) : '—' },
+        { key: 'cpl', label: 'Цена обращения', align: 'r', sort: (r) => r.cpl ?? 1e9, render: (r) => fmt.money(r.cpl) },
         { key: 'romi', label: 'ROMI', align: 'r', sort: (r) => r.romi ?? -1e9, render: (r) => r.romi == null ? '—' : h('b', { style: { color: r.romi >= 0 ? 'var(--ok)' : 'var(--bad)' }, title: '(доход агентства − расход) ÷ расход. Доход: ' + fmt.money(r.profit) + (r.estimated ? ' — часть оценена по марже' : '') }, (r.estimated ? '≈ ' : '') + (r.romi > 0 ? '+' : '') + fmt.pct(r.romi, 0)) },
         { key: 'link', label: '', render: (r) => h('button.btn.btn--ghost.btn--sm', { title: 'Скопировать ссылку', onclick: () => copyText(buildUrl(r), 'Ссылка скопирована') }, icon('link')) },
       ],
-      foot: () => h('tr', h('td', 'Итого'), h('td'), h('td.r.num', fmt.money(tot.spend)), h('td.r.num', fmt.num(tot.visits)), h('td.r.num', fmt.num(tot.leads)), h('td.r.num', fmt.pct(tot.visits ? tot.leads / tot.visits : null, 1)),
-        h('td.r.num', fmt.num(tot.won)), h('td.r.num', fmt.money(tot.revenue)), h('td.r.num', fmt.money(tot.leads ? tot.spend / tot.leads : null)),
+      foot: () => h('tr', h('td', 'Итого'), h('td'), h('td.r.num', fmt.money(tot.spend)), h('td.r.num', fmt.num(tot.visits)), h('td.r.num', fmt.num(tot.contacts)), h('td.r.num', fmt.pct(tot.visits ? tot.contacts / tot.visits : null, 1)),
+        h('td.r.num', fmt.num(tot.won)), h('td.r.num', fmt.money(tot.revenue)), h('td.r.num', fmt.money(tot.contacts ? tot.spend / tot.contacts : null)),
         h('td.r.num', tot.spend ? (data.some((r) => r.estimated) ? '≈ ' : '') + (tot.profit > tot.spend ? '+' : '') + fmt.pct((tot.profit - tot.spend) / tot.spend, 0) : '—'), h('td')),
     })));
   }
@@ -97,8 +97,8 @@ export default async function campaignsView(root, ctx, params) {
   }
   function exportAll() {
     csv('campaigns.csv', rows.map(metrics), [['Кампания', (r) => r.name], ['Канал', (r) => CHANNELS[r.channel] || r.channel], ['utm_source', (r) => r.utm_source], ['utm_medium', (r) => r.utm_medium], ['utm_campaign', (r) => r.utm_campaign],
-      ['Начало', (r) => r.starts_on], ['Конец', (r) => r.ends_on], ['Расход', (r) => r.spend], ['Посещения', (r) => r.visits], ['Заявки', (r) => r.leads], ['Продажи', (r) => r.won], ['Выручка (по заявкам кампании)', (r) => r.revenue], ['Доход агентства', (r) => r.profit], ['Доход — оценка по марже', (r) => (r.estimated ? 'да' : '')], ['Валюта расхода', (r) => r.currency],
-      ['Цена заявки', (r) => r.cpl ? r.cpl.toFixed(2) : ''], ['ROMI %', (r) => r.romi != null ? (r.romi * 100).toFixed(0) : ''], ['Ссылка', (r) => buildUrl(r)]]);
+      ['Начало', (r) => r.starts_on], ['Конец', (r) => r.ends_on], ['Расход', (r) => r.spend], ['Посещения', (r) => r.visits], ['Обращения', (r) => r.contacts], ['Продажи', (r) => r.won], ['Выручка', (r) => r.revenue], ['Доход агентства', (r) => r.profit], ['Доход — оценка по марже', (r) => (r.estimated ? 'да' : '')], ['Валюта расхода', (r) => r.currency],
+      ['Цена обращения', (r) => r.cpl ? r.cpl.toFixed(2) : ''], ['ROMI %', (r) => r.romi != null ? (r.romi * 100).toFixed(0) : ''], ['Ссылка', (r) => buildUrl(r)]]);
   }
 
   // ---------- builder / editor ----------
@@ -145,11 +145,11 @@ export default async function campaignsView(root, ctx, params) {
           h('div.btns', h('button.btn.btn--primary', { onclick: () => copyText(buildUrl(d, lang), 'Ссылка скопирована') }, icon('copy'), 'Скопировать'),
             h('button.btn', { onclick: () => { const cv = $('canvas', qr), img = $('img', qr); const src2 = cv ? cv.toDataURL('image/png') : img && img.src; if (!src2) return; const a = h('a', { href: src2, download: 'qr-' + (d.utm_campaign || 'sam') + '.png' }); document.body.appendChild(a); a.click(); a.remove(); } }, icon('download'), 'QR в PNG')),
           qr,
-          s ? card('Результат кампании', null, h('dl.kv', h('dt', 'Посещения'), h('dd', fmt.num(s.visits)), h('dt', 'Контакты'), h('dd', fmt.num(s.contacts)), h('dt', 'Заявки'), h('dd', fmt.num(s.leads)), h('dt', 'Продажи'), h('dd', fmt.num(s.won)), h('dt', 'Выручка'), h('dd', fmt.money(s.revenue)), h('dt', s.estimated ? 'Доход агентства ≈' : 'Доход агентства'), h('dd', fmt.money(s.profit_total)))) : null,
+          s ? card('Результат кампании', null, h('dl.kv', h('dt', 'Посещения'), h('dd', fmt.num(s.visits)), h('dt', 'Обращения'), h('dd', fmt.num(s.contacts)), h('dt', 'Продажи'), h('dd', fmt.num(s.won)), h('dt', 'Выручка'), h('dd', fmt.money(s.revenue)), h('dt', s.estimated ? 'Доход агентства ≈' : 'Доход агентства'), h('dd', fmt.money(s.profit_total)))) : null,
           h('div.note', icon('spark'), h('span', 'Для Instagram-профиля используйте отдельную ссылку с utm_medium=bio — так видно, сколько клиентов приносит сам профиль, а не реклама.')))),
       footer: (api) => h('div.btns', { style: { width: '100%', justifyContent: 'space-between' } },
         h('div.btns', c.id ? h('button.btn.btn--ghost', { onclick: async () => { try { const u = await ctx.api.save('campaigns', { ...c, archived: !c.archived }); Object.assign(c, u); toast(c.archived ? 'В архиве' : 'Возвращена'); api.close(); paint(); } catch (e) { ctx.err(e); } } }, c.archived ? 'Вернуть из архива' : 'В архив') : null,
-          c.id ? h('button.btn.btn--danger.btn--ghost', { onclick: async () => { if (!(await confirmDlg('Удалить кампанию?', { sub: 'Трафик и заявки с её метками останутся в отчётах.' }))) return; try { await ctx.api.remove('campaigns', c.id); rows = rows.filter((x) => x.id !== c.id); api.close(); paint(); } catch (e) { ctx.err(e); } } }, icon('trash')) : null),
+          c.id ? h('button.btn.btn--danger.btn--ghost', { onclick: async () => { if (!(await confirmDlg('Удалить кампанию?', { sub: 'Трафик и продажи с её метками останутся в отчётах.' }))) return; try { await ctx.api.remove('campaigns', c.id); rows = rows.filter((x) => x.id !== c.id); api.close(); paint(); } catch (e) { ctx.err(e); } } }, icon('trash')) : null),
         h('div.btns', h('button.btn', { onclick: () => api.close() }, 'Отмена'), h('button.btn.btn--primary', { onclick: async () => {
           if (!d.name.trim() || !d.utm_campaign || !d.utm_source || !d.utm_medium) { toast('Нужны название, utm_source, utm_medium и utm_campaign', 'bad'); return; }
           try {

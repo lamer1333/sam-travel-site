@@ -21,7 +21,7 @@ export default async function contactsView(root, ctx) {
   g.append(h('section.card.c6', h('div.card__h', h('div', h('h3', 'Как с вами связаться'))),
     h('div.stack',
       field('Телефон (как показывать)', input(c.phone, { placeholder: '+374 55 957585', oninput: (v) => { c.phone = v; } })),
-      field('WhatsApp — номер цифрами, с кодом страны', h('div.row', { style: { flexWrap: 'nowrap' } }, wa, waTest), 'Сюда уходят все кнопки WhatsApp и заявки из «Подбора тура»'),
+      field('WhatsApp — номер цифрами, с кодом страны', h('div.row', { style: { flexWrap: 'nowrap' } }, wa, waTest), 'Сюда ведут все кнопки сайта: клиент пишет вам сам, сообщение уже набрано'),
       field('Email', em),
       field('Instagram', input(c.instagram, { placeholder: 'https://www.instagram.com/…', oninput: (v) => { c.instagram = v.trim(); } })),
       field('Facebook', input(c.facebook, { oninput: (v) => { c.facebook = v.trim(); } })),
@@ -39,15 +39,14 @@ export default async function contactsView(root, ctx) {
       field('Юридическое название', input(co.legal_name, { oninput: (v) => { co.legal_name = v; } })),
       field('Номер лицензии туроператора', lic), field('Номер страхового полиса (финансовая гарантия)', ins),
       h('div.grid2',
-        field('Валюта панели', select(Array.from(new Set(['USD', 'EUR', 'AMD', 'RUB', co.currency])), co.currency, (v) => { co.currency = v; }), 'В ней менеджеры вводят продажи и считаются отчёты. Уже введённые суммы не пересчитываются'),
+        field('Валюта панели', select(Array.from(new Set(['USD', 'EUR', 'AMD', 'RUB', co.currency])), co.currency, (v) => { co.currency = v; }), 'В ней вносятся продажи и считаются отчёты. Уже введённые суммы не пересчитываются'),
         field('Маржа агентства, %', input(co.margin_pct, { type: 'number', attrs: { min: 1, max: 100 }, oninput: (v) => { co.margin_pct = Math.max(1, Math.min(100, Number(v) || 10)); } }), 'Средняя комиссия с тура — для честного ROMI рекламы')),
       h('div.btns', h('button.btn.btn--primary', { onclick: () => save('company', co).then(() => setCurrency(co.currency)) }, 'Сохранить реквизиты')))));
 
   const days = [[1, 'Пн'], [2, 'Вт'], [3, 'Ср'], [4, 'Чт'], [5, 'Пт'], [6, 'Сб'], [7, 'Вс']];
-  g.append(h('section.card.c12', h('div.card__h', h('div', h('h3', 'Рабочее время и скорость ответа'), h('p', 'На сайте обещано «ответим в течение часа в рабочие дни». По этим настройкам панель подсвечивает заявки, которые ждут слишком долго.'))),
-    h('div.grid3',
+  g.append(h('section.card.c12', h('div.card__h', h('div', h('h3', 'Рабочее время'), h('p', 'На сайте обещано «ответим в течение часа в рабочие дни» — клиенты пишут вам в WhatsApp напрямую. В сводке видно, в какие часы пишут чаще всего.'))),
+    h('div.grid2',
       h('div.field', h('span', 'Рабочие дни'), chipsPick(days, hr.days, (v) => { hr.days = v.map(Number).sort(); })),
-      h('div.grid2', field('С', input(hr.from, { type: 'time', oninput: (v) => { hr.from = v; } })), field('До', input(hr.to, { type: 'time', oninput: (v) => { hr.to = v; } }))),
-      field('Ответить в течение, мин', input(hr.sla_min, { type: 'number', attrs: { min: 5, max: 1440 }, oninput: (v) => { hr.sla_min = Math.max(5, Number(v) || 60); } }))),
+      h('div.grid2', field('С', input(hr.from, { type: 'time', oninput: (v) => { hr.from = v; } })), field('До', input(hr.to, { type: 'time', oninput: (v) => { hr.to = v; } })))),
     h('div.btns', { style: { marginTop: '14px' } }, h('button.btn.btn--primary', { onclick: () => save('hours', hr, 'Рабочее время сохранено') }, 'Сохранить'))));
 }

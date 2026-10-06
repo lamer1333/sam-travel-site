@@ -75,10 +75,6 @@
   .profile__edit[hidden]{display:none}
   .profile__edit .date-input{width:auto;margin:0;flex:1 1 170px}
   .profile .msg{margin:10px 0 0}
-  .status--received{background:rgba(91,163,242,.18);color:var(--brand)}
-  .status--in_touch,.status--offer{background:rgba(255,193,7,.16);color:#ffce54}
-  .status--done{background:rgba(84,209,140,.16);color:var(--ok)}
-  .status--closed{background:rgba(255,255,255,.1);color:var(--ink-dim)}
   [hidden]{display:none !important}
   .top-right{display:flex;align-items:center;gap:10px}
   .lang{display:inline-flex;gap:2px;background:rgba(255,255,255,.06);border-radius:999px;padding:3px}
@@ -108,7 +104,7 @@
         <h1><span data-i18n="hi">Hi</span>, <span id="greet">…</span></h1>
         <span id="role-badge" class="badge" hidden></span>
       </div>
-      <p class="lead" data-i18n="lead">Your details and travel requests are below.</p>
+      <p class="lead" data-i18n="lead">Your details are below.</p>
 
       <h2 data-i18n="profileH">Profile</h2>
       <section class="profile">
@@ -123,10 +119,6 @@
         </form>
         <p id="birth-msg" class="msg" data-kind="err" role="alert" hidden></p>
       </section>
-
-      <h2 data-i18n="requestsH">My requests</h2>
-      <div id="requests"></div>
-      <p id="requests-empty" class="empty" hidden data-i18n="empty">No requests yet. Send one from the site while signed in and it will show up here with its status.</p>
     </main>
     <p id="cabinet-error" class="msg" data-kind="err" role="alert" hidden></p>
   </div>
@@ -152,6 +144,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/supabase-config.js"></script>
-  <script src="js/auth.js?v=20261006b"></script>
+  <script src="js/auth.js?v=20261006d"></script>
 </body>
 </html>

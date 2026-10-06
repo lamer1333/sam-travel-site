@@ -2,7 +2,9 @@
 // Дата рождения, кабинет (my_profile / finish_onboarding / set_birth_date / my_requests),
 // именинники, списки клиентов и подписчиков, заморозка bookings.
 // Запуск: npm test  (или node supabase/test/run.mjs 40)
-import { db, U, as, ok, bad, expectErr } from './_db.mjs';
+import { db, U, as, ok, bad, expectErr, formBack } from './_db.mjs';
+
+await formBack();   // форма заявки снята этапом 7; здесь проверяется то, что осталось в базе на случай её возврата
 
 const check = (cond, msg, detail = '') => (cond ? ok(msg) : bad(msg + (detail ? ' — ' + detail : '')));
 const one = async (sql, params) => (await db.query(sql, params)).rows[0];

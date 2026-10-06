@@ -8,7 +8,8 @@
 //   my_profile()               own profile, including the date of birth
 //   finish_onboarding(d, c)    first-login screen: date of birth + mailing consent
 //   set_birth_date(d)          change the date of birth
-//   my_requests()              own requests from the site with a client-facing status
+// The cabinet is the profile only (TZ-BACKEND.md §0 п.22): the site has no request form,
+// so there is no list of requests here.
 // ---------------------------------------------------------------------------
 (function () {
   const sb = window.sb;
@@ -22,58 +23,46 @@
   // ------- i18n (en is also the markup default) ------------------------------
   const I18N = {
     en: {
-      signOut: 'Sign out', panel: 'Control panel', hi: 'Hi', lead: 'Your details and travel requests are below.',
+      signOut: 'Sign out', panel: 'Control panel', hi: 'Hi', lead: 'Your details are below.',
       profileH: 'Profile', birthLabel: 'Date of birth', change: 'Change', save: 'Save', cancel: 'Cancel',
-      requestsH: 'My requests',
-      empty: 'No requests yet. Send one from the site while signed in and it will show up here with its status.',
       onbTitle: 'One quick thing', onbText: 'We need your date of birth to open your account.',
       onbTextConsent: 'Would you like to hear about deals and discounts?',
       onbConsent: 'Yes, send me deals, discounts and coupons by email. I can unsubscribe anytime.',
       onbContinue: 'Continue',
       errBirth: 'Enter a valid date of birth.', errBirthAge: 'An account is available from the age of 16.',
       errSave: 'Could not save. Check the connection and try again.',
-      loadErr: 'Could not load your requests.', profileErr: 'Could not load your account. Refresh the page or sign in again.',
-      request: 'Travel request',
+      profileErr: 'Could not load your account. Refresh the page or sign in again.',
       months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
       date: (y, m, d, mo) => d + ' ' + mo[m] + ' ' + y,
       roles: { client: 'client', manager: 'manager', marketer: 'marketer', admin: 'owner' },
-      statuses: { received: 'Received', in_touch: 'In touch', offer: 'Offer sent', done: 'Booked', closed: 'Closed' },
     },
     ru: {
-      signOut: 'Выйти', panel: 'Панель управления', hi: 'Привет', lead: 'Ваши данные и заявки на поездки — ниже.',
+      signOut: 'Выйти', panel: 'Панель управления', hi: 'Привет', lead: 'Ваши данные — ниже.',
       profileH: 'Профиль', birthLabel: 'Дата рождения', change: 'Изменить', save: 'Сохранить', cancel: 'Отмена',
-      requestsH: 'Мои заявки',
-      empty: 'Заявок пока нет. Отправьте заявку с сайта, войдя в аккаунт, — она появится здесь со статусом.',
       onbTitle: 'Один момент', onbText: 'Чтобы открыть кабинет, укажите дату рождения.',
       onbTextConsent: 'Хотите получать акции и скидки?',
       onbConsent: 'Да, присылайте мне акции, скидки и купоны на email. Отписаться можно в любой момент.',
       onbContinue: 'Продолжить',
       errBirth: 'Укажите корректную дату рождения.', errBirthAge: 'Кабинет доступен с 16 лет.',
       errSave: 'Не удалось сохранить. Проверьте связь и попробуйте ещё раз.',
-      loadErr: 'Не удалось загрузить заявки.', profileErr: 'Не удалось загрузить кабинет. Обновите страницу или войдите заново.',
-      request: 'Заявка на поездку',
+      profileErr: 'Не удалось загрузить кабинет. Обновите страницу или войдите заново.',
       months: ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'],
       date: (y, m, d, mo) => d + ' ' + mo[m] + ' ' + y,
       roles: { client: 'клиент', manager: 'менеджер', marketer: 'маркетолог', admin: 'владелец' },
-      statuses: { received: 'Получили', in_touch: 'На связи', offer: 'Предложение отправлено', done: 'Оформлено', closed: 'Закрыто' },
     },
     hy: {
-      signOut: 'Դուրս գալ', panel: 'Կառավարման վահանակ', hi: 'Բարև', lead: 'Ձեր տվյալներն ու ճամփորդության հայտերը՝ ստորև։',
+      signOut: 'Դուրս գալ', panel: 'Կառավարման վահանակ', hi: 'Բարև', lead: 'Ձեր տվյալները՝ ստորև։',
       profileH: 'Պրոֆիլ', birthLabel: 'Ծննդյան ամսաթիվ', change: 'Փոխել', save: 'Պահպանել', cancel: 'Չեղարկել',
-      requestsH: 'Իմ հայտերը',
-      empty: 'Հայտեր դեռ չկան։ Ուղարկեք հայտ կայքից՝ մուտք գործած վիճակում, և այն կհայտնվի այստեղ՝ իր կարգավիճակով։',
       onbTitle: 'Մեկ պահ', onbText: 'Անձնական էջը բացելու համար նշեք ձեր ծննդյան ամսաթիվը։',
       onbTextConsent: 'Ցանկանո՞ւմ եք ստանալ ակցիաներ և զեղչեր։',
       onbConsent: 'Այո, ուղարկեք ինձ ակցիաներ, զեղչեր և կտրոններ էլ. փոստով։ Կարող եմ ցանկացած պահի չեղարկել բաժանորդագրությունը։',
       onbContinue: 'Շարունակել',
       errBirth: 'Նշեք ճիշտ ծննդյան ամսաթիվ։', errBirthAge: 'Անձնական էջը հասանելի է 16 տարեկանից։',
       errSave: 'Չհաջողվեց պահպանել։ Ստուգեք կապը և փորձեք կրկին։',
-      loadErr: 'Չհաջողվեց բեռնել հայտերը։', profileErr: 'Չհաջողվեց բեռնել անձնական էջը։ Թարմացրեք էջը կամ նորից մուտք գործեք։',
-      request: 'Ճամփորդության հայտ',
+      profileErr: 'Չհաջողվեց բեռնել անձնական էջը։ Թարմացրեք էջը կամ նորից մուտք գործեք։',
       months: ['հունվարի', 'փետրվարի', 'մարտի', 'ապրիլի', 'մայիսի', 'հունիսի', 'հուլիսի', 'օգոստոսի', 'սեպտեմբերի', 'հոկտեմբերի', 'նոյեմբերի', 'դեկտեմբերի'],
       date: (y, m, d, mo) => y + ' թ. ' + mo[m] + ' ' + d,
       roles: { client: 'հաճախորդ', manager: 'մենեջեր', marketer: 'մարքեթոլոգ', admin: 'սեփականատեր' },
-      statuses: { received: 'Ստացվել է', in_touch: 'Կապի մեջ ենք', offer: 'Առաջարկն ուղարկված է', done: 'Ձևակերպված է', closed: 'Փակված է' },
     },
   };
   let cur = 'en';
@@ -90,7 +79,7 @@
   }
 
   // module state so a language switch can re-render live data
-  let profile = null, requests = [], requestsErr = null, pageErr = '', onboardNeedsBirth = true;
+  let profile = null, pageErr = '', onboardNeedsBirth = true;
 
   function applyLang(lang) {
     cur = I18N[lang] ? lang : 'en';
@@ -100,7 +89,6 @@
     $$('.lang button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.lang === cur)));
     paintOnboardText();
     paintProfile();
-    renderRequests();
     paintPageErr();
     try { localStorage.setItem('sam-lang', cur); } catch (e) {}
   }
@@ -135,11 +123,6 @@
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd || ''); if (!m) return '—';
     return T().date(+m[1], +m[2] - 1, +m[3], T().months);
   }
-  // a moment → its calendar day in Yerevan (UTC+4 all year)
-  function fmtDay(ts) {
-    const d = new Date(new Date(ts).getTime() + 4 * 3600e3);
-    return isNaN(d) ? '' : T().date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), T().months);
-  }
   function rpcErrText(e) {
     const m = (e && e.message) || '';
     if (/birth_date_invalid|birth_date_required/.test(m)) return T().errBirth;
@@ -161,26 +144,6 @@
     if (p) p.textContent = onboardNeedsBirth ? T().onbText : T().onbTextConsent;
   }
   function paintPageErr() { setMsg($('#cabinet-error'), pageErr ? T()[pageErr] : ''); }
-
-  function renderRequests() {
-    const list = $('#requests'), empty = $('#requests-empty');
-    if (!list) return;
-    if (requestsErr) { hide(empty); list.innerHTML = '<p class="msg" data-kind="err">' + escapeHtml(T().loadErr) + '</p>'; return; }
-    if (!requests.length) { list.innerHTML = ''; show(empty); return; }
-    hide(empty);
-    const t = T();
-    list.innerHTML = requests.map((r) => {
-      const title = (r.tour_title && (r.tour_title[cur] || r.tour_title.en)) || t.request;
-      return `
-      <article class="booking">
-        <div class="booking__head">
-          <h3>${escapeHtml(title)}</h3>
-          <span class="booking__status status--${escapeHtml(r.status)}">${escapeHtml(t.statuses[r.status] || r.status)}</span>
-        </div>
-        <time class="booking__time" datetime="${escapeHtml(r.created_at)}">${escapeHtml(fmtDay(r.created_at))}</time>
-      </article>`;
-    }).join('');
-  }
 
   // ------- flow --------------------------------------------------------------
   async function initCabinet() {
@@ -210,11 +173,6 @@
     if (['admin', 'manager', 'marketer'].includes(profile.role)) show($('#btn-panel'));
     wireBirthEdit();
     show($('#cabinet'));
-
-    const res = await sb.rpc('my_requests');
-    requests = res.data || []; requestsErr = res.error || null;
-    if (res.error) console.error(res.error);
-    renderRequests();
   }
 
   function runOnboarding() {

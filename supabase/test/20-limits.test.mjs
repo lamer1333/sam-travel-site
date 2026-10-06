@@ -1,6 +1,8 @@
 // Этап 2: лимиты track и submit_lead, проверка промокода, свёртка и срок хранения событий.
 // Миграция 020_limits.sql. Запуск: npm test  (или node supabase/test/run.mjs 20)
-import { db, U, as, ok, bad, expectErr } from './_db.mjs';
+import { db, U, as, ok, bad, expectErr, formBack } from './_db.mjs';
+
+await formBack();   // форма заявки снята этапом 7; здесь проверяется то, что осталось в базе на случай её возврата
 
 const check = (cond, msg, got) => (cond ? ok(msg) : bad(msg + (got === undefined ? '' : ' — получено ' + JSON.stringify(got))));
 const one = async (sql, params) => (await db.query(sql, params)).rows[0];

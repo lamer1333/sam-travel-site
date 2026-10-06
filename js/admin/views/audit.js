@@ -2,7 +2,7 @@
 import { h, mount, fmt, drawer, select, table, pageHead } from '../ui.js';
 import { ROLE_NAMES } from '../main.js';
 
-const TABLES = { site_settings: 'Настройки сайта', tours: 'Туры', reviews: 'Отзывы', team: 'Команда', reels: 'Рилсы', promos: 'Промо', campaigns: 'Кампании', coupons: 'Промокоды', wa_templates: 'Шаблоны', profiles: 'Роли', leads: 'Заявки' };
+const TABLES = { site_settings: 'Настройки сайта', tours: 'Туры', reviews: 'Отзывы', team: 'Команда', reels: 'Рилсы', promos: 'Промо', campaigns: 'Кампании', coupons: 'Промокоды', wa_templates: 'Шаблоны', profiles: 'Роли', leads: 'Продажи' };
 const ACT = { insert: ['ok', 'Создано'], update: ['warn', 'Изменено'], delete: ['bad', 'Удалено'] };
 const SKIP = ['updated_at', 'updated_by', 'created_at'];
 
@@ -11,7 +11,7 @@ export default async function auditView(root, ctx) {
   const f = { table: '', actor: '' };
   const box = h('div');
   const actors = Array.from(new Set(rows.map((r) => r.actor).filter(Boolean)));
-  root.append(pageHead('Журнал изменений', 'Каждое изменение контента, промо, кампаний, промокодов, настроек и ролей, удаление заявок. Записывает база данных — подделать или стереть из панели нельзя.'),
+  root.append(pageHead('Журнал изменений', 'Каждое изменение контента, промо, кампаний, промокодов, настроек и ролей, удаление записей о продажах. Записывает база данных — подделать или стереть из панели нельзя.'),
     h('div.toolbar',
       select([['', 'Все разделы'], ...Object.entries(TABLES)], '', (v) => { f.table = v; paint(); }),
       select([['', 'Все сотрудники'], ...actors.map((a) => [a, ctx.staffName(a)])], '', (v) => { f.actor = v; paint(); })), box);

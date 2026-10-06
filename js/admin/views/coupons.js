@@ -1,4 +1,4 @@
-// Coupons: generator (one code or a batch), limits, validity, usage in leads.
+// Coupons: generator (one code or a batch), limits, validity, usage in sales.
 import { h, mount, icon, fmt, toast, modal, confirmDlg, field, input, select, toggle, table, csv, copyText, pageHead, plural } from '../ui.js';
 
 function stateOf(c) {
@@ -13,13 +13,13 @@ const ALPH = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // no 0/O, 1/I — codes get 
 const rand = (n) => Array.from(crypto.getRandomValues(new Uint32Array(n)), (x) => ALPH[x % ALPH.length]).join('');
 
 export default async function couponsView(root, ctx, params) {
-  // «В заявках» comes as numbers from stats_coupons(): the marketer sees how a code works
-  // without access to the leads themselves.
+  // «Возвраты» come as numbers from stats_coupons(): the marketer sees how a code works
+  // without access to the sales journal itself.
   let [rows, usage] = await Promise.all([ctx.api.list('coupons', 'created_at'), ctx.api.couponStats().catch(() => null)]);
   const inLeads = Object.fromEntries((usage || []).map((x) => [String(x.code).toUpperCase(), x]));
   const box = h('div');
-  root.append(pageHead('Промокоды', 'Коды для рекламы, рассылок и постоянных клиентов. Посетитель вводит код в форме или получает его из баннера — код приходит вместе с заявкой.',
-    h('button.btn', { onclick: () => csv('coupons.csv', rows, [['Код', (c) => c.code], ['Описание', (c) => c.description], ['Скидка %', (c) => c.discount_pct], ['Скидка $', (c) => c.discount_amt], ['С', (c) => fmt.date(c.valid_from)], ['До', (c) => c.valid_until ? fmt.date(c.valid_until) : ''], ['Лимит', (c) => c.max_uses ?? ''], ['Использован', (c) => c.used_count], ['В заявках', (c) => (inLeads[c.code.toUpperCase()] || {}).leads ?? ''], ['Из них продаж', (c) => (inLeads[c.code.toUpperCase()] || {}).sales ?? ''], ['Статус', (c) => stateOf(c)[1]]]) }, icon('download'), 'CSV'),
+  root.append(pageHead('Промокоды', 'Коды для рекламы, рассылок и постоянных клиентов. Посетитель берёт код из баннера — он дописывается в его сообщение в WhatsApp; вы вписываете код, когда вносите продажу.',
+    h('button.btn', { onclick: () => csv('coupons.csv', rows, [['Код', (c) => c.code], ['Описание', (c) => c.description], ['Скидка %', (c) => c.discount_pct], ['Скидка $', (c) => c.discount_amt], ['С', (c) => fmt.date(c.valid_from)], ['До', (c) => c.valid_until ? fmt.date(c.valid_until) : ''], ['Лимит', (c) => c.max_uses ?? ''], ['Использован', (c) => c.used_count], ['Возвратов', (c) => { const x = inLeads[c.code.toUpperCase()]; return x ? x.leads - x.sales : ''; }], ['Статус', (c) => stateOf(c)[1]]]) }, icon('download'), 'CSV'),
     h('button.btn.btn--primary', { onclick: () => gen() }, icon('plus'), 'Создать коды')), box);
 
   function paint() {
@@ -30,12 +30,12 @@ export default async function couponsView(root, ctx, params) {
         { key: 'description', label: 'Для чего', render: (c) => h('span.dim', c.description || '—') },
         { key: 'disc', label: 'Скидка', align: 'r', sort: (c) => c.discount_pct || c.discount_amt || 0, render: (c) => c.discount_pct ? '−' + c.discount_pct + '%' : c.discount_amt ? '−' + fmt.money(c.discount_amt) : '—' },
         { key: 'valid_until', label: 'Срок', sort: (c) => c.valid_until || '9999', render: (c) => (c.valid_from && new Date(c.valid_from) > Date.now() ? 'с ' + fmt.date(c.valid_from) + ' ' : '') + (c.valid_until ? 'до ' + fmt.date(c.valid_until) : 'бессрочно') },
-        { key: 'used_count', label: 'Использован', align: 'r', sort: true, render: (c) => h('span', { title: 'Продажи с этим кодом — считает база; по ним работает лимит' }, fmt.num(c.used_count) + (c.max_uses != null ? ' / ' + c.max_uses : '')) },
-        { key: 'leads', label: 'В заявках', align: 'r', sort: (c) => (inLeads[c.code.toUpperCase()] || {}).leads || 0, render: (c) => { const x = inLeads[c.code.toUpperCase()]; return usage ? (x && x.leads ? h('span', { title: 'Заявок с кодом и сколько из них стали продажей' }, x.leads + ' ', h('span.muted', '(' + x.sales + ' прод.)')) : '0') : h('span.muted', '—'); } },
+        { key: 'used_count', label: 'Использован', align: 'r', sort: true, render: (c) => h('span', { title: 'Продажи с этим кодом — считает база; по ним работает лимит. Возврат освобождает код' }, fmt.num(c.used_count) + (c.max_uses != null ? ' / ' + c.max_uses : '')) },
+        { key: 'leads', label: 'Возвраты', align: 'r', sort: (c) => { const x = inLeads[c.code.toUpperCase()]; return x ? x.leads - x.sales : 0; }, render: (c) => { const x = inLeads[c.code.toUpperCase()]; return usage ? h('span', { title: 'Продажи с этим кодом, по которым оформлен возврат' }, String(x ? x.leads - x.sales : 0)) : h('span.muted', '—'); } },
         { key: 'st', label: 'Статус', render: (c) => { const [k, l] = stateOf(c); return h('span.badge.badge--' + k, l); } },
         { key: 'active', label: '', render: (c) => h('div.row', { style: { flexWrap: 'nowrap', justifyContent: 'flex-end' } },
           toggle(c.active, null, async (on, el) => { try { const u = await ctx.api.save('coupons', { ...c, active: on }); Object.assign(c, u); paint(); } catch (e) { el.checked = !on; ctx.err(e); } }),
-          h('button.btn.btn--ghost.btn--sm', { 'aria-label': 'Удалить', onclick: async () => { if (!(await confirmDlg('Удалить код ' + c.code + '?', { sub: 'В старых заявках он останется текстом.' }))) return; try { await ctx.api.remove('coupons', c.id); rows = rows.filter((x) => x.id !== c.id); paint(); } catch (e) { ctx.err(e); } } }, icon('trash'))) },
+          h('button.btn.btn--ghost.btn--sm', { 'aria-label': 'Удалить', onclick: async () => { if (!(await confirmDlg('Удалить код ' + c.code + '?', { sub: 'В уже внесённых продажах он останется текстом.' }))) return; try { await ctx.api.remove('coupons', c.id); rows = rows.filter((x) => x.id !== c.id); paint(); } catch (e) { ctx.err(e); } } }, icon('trash'))) },
       ],
     })));
   }

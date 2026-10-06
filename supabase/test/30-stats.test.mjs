@@ -1,11 +1,12 @@
 // Этап 3: цифры панели считает база. Миграция 030_stats.sql.
 // Запуск: npm test  (или node supabase/test/run.mjs 30)
 //
-// Главная проверка (ТЗ §9 п.3 и п.4): на 1500 заявках одни и те же цифры дают
-//   1) stats_sales / stats_traffic / stats_coupons — то, что показывает панель;
-//   2) прямой SQL-запрос, написанный здесь заново, другими словами;
-//   3) формулы демо-режима из js/admin/metrics.js по строкам, которые отдаёт таблица leads;
-//   4) CSV-выгрузка заявок: те же столбцы, что скачивает менеджер.
+// Этап 7 (070_whatsapp.sql) заменил stats_sales и stats_traffic: заявок с сайта больше нет,
+// считаются посещения → обращения → продажи. Сверка новых цифр с прямым SQL, с формулами
+// демо-режима и с CSV на 1500 записях переехала в 70-whatsapp.test.mjs; отсюда убраны
+// проверки того, чего в отчётах больше нет (заявки периода, первый ответ, прогноз,
+// выручка «по заявкам периода»). Здесь остаётся то, что этап 3 добавил и что работает
+// по-прежнему: канал, рабочие часы, промокоды, валюта кампании, права, свёртка, скорость.
 import fs from 'node:fs';
 import { db, U, as, ok, bad, expectErr } from './_db.mjs';
 
@@ -151,132 +152,8 @@ const users = (await db.query(`select p.id, p.full_name, u.email from profiles p
 const leadRows = (await as('mgr', `select * from leads`)).rows;
 check(leadRows.length === N, 'менеджер читает все заявки');
 
-// Окна: «всё время», 30 дней по границам суток Еревана, 90 дней «как в панели» (от текущей минуты).
 const yMidnight = (t) => new Date(new Date(new Date(t).getTime() + 4 * 3600e3).toISOString().slice(0, 10) + 'T00:00:00+04:00').getTime();
 const first = new Date(await val(`select min(created_at) from leads`)).getTime();
-const WINDOWS = [
-  ['всё время', yMidnight(first), yMidnight(now) + DAY],
-  ['30 дней по суткам', yMidnight(now) - 29 * DAY, yMidnight(now) + DAY],
-  ['90 дней от этой минуты', now - 90 * DAY, now],
-  ['прошлый период', now - 180 * DAY, now - 90 * DAY],
-];
-
-// CSV: те же столбцы, что в js/admin/views/leads.js
-const csvCols = M.leadCsvColumns({ fmtDt: (d) => String(d), statusName: (s) => s, sourceName: (s) => s, channelName: (s) => s, tourName: (s) => s, staffName: (id) => id, currency: 'USD', hours: settings.hours });
-const csv = leadRows.map((l) => Object.fromEntries(csvCols.map(([name, fn]) => [name, fn(l)])));
-
-for (const [label, f, t] of WINDOWS) {
-  const P = [iso(f), iso(t)];
-  const s = (await as('owner', `select public.stats_sales($1, $2) s`, P)).rows[0].s;
-  const k = s.kpi;
-
-  // ---- 2) прямой SQL, без функций отчёта ----
-  const q = await one(`
-    select (select count(*) from leads where status <> 'spam' and created_at >= $1 and created_at < $2) as leads,
-           (select count(*) from leads where status = 'won' and value > 0 and closed_at >= $1 and closed_at < $2) as sales,
-           (select count(*) from leads where status = 'lost' and closed_at >= $1 and closed_at < $2) as lost,
-           (select coalesce(sum(value), 0) from leads where status = 'won' and value > 0 and closed_at >= $1 and closed_at < $2) as revenue,
-           (select coalesce(sum(coalesce(profit, value * 12 / 100)), 0) from leads where status = 'won' and value > 0 and closed_at >= $1 and closed_at < $2) as profit,
-           (select count(*) from leads where status = 'won' and value > 0 and profit is null and closed_at >= $1 and closed_at < $2) as est,
-           (select count(*) from leads where status = 'won' and coalesce(value, 0) <= 0 and closed_at >= $1 and closed_at < $2) as no_amount,
-           (select count(*) from events where name = 'page_view' and ts >= $1 and ts < $2) as visits,
-           (select count(*) from leads where status = 'new') as n_new,
-           (select count(*) from leads where status = 'quoted') as n_quoted,
-           (select coalesce(sum(value), 0) from leads where status = 'quoted') as quoted_value`, P);
-  const conv = Number(q.sales) + Number(q.lost) ? Number(q.sales) / (Number(q.sales) + Number(q.lost)) : null;
-  const sqlOk = Number(q.leads) === k.leads && Number(q.sales) === k.sales && Number(q.lost) === k.lost && near(q.revenue, k.revenue) && near(q.profit, k.profit)
-    && Number(q.est) === k.sales_estimated && Number(q.no_amount) === k.sales_no_amount && Number(q.visits) === k.visits && near(conv, k.conversion, 1e-9)
-    && near(k.avg_check, Number(q.sales) ? Number(q.revenue) / Number(q.sales) : null) && Number(q.n_new) === k.open.new && Number(q.n_quoted) === k.open.quoted
-    && near(q.quoted_value, k.quoted_value) && near(k.forecast, conv == null ? null : Number(q.quoted_value) * conv) && near(k.visit_to_lead, Number(q.visits) ? Number(q.leads) / Number(q.visits) : null, 1e-9);
-  check(sqlOk, `${label}: сводка = прямой SQL (заявок ${k.leads}, продаж ${k.sales}, выручка ${k.revenue}, доход ${k.profit}${k.estimated ? ' ≈' : ''})`, { sql: q, kpi: k });
-
-  // первый ответ: медиана в рабочих минутах, только заявки с сайта
-  const rq = await one(`
-    select percentile_cont(0.5) within group (order by m) as med, count(*) as n, count(*) filter (where m <= 60) as ok
-    from (select public.lead_response_minutes(l) m from leads l
-          where l.status <> 'spam' and l.created_at >= $1 and l.created_at < $2) x where m is not null`, P);
-  check(near(rq.med, k.resp_median_min, 1e-6) && Number(rq.n) === k.resp_n && near(k.within_sla, Number(rq.n) ? Number(rq.ok) / Number(rq.n) : null, 1e-9),
-    `${label}: первый ответ = прямой SQL (медиана ${k.resp_median_min == null ? '—' : Number(k.resp_median_min).toFixed(1)} раб. мин по ${k.resp_n} заявкам)`, { sql: rq, kpi: [k.resp_median_min, k.resp_n, k.within_sla] });
-
-  // ---- 3) формулы демо-режима ----
-  const js = M.salesStats({ leads: leadRows, users, settings, visits: Number(q.visits), from: f, to: t });
-  const diff = [];
-  const cmp = (path, a, b) => {
-    if (a != null && b != null && typeof a === 'object' && typeof b === 'object') {
-      if (Array.isArray(a) !== Array.isArray(b) || (Array.isArray(a) && a.length !== b.length)) return diff.push(path + ': длина ' + (a.length ?? '?') + ' ≠ ' + (b.length ?? '?'));
-      for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) cmp(path + '.' + key, a[key], b[key]);
-    } else if (typeof a === 'number' || typeof b === 'number') { if (!near(a, b, 0.011)) diff.push(`${path}: ${a} ≠ ${b}`); }
-    else if ((a ?? null) !== (b ?? null)) diff.push(`${path}: ${a} ≠ ${b}`);
-  };
-  const byKey = (xs, key) => Object.fromEntries(xs.map((x) => [x[key], x]));
-  cmp('kpi', s.kpi, js.kpi);
-  cmp('daily', s.daily, js.daily);
-  cmp('managers', byKey(s.managers, 'id'), byKey(js.managers, 'id'));
-  cmp('lost_reasons', byKey(s.lost_reasons, 'reason'), byKey(js.lost_reasons, 'reason'));
-  cmp('channels', byKey(s.channels, 'channel'), byKey(js.channels, 'channel'));
-  cmp('head', [s.currency, s.margin_pct, s.sla_min], [js.currency, js.margin_pct, js.sla_min]);
-  check(!diff.length, `${label}: stats_sales = формулы демо-режима (дни: ${s.daily.length}, менеджеры: ${s.managers.length}, каналы: ${s.channels.length})`, diff.slice(0, 6));
-
-  // суммы по разрезам сходятся с итогом
-  const sumBy = (xs, key) => xs.reduce((a, x) => a + Number(x[key]), 0);
-  check(sumBy(s.daily, 'leads') === k.leads && sumBy(s.daily, 'sales') === k.sales && near(sumBy(s.daily, 'revenue'), k.revenue) && near(sumBy(s.daily, 'profit'), k.profit, 0.01 * s.daily.length)
-    && sumBy(s.channels, 'leads') === k.leads && sumBy(s.lost_reasons, 'n') === k.lost, `${label}: дни, каналы и причины отказа в сумме дают итог`);
-
-  // ---- 4) CSV-выгрузка (только для окон по границам суток: в файле даты, а не минуты) ----
-  if (label !== '90 дней от этой минуты' && label !== 'прошлый период') {
-    const d1 = M.ymd(f), d2 = M.ymd(t - 1);
-    const inDays = (d) => d !== '' && d >= d1 && d <= d2;
-    const sales = csv.filter((r) => r['Продажа'] === 'да' && inDays(r['Дата продажи']));
-    const cRev = sales.reduce((a, r) => a + Number(r['Сумма']), 0);
-    const cProfit = sales.reduce((a, r) => a + (r['Доход агентства'] == null ? Number(r['Сумма']) * 12 / 100 : Number(r['Доход агентства'])), 0);
-    const cLost = csv.filter((r) => inDays(r['Дата отказа'])).length;
-    const cLeads = csv.filter((r) => r['Статус'] !== 'spam' && inDays(r['Дата (Ереван)'])).length;
-    const cResp = M.median(csv.filter((r) => r['Статус'] !== 'spam' && inDays(r['Дата (Ереван)']) && r['Первый ответ, раб. мин'] !== '').map((r) => r['Первый ответ, раб. мин']));
-    check(sales.length === k.sales && near(cRev, k.revenue) && near(cProfit, k.profit) && cLost === k.lost && cLeads === k.leads && near(cResp, k.resp_median_min, 0.51),
-      `${label}: CSV-выгрузка даёт те же цифры (продаж ${sales.length}, выручка ${cRev}, отказов ${cLost})`, { sales: sales.length, cRev, cProfit, cLost, cLeads, cResp });
-  }
-
-  // ---- трафик: каналы и кампании «по заявкам периода» ----
-  const tr = (await as('mkt', `select public.stats_traffic($1, $2) s`, P)).rows[0].s;
-  const co = M.cohortStats(leadRows, f, t, settings);
-  const d2 = [];
-  const money = ['leads', 'won', 'revenue', 'profit_total', 'estimated'];
-  for (const x of tr.sources) { const j = co.sources[x.src] || { leads: 0, won: 0, revenue: 0, profit_total: 0, estimated: false }; for (const key of money) if (typeof x[key] === 'boolean' ? x[key] !== j[key] : !near(x[key], j[key])) d2.push(`канал ${x.src}.${key}: ${x[key]} ≠ ${j[key]}`); }
-  for (const key of Object.keys(co.sources)) if (!tr.sources.some((x) => x.src === key)) d2.push('нет канала ' + key);
-  for (const x of tr.campaigns) { const j = co.campaigns[x.campaign] || { leads: 0, won: 0, revenue: 0, profit: 0, revenue_est: 0, profit_total: 0, estimated: false }; for (const key of [...money, 'profit', 'revenue_est']) if (typeof x[key] === 'boolean' ? x[key] !== j[key] : !near(x[key], j[key])) d2.push(`кампания ${x.campaign}.${key}: ${x[key]} ≠ ${j[key]}`); }
-  check(!d2.length && tr.funnel.leads === k.leads && tr.funnel.won === co.won && Number(tr.funnel.visits) === k.visits,
-    `${label}: stats_traffic — каналы и кампании = формулы демо-режима, заявок и посещений столько же, сколько в сводке`, d2.slice(0, 6));
-  const cq = (await db.query(`
-    select utm_campaign k, count(*) filter (where status = 'won' and value > 0) won,
-           coalesce(sum(value) filter (where status = 'won' and value > 0), 0) revenue,
-           coalesce(sum(coalesce(profit, value * 12 / 100)) filter (where status = 'won' and value > 0), 0) profit_total,
-           count(*) filter (where status = 'won' and value > 0 and profit is null) > 0 estimated
-    from leads where status <> 'spam' and utm_campaign is not null and created_at >= $1 and created_at < $2 group by 1`, P)).rows;
-  check(cq.length > 0 && cq.every((c) => { const x = tr.campaigns.find((y) => y.campaign === c.k); return x && Number(c.won) === x.won && near(c.revenue, x.revenue) && near(c.profit_total, x.profit_total) && c.estimated === x.estimated; }),
-    `${label}: доход кампаний с флагом оценки = прямой SQL (${cq.length} кампаний)`);
-  if (label === 'всё время') {
-    const manualCh = tr.sources.filter((x) => x.src.startsWith('manual:'));
-    const directQ = Number(await val(`select count(*) from leads where status <> 'spam' and source in ('form','plan','tour','promo') and utm_source is null
-      and (referrer is null or referrer like 'https://samtravel.am/%')`));
-    const direct = tr.sources.find((x) => x.src === 'direct');
-    check(manualCh.length === 4 && direct.leads === directQ, `звонки, визиты, Direct и WhatsApp — свои каналы, в «прямых заходах» только заявки с сайта (${direct.leads})`, { manual: manualCh.map((x) => x.src), direct: direct.leads, directQ });
-    check(tr.margin_pct === 12 && tr.raw_from === null, 'маржа отдаётся вместе с цифрами; свёртка пока не читается');
-  }
-}
-
-// ================================================================ маржа не задана → оценка по 10 %, флаг остаётся
-{
-  await db.query(`update site_settings set value = value - 'margin_pct' where key = 'company'`);
-  const P = [iso(now - 30 * DAY), iso(now)];
-  const s = (await as('owner', `select public.stats_sales($1, $2) s`, P)).rows[0].s;
-  const want = await val(`select coalesce(sum(coalesce(profit, value * 10 / 100)), 0) from leads where status = 'won' and value > 0 and closed_at >= $1 and closed_at < $2`, P);
-  const leadRows2 = (await as('mgr', `select * from leads`)).rows, noMargin = { ...settings, company: { ...settings.company, margin_pct: undefined } };
-  const js = M.salesStats({ leads: leadRows2, users, settings: noMargin, from: now - 30 * DAY, to: now });
-  const tr = (await as('mkt', `select public.stats_traffic($1, $2) s`, P)).rows[0].s;
-  check(s.margin_pct === 10 && tr.margin_pct === 10 && near(s.kpi.profit, want) && near(js.kpi.profit, want) && s.kpi.estimated === true,
-    'маржа не задана → продажи без дохода оцениваются по 10 %, пометка «оценка» остаётся; в демо-формулах так же', [s.margin_pct, s.kpi.profit, want, js.kpi.profit]);
-  await db.query(`update site_settings set value = value || '{"margin_pct": 12}' where key = 'company'`);
-}
 
 // ================================================================ промокоды
 {
@@ -289,7 +166,7 @@ for (const [label, f, t] of WINDOWS) {
   check(sc.length === direct.length && direct.every((c) => { const x = sc.find((y) => y.code === c.code), j = js.find((y) => y.code === c.code); return x && x.leads === Number(c.leads) && x.sales === Number(c.sales) && j.leads === x.leads && j.sales === x.sales; }),
     `stats_coupons = прямой SQL = формулы демо-режима (${sc.map((c) => `${c.code}: ${c.leads}/${c.sales}`).join(', ')})`, sc);
   check(sc.find((c) => c.code === 'NOBODY').leads === 0 && !sc.some((c) => c.code === 'TYPO'), 'код без заявок отдаётся нулём; чужой текст в поле промокода не показывается');
-  check(sc.some((c) => c.leads > 0 && c.sales > 0), 'маркетолог видит «в заявках» и «продаж» по коду');
+  check(sc.some((c) => c.leads > 0 && c.sales > 0), 'маркетолог видит записи журнала и продажи по коду');
 }
 
 // ================================================================ валюта расхода кампании — от сервера (§4.6)
@@ -360,8 +237,8 @@ for (const [label, f, t] of WINDOWS) {
   const get = async () => (await as('mkt', `select public.stats_traffic($1, $2) s`, P)).rows[0].s;
   const pickNums = (s) => JSON.stringify({
     daily: s.daily, devices: Object.entries(s.devices).sort(), langs: Object.entries(s.langs).sort(), ctas: Object.entries(s.ctas).sort(),
-    sources: s.sources.map((x) => [x.src, Number(x.visits), x.leads]).sort(), campaigns: s.campaigns.map((x) => [x.campaign, Number(x.visits), Number(x.contacts), x.leads]).sort(),
-    tours: s.tours.map((x) => [x.tour, Number(x.opens), x.leads]).sort(), visits: Number(s.funnel.visits),
+    sources: s.sources.map((x) => [x.src, Number(x.visits), Number(x.contacts), x.won]).sort(), campaigns: s.campaigns.map((x) => [x.campaign, Number(x.visits), Number(x.contacts), x.won]).sort(),
+    tours: s.tours.map((x) => [x.tour, Number(x.opens), Number(x.contacts), x.sales]).sort(), visits: Number(s.funnel.visits),
   });
   const raw = await get();
   const rawSales = (await as('owner', `select public.stats_sales($1, $2) s`, P)).rows[0].s.kpi.visits;
@@ -369,7 +246,7 @@ for (const [label, f, t] of WINDOWS) {
   const m = await val(`select public.events_maintain() m`);
   check(m.days_rolled > 0 && Number(m.events_deleted) === old.length, `ночная свёртка: дней ${m.days_rolled}, удалено сырых событий ${m.events_deleted}`, m);
   const rolled = await get();
-  check(pickNums(raw) === pickNums(rolled), 'после свёртки посещения, контакты, каналы, кампании, туры, устройства и языки — те же числа', { visits: [raw.funnel.visits, rolled.funnel.visits] });
+  check(pickNums(raw) === pickNums(rolled), 'после свёртки посещения, обращения, каналы, кампании, туры, устройства и языки — те же числа', { visits: [raw.funnel.visits, rolled.funnel.visits] });
   check(rolled.raw_from !== null && Number(rolled.funnel.visits_detailed) === Number(rolled.funnel.visits) - 500, `панель знает, что подробности (воронка, блоки, часы) есть только с ${rolled.raw_from}`, rolled.raw_from);
   const rolledSales = (await as('owner', `select public.stats_sales($1, $2) s`, P)).rows[0].s.kpi.visits;
   check(rawSales === rolledSales && rolledSales === Number(rolled.funnel.visits), 'посещения в сводке владельца тоже читают свёртку');

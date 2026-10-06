@@ -6,7 +6,7 @@ import { fillTemplate } from './common.js';
 export default async function templatesView(root, ctx) {
   let rows = await ctx.api.list('wa_templates');
   const list = h('div.list');
-  root.append(pageHead('Шаблоны ответов', 'Готовые сообщения для WhatsApp. В карточке заявки менеджер выбирает шаблон — имя клиента, направление и имя менеджера подставятся сами.',
+  root.append(pageHead('Шаблоны ответов', 'Готовые сообщения для WhatsApp. В карточке продажи вы выбираете шаблон — имя клиента, направление и имя менеджера подставятся сами.',
     h('button.btn.btn--primary', { onclick: () => edit({}) }, icon('plus'), 'Новый шаблон')), list);
   sortable(list, async (ids) => { try { await ctx.api.reorder('wa_templates', ids); toast('Порядок сохранён'); } catch (e) { ctx.err(e); } });
   const sample = { name: 'Анна Петросян', tour: 'Дубай', manager: ctx.me.full_name };

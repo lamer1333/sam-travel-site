@@ -4,8 +4,8 @@ import { ROLE_NAMES } from '../main.js';
 import { birthDate } from './common.js';
 
 const ROLE_HINT = {
-  admin: 'Всё: заявки, контент, роли, реквизиты, журнал',
-  manager: 'Заявки и клиенты',
+  admin: 'Всё: продажи, контент, роли, реквизиты, журнал',
+  manager: 'Продажи и клиенты',
   marketer: 'Аналитика, кампании, промо, промокоды, подписчики, туры и отзывы. Без телефонов клиентов',
   client: 'Только свой личный кабинет',
 };
@@ -49,14 +49,13 @@ export default async function peopleView(root, ctx, params) {
     s.addEventListener('input', debounce(() => { f.q = s.value.trim().toLowerCase(); paint(); }, 150));
     const data = () => clients.filter((u) => (!f.q || [u.full_name, u.email, u.phone].some((x) => (x || '').toLowerCase().includes(f.q))) && (!f.consent || String(u.marketing_consent) === f.consent));
     box.append(h('div.toolbar', s, select([['', 'Все'], ['true', 'Подписаны на акции'], ['false', 'Не подписаны']], '', (v) => { f.consent = v; paint(); }),
-      h('span', { style: { flex: 1 } }), h('button.btn', { onclick: () => csv('clients.csv', data(), [['Имя', (u) => u.full_name], ['Email', (u) => u.email], ['Телефон', (u) => u.phone], ['Язык', (u) => u.lang], ['Вход через', (u) => u.provider], ['Согласие на рассылку', (u) => u.marketing_consent ? 'да' : 'нет'], ['Почта подтверждена', (u) => u.email_confirmed === false ? 'нет' : 'да'], ['Дата рождения', (u) => u.birth_date || ''], ['Заявок', (u) => u.requests || 0], ['Покупок', (u) => u.purchases || 0], ['Регистрация', (u) => fmt.date(u.created_at)]]) }, icon('download'), 'CSV')), list);
+      h('span', { style: { flex: 1 } }), h('button.btn', { onclick: () => csv('clients.csv', data(), [['Имя', (u) => u.full_name], ['Email', (u) => u.email], ['Телефон', (u) => u.phone], ['Язык', (u) => u.lang], ['Вход через', (u) => u.provider], ['Согласие на рассылку', (u) => u.marketing_consent ? 'да' : 'нет'], ['Почта подтверждена', (u) => u.email_confirmed === false ? 'нет' : 'да'], ['Дата рождения', (u) => u.birth_date || ''], ['Регистрация', (u) => fmt.date(u.created_at)]]) }, icon('download'), 'CSV')), list);
     function paint() {
       const rows = data();
       mount(list, h('div.muted', { style: { margin: '0 0 8px', fontSize: '12.5px' } }, fmt.num(rows.length) + ' ' + plural(rows.length, 'клиент', 'клиента', 'клиентов')),
         h('div.card.card--flush', table({ rows: rows.slice(0, 400), initialSort: ['created_at', -1], columns: [
           { key: 'full_name', label: 'Клиент', sort: (u) => u.full_name || '', render: (u) => h('div.cell-main', h('b', u.full_name || '—'), h('small', u.email, u.email_confirmed === false ? h('span.muted', ' · не подтверждена') : null)) },
           { key: 'birth_date', label: 'Дата рождения', sort: (u) => u.birth_date || '', render: (u) => birthDate(u.birth_date) },
-          { key: 'requests', label: 'Заявки / покупки', sort: (u) => (u.purchases || 0) * 1000 + (u.requests || 0), render: (u) => (u.requests || 0) + ' / ' + (u.purchases || 0) },
           { key: 'provider', label: 'Вход', sort: true, render: (u) => ({ email: 'Email', google: 'Google', mailru: 'Mail.ru' }[u.provider] || u.provider) },
           { key: 'lang', label: 'Язык', sort: true, render: (u) => (u.lang || '').toUpperCase() },
           { key: 'marketing_consent', label: 'Акции', sort: (u) => +u.marketing_consent, render: (u) => u.marketing_consent ? h('span.badge.badge--ok', 'да') : h('span.badge.badge--off', 'нет') },

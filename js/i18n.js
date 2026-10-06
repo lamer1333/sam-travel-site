@@ -26,7 +26,7 @@ window.SAM_I18N = {
     "Phuket · 9 nights": "Пхукет · 9 ночей", "Two beaches, island day-trip, breakfast.": "Два пляжа, поездка на острова, завтраки.", "10 – 19 Feb": "10 – 19 фев",
     "How it works": "Как это работает", "Four steps, none of them a checkout.": "Четыре шага — и ни одной оплаты на сайте.",
     "Choose a direction": "Выберите направление", "Browse the cards or hot tours — or just tell us the month and the mood.": "Полистайте карточки или горящие туры — или просто назовите месяц и настроение.",
-    "WhatsApp or the short form. A real person, within the hour on working days.": "WhatsApp или короткая форма. Живой человек, в течение часа в рабочие дни.",
+    "WhatsApp or a call. A real person, within the hour on working days.": "WhatsApp или звонок. Живой человек, в течение часа в рабочие дни.",
     "We arrange everything": "Мы всё организуем", "Flights, hotel, transfer, insurance, visa if needed — one confirmation, no surprises.": "Перелёт, отель, трансфер, страховка, виза при необходимости — одно подтверждение, без сюрпризов.",
     "Fly": "Летите", "Your manager stays on the line for the whole trip.": "Ваш менеджер на связи всю поездку.",
     "photo · palms, soft blur": "фото · пальмы, лёгкое размытие", "Travel checklist": "Чек-лист путешественника",
@@ -60,13 +60,13 @@ window.SAM_I18N = {
     "Come by, or just write.": "Заходите — или просто напишите.", "Office": "Офис", "Komitas 51, Yerevan": "Комитас 51, Ереван", "Phone": "Телефон", "Phone number": "Номер телефона", "E-mail": "Эл. почта",
     "We're here to help you": "Мы здесь, чтобы помочь", "Tell us where and when — a manager replies within the hour on working days.": "Скажите, куда и когда — менеджер ответит в течение часа в рабочие дни.",
     "Name": "Имя", "Phone or WhatsApp": "Телефон или WhatsApp", "We reply on the number you give, within the hour on working days.": "Ответим на указанный номер в течение часа в рабочие дни.",
-    "Where and when?": "Куда и когда?", "Have a promo code?": "Есть промокод?", "aria-label::Promo code": "Промокод", "Send request": "Отправить заявку", "Request received": "Заявка принята", "A manager will write to you shortly. Want it faster? Continue in WhatsApp — your message is already written.": "Менеджер скоро вам напишет. Хотите быстрее? Продолжите в WhatsApp — сообщение уже набрано.", "Continue in WhatsApp": "Продолжить в WhatsApp",
+    "Where and when?": "Куда и когда?", "Write to us on WhatsApp": "Напишите нам в WhatsApp", "The message is already written — just press send. A manager replies within the hour on working days.": "Сообщение уже набрано — останется нажать «Отправить». Менеджер ответит в течение часа в рабочие дни.", "Write on WhatsApp": "Написать в WhatsApp", "Call us": "Позвонить",
     "Travel agency in Yerevan. Beach, city and group trips — arranged by a manager, confirmed in one message.": "Турагентство в Ереване. Пляжные, городские и групповые поездки — собирает менеджер, подтверждается одним сообщением.",
     "Explore": "Разделы", "Company": "Компания", "Corporate clients": "Корпоративным клиентам", "Client": "Клиенту", "Privacy": "Конфиденциальность",
     "© 2026 SAM TRAVEL · Licence No. 23-1057-2023 · Yerevan": "© 2026 SAM TRAVEL · Лицензия № 23-1057-2023 · Ереван",
     "photo gallery · to choose": "фотогалерея · выбрать",
     "Reviews from travellers who went here appear in this block": "Здесь появятся отзывы туристов, которые тут были", "to add": "добавить",
-    "Ask a manager": "Спросить менеджера", "Leave a request": "Оставить заявку",
+    
     "Saved destinations, your requests, quick re-contact. No payments here — ever.": "Избранные направления, ваши заявки, быстрая связь. Оплат здесь нет — никогда.",
     "Email": "Email", "Send code": "Отправить код", "Enter the code": "Введите код", "We sent a 4-digit code by SMS": "Мы отправили 4-значный код по SMS",
     "Confirm": "Подтвердить", "Change number": "Изменить номер", "Welcome back": "С возвращением",
@@ -162,7 +162,7 @@ window.SAM_I18N = {
     "aria-label::Checklist": "Чек-лист",
     "aria-label::Fewer": "Меньше",
     "aria-label::More": "Больше",
-    "__js": { "wa_hi": "Здравствуйте! Я только что оставил(а) заявку на сайте SAM TRAVEL.", "wa_name": "Имя", "wa_phone": "Телефон", "wa_tour": "Тур", "wa_coupon": "Промокод", "sending": "Отправляем…", "soon": " — следующая страница, делаем в следующем раунде", "lang": " версия", "to": "на " }
+    "__js": { "soon": " — следующая страница, делаем в следующем раунде", "lang": " версия", "to": "на " }
   },
   hy: {
     "Tours": "Տուրեր", "Hot tours": "Թեժ տուրեր", "Services": "Ծառայություններ", "About": "Մեր մասին", "Reviews": "Կարծիքներ", "Blog": "Բլոգ", "Contacts": "Կապ",
@@ -190,7 +190,7 @@ window.SAM_I18N = {
     "Phuket · 9 nights": "Պուկետ · 9 գիշեր", "Two beaches, island day-trip, breakfast.": "Երկու լողափ, մեկօրյա ուղևորություն կղզիներ, նախաճաշ։", "10 – 19 Feb": "10 – 19 փետ",
     "How it works": "Ինչպես է աշխատում", "Four steps, none of them a checkout.": "Չորս քայլ, և ոչ մի վճարում կայքում։",
     "Choose a direction": "Ընտրեք ուղղությունը", "Browse the cards or hot tours — or just tell us the month and the mood.": "Թերթեք քարտերը կամ թեժ տուրերը, կամ պարզապես ասեք ամիսը և տրամադրությունը։",
-    "WhatsApp or the short form. A real person, within the hour on working days.": "WhatsApp կամ կարճ հայտ։ Իրական մարդ, մեկ ժամվա ընթացքում աշխատանքային օրերին։",
+    "WhatsApp or a call. A real person, within the hour on working days.": "WhatsApp կամ զանգ։ Իրական մարդ, մեկ ժամվա ընթացքում աշխատանքային օրերին։",
     "We arrange everything": "Մենք ամեն ինչ կազմակերպում ենք", "Flights, hotel, transfer, insurance, visa if needed — one confirmation, no surprises.": "Չվերթ, հյուրանոց, տրանսֆեր, ապահովագրություն, անհրաժեշտության դեպքում՝ վիզա. մեկ հաստատում, առանց անակնկալների։",
     "Fly": "Թռեք", "Your manager stays on the line for the whole trip.": "Ձեր մենեջերը կապի մեջ է ամբողջ ճամփորդության ընթացքում։",
     "photo · palms, soft blur": "լուսանկար · արմավենիներ, թեթև մշուշ", "Travel checklist": "Ճամփորդի ստուգաթերթ",
@@ -224,13 +224,13 @@ window.SAM_I18N = {
     "Come by, or just write.": "Այցելեք, կամ պարզապես գրեք։", "Office": "Գրասենյակ", "Komitas 51, Yerevan": "Կոմիտաս 51, Երևան", "Phone": "Հեռախոս", "Phone number": "Հեռախոսահամար", "E-mail": "Էլ. փոստ",
     "We're here to help you": "Մենք այստեղ ենք՝ ձեզ օգնելու", "Tell us where and when — a manager replies within the hour on working days.": "Ասեք՝ ուր և երբ, և մենեջերը կպատասխանի մեկ ժամվա ընթացքում աշխատանքային օրերին։",
     "Name": "Անուն", "Phone or WhatsApp": "Հեռախոս կամ WhatsApp", "We reply on the number you give, within the hour on working days.": "Կպատասխանենք ձեր նշած համարին մեկ ժամվա ընթացքում աշխատանքային օրերին։",
-    "Where and when?": "Ո՞ւր և ե՞րբ", "Have a promo code?": "Ունե՞ք պրոմոկոդ", "aria-label::Promo code": "Պրոմոկոդ", "Send request": "Ուղարկել հայտը", "Request received": "Հայտն ընդունված է", "A manager will write to you shortly. Want it faster? Continue in WhatsApp — your message is already written.": "Մենեջերը շուտով կգրի ձեզ։ Ուզո՞ւմ եք ավելի արագ։ Շարունակեք WhatsApp-ում՝ հաղորդագրությունն արդեն գրված է։", "Continue in WhatsApp": "Շարունակել WhatsApp-ում",
+    "Where and when?": "Ո՞ւր և ե՞րբ", "Write to us on WhatsApp": "Գրեք մեզ WhatsApp-ով", "The message is already written — just press send. A manager replies within the hour on working days.": "Հաղորդագրությունն արդեն գրված է՝ մնում է սեղմել «Ուղարկել»։ Մենեջերը կպատասխանի մեկ ժամվա ընթացքում աշխատանքային օրերին։", "Write on WhatsApp": "Գրել WhatsApp-ով", "Call us": "Զանգահարել",
     "Travel agency in Yerevan. Beach, city and group trips — arranged by a manager, confirmed in one message.": "Զբոսաշրջային գործակալություն Երևանում։ Ծովային, քաղաքային և խմբային ուղևորություններ՝ կազմակերպում է մենեջերը, հաստատվում է մեկ հաղորդագրությամբ։",
     "Explore": "Բաժիններ", "Company": "Ընկերություն", "Corporate clients": "Կորպորատիվ հաճախորդներին", "Client": "Հաճախորդին", "Privacy": "Գաղտնիություն",
     "© 2026 SAM TRAVEL · Licence No. 23-1057-2023 · Yerevan": "© 2026 SAM TRAVEL · Լիցենզիա № 23-1057-2023 · Երևան",
     "photo gallery · to choose": "ֆոտոշարք · ընտրել",
     "Reviews from travellers who went here appear in this block": "Այստեղ կհայտնվեն այս ուղղությամբ մեկնած ճամփորդների կարծիքները", "to add": "ավելացնել",
-    "Ask a manager": "Հարցնել մենեջերին", "Leave a request": "Թողնել հայտ",
+    
     "Saved destinations, your requests, quick re-contact. No payments here — ever.": "Պահպանված ուղղություններ, ձեր հայտերը, արագ կապ։ Վճարումներ այստեղ չկան՝ երբեք։",
     "Email": "Էլ. փոստ", "Send code": "Ուղարկել կոդը", "Enter the code": "Մուտքագրեք կոդը", "We sent a 4-digit code by SMS": "Մենք SMS-ով ուղարկել ենք 4-նիշ կոդ",
     "Confirm": "Հաստատել", "Change number": "Փոխել համարը", "Welcome back": "Բարի վերադարձ",
@@ -326,7 +326,7 @@ window.SAM_I18N = {
     "aria-label::Checklist": "Ստուգաթերթ",
     "aria-label::Fewer": "Պակաս",
     "aria-label::More": "Ավելի",
-    "__js": { "wa_hi": "Բարև ձեզ։ Հենց նոր հայտ եմ թողել SAM TRAVEL-ի կայքում։", "wa_sep": "՝ ", "wa_name": "Անուն", "wa_phone": "Հեռախոս", "wa_tour": "Տուր", "wa_coupon": "Պրոմոկոդ", "sending": "Ուղարկվում է…", "soon": "՝ հաջորդ էջն է, կնախագծենք հաջորդ փուլում", "lang": " տարբերակ", "to": "դեպի " }
+    "__js": { "soon": "՝ հաջորդ էջն է, կնախագծենք հաջորդ փուլում", "lang": " տարբերակ", "to": "դեպի " }
   }
 };
 

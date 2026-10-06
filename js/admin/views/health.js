@@ -1,23 +1,18 @@
 // Launch readiness: the panel checks the site's own data for placeholders,
-// missing translations, missing IDs and slow answers — and links to the fix.
-import { h, icon, fmt, pageHead, card } from '../ui.js';
+// missing translations and missing IDs — and links to the fix. The site has no request
+// form (§4.11), so there is nothing about requests or letters here.
+import { h, icon, pageHead } from '../ui.js';
 import { ring } from '../charts.js';
-import { median, inRange, isOverdue } from './common.js';
-import { responseMinutes } from '../metrics.js';
 import { isFilled, LANGS } from '../ui.js';
 
 export default async function healthView(root, ctx) {
-  const [s, tours, reviews, team, reels, tpl, users, leads, mail] = await Promise.all([
-    ctx.settings(true), ctx.api.list('tours'), ctx.api.list('reviews'), ctx.api.list('team'), ctx.api.list('reels'), ctx.api.list('wa_templates'), ctx.users(true), ctx.leads(),
-    ctx.api.notifyStatus().catch(() => null),   // null = база без миграции 050_notify
+  const [s, tours, reviews, team, reels, tpl, users] = await Promise.all([
+    ctx.settings(true), ctx.api.list('tours'), ctx.api.list('reviews'), ctx.api.list('team'), ctx.api.list('reels'), ctx.api.list('wa_templates'), ctx.users(true),
   ]);
-  const co = s.company || {}, seo = s.seo || {}, an = s.analytics || {}, sla = (s.hours || {}).sla_min || 60;
+  const co = s.company || {}, seo = s.seo || {}, an = s.analytics || {}, wa = (s.contacts || {}).whatsapp || '';
   const pubT = tours.filter((t) => t.published), pubR = reviews.filter((r) => r.published), pubTeam = team.filter((m) => m.published);
   const F4 = [{ key: 'card_title' }, { key: 'card_text' }, { key: 'title' }, { key: 'text' }];
   const untranslated = pubT.filter((t) => LANGS.some(([l]) => !isFilled(t.i18n[l], F4)));
-  const last30 = leads.filter((l) => inRange(l.created_at, new Date(Date.now() - 30 * 86400e3), new Date()) && l.status !== 'spam');
-  const resp = median(last30.map((l) => responseMinutes(l, s.hours)));   // working minutes, requests from the site
-  const waiting = leads.filter((l) => isOverdue(l, s.hours));
   const owners = users.filter((u) => u.role === 'admin');
   const C = [
     // [weight, ok, title, detail, route, level if not ok]
@@ -30,10 +25,8 @@ export default async function healthView(root, ctx) {
     [1, reels.filter((r) => r.published).length >= 3, 'Три рилса в блоке «Перед поездкой»', reels.filter((r) => r.published).length + ' из 3 слотов заполнено.', 'content/reels', 'warn'],
     [2, ['ru', 'hy'].every((l) => seo[l] && seo[l].title && seo[l].description), 'SEO-тексты на русском и армянском', 'Без них Google показывает английский текст всем.', 'm/seo', 'warn'],
     [2, !!(an.ga4 && an.pixel), 'Подключены Google Analytics и Meta Pixel', 'Нужны для рекламных кабинетов и ретаргетинга.', 'm/seo', 'warn'],
-    [2, resp != null && resp <= sla, `Медианный ответ не дольше ${sla} мин`, resp != null ? 'За 30 дней: ' + fmt.dur(resp) + '.' : 'Пока нет заявок с ответом.', 'dashboard', 'warn'],
-    [2, !waiting.length, 'Никто не ждёт ответа дольше обещанного', waiting.length ? waiting.length + ' заявок ждут дольше ' + sla + ' мин.' : '', 'leads', 'bad'],
+    [3, /^\d{10,15}$/.test(wa), 'Номер WhatsApp указан', 'Все кнопки сайта ведут в WhatsApp. Номер — цифрами с кодом страны, без «+».', 'contacts', 'bad'],
     [2, !users.some((u) => u.email === 'demo@samtravel.am'), 'Удалён тестовый пользователь', 'demo@samtravel.am создавался для проверки входа — удалите в Supabase → Authentication.', 'people', 'bad'],
-    [2, !mail || !mail.failed_7d, 'Письма о заявках доходят на почту', mail && mail.failed_7d ? `За 7 дней не доставлено: ${mail.failed_7d}. Проверьте адрес в «Контактах» и почтовый сервис.` : '', 'contacts', 'bad'],
     [1, owners.length >= 2, 'Второй человек с правами владельца', 'Если единственный владелец потеряет доступ, назначить роли будет некому.', 'people', 'warn'],
     [1, ['ru', 'hy', 'en'].every((l) => tpl.some((t) => t.lang === l)), 'Шаблоны ответов на всех языках', 'Есть языки: ' + Array.from(new Set(tpl.map((t) => t.lang))).join(', ').toUpperCase(), 'templates', 'warn'],
     [1, !/@(gmail|mail|yandex|yahoo)\./i.test((s.contacts || {}).email || ''), 'Почта на своём домене', 'info@samtravel.am выглядит солиднее, чем gmail, и реже попадает в спам.', 'contacts', 'warn'],
@@ -43,7 +36,7 @@ export default async function healthView(root, ctx) {
   const fails = C.filter((c) => !c[1]).sort((a, b) => (a[5] === 'bad' ? -1 : 1) - (b[5] === 'bad' ? -1 : 1) || b[0] - a[0]);
   const oks = C.filter((c) => c[1]);
 
-  root.append(pageHead('Готовность сайта', 'Панель сама проверяет контент и работу с заявками. Пункты обновляются при каждом открытии.'));
+  root.append(pageHead('Готовность сайта', 'Панель сама проверяет контент сайта и настройки. Пункты обновляются при каждом открытии.'));
   root.append(h('div.dash',
     h('section.card.c4', { style: { display: 'grid', placeItems: 'center', textAlign: 'center', gap: '10px', alignSelf: 'start', position: 'sticky', top: '84px', padding: '28px 20px' } },
       ring(score, { size: 150 }),
@@ -51,21 +44,7 @@ export default async function healthView(root, ctx) {
         h('div.muted', oks.length + ' из ' + C.length + ' пунктов в порядке'))),
     h('section.card.c8', h('div.card__h', h('div', h('h3', 'Что исправить'), h('p', 'Сначала красное — это видят клиенты'))),
       fails.length ? fails.map((c) => row(c, ctx)) : h('div.empty', h('b', 'Всё готово'), 'Ни одного замечания')),
-    mailCard(mail, (s.contacts || {}).email),
     oks.length ? h('section.card.c12', h('div.card__h', h('div', h('h3', 'В порядке'))), oks.map((c) => row(c, ctx))) : null));
-}
-// Письмо о каждой заявке с сайта уходит на почту агентства (функция lead-mail, журнал notify_log).
-function mailCard(m, to) {
-  const line = (level, title, detail) => h('div.check', h('span.check__ic.check__ic--' + level, icon(level === 'ok' ? 'check' : level === 'bad' ? 'alert' : 'clock')),
-    h('div.check__b', h('b', title), detail ? h('small', detail) : null));
-  return h('section.card.c12', h('div.card__h', h('div', h('h3', 'Письма о заявках'), h('p', 'О каждой заявке с сайта приходит письмо' + (to ? ' на ' + to : '') + '. Заявки, внесённые вручную, писем не шлют.'))),
-    !m ? line('warn', 'Нет данных', 'База не обновлена: накатите миграции из supabase/migrations/.')
-      : [
-        m.last_sent_at ? line('ok', 'Последнее письмо доставлено ' + fmt.dt(m.last_sent_at), fmt.ago(m.last_sent_at))
-          : line('warn', 'Доставленных писем пока нет', 'Появится после первой заявки с сайта.'),
-        m.pending ? line('warn', 'Ждут отправки: ' + m.pending, 'Неудачные повторяются раз в 5 минут, до 5 попыток.') : null,
-        m.failed_7d ? line('bad', 'Не доставлено за 7 дней: ' + m.failed_7d, m.last_error ? 'Последняя ошибка (' + fmt.dt(m.last_error_at) + '): ' + m.last_error : '') : null,
-      ]);
 }
 function row([, ok, title, detail, route, level], ctx) {
   return h('div.check', h('span.check__ic.check__ic--' + (ok ? 'ok' : level), icon(ok ? 'check' : level === 'bad' ? 'alert' : 'clock')),

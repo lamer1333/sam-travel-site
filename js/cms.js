@@ -2,8 +2,9 @@
    Site ⇄ panel bridge. Loads everything the owner / marketer edit in
    admin.html with one call (public_site RPC) and applies it to the page:
    contacts, company numbers, the numbers strip, hot tours, reviews, team,
-   reels, SEO texts, analytics IDs, promo bar / popup. Also sends the lead form
-   to the CRM.
+   reels, SEO texts, analytics IDs, promo bar / popup. The site has no request
+   form: visitors write on WhatsApp, and a promo code taken from a banner travels
+   in that message (js/app.js builds the links, js/wa.js holds the texts).
 
    Rules:
    • The built-in HTML is the fallback. A block is replaced only when the
@@ -20,7 +21,7 @@
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var q = new URLSearchParams(location.search);
   var DEMO = q.get('cms') === 'demo', PREVIEW = q.has('promo_preview');
-  var data = null, backend = false, state = { coupon: '', lastTour: '', reelsDone: false };
+  var data = null, backend = false, state = { coupon: '', promoId: '', reelsDone: false };
 
   function lang() { return (window.SAM_LANG && window.SAM_LANG()) || document.documentElement.lang || 'en'; }
   /** pick the current language from {en, ru, hy}, falling back to English */
@@ -64,8 +65,7 @@
   function applyContacts(c) {
     if (!c) return;
     if (/^\d{10,15}$/.test(c.whatsapp || '')) {
-      $$('a[href*="wa.me/"]').forEach(function (a) { a.setAttribute('href', a.getAttribute('href').replace(/wa\.me\/\d+/, 'wa.me/' + c.whatsapp)); });
-      if (window.SAM_SET_WA) window.SAM_SET_WA(c.whatsapp);
+      if (window.SAM_SET_WA) window.SAM_SET_WA(c.whatsapp);   // js/app.js rebuilds every WhatsApp link
     }
     if (c.phone) {
       var tel = 'tel:' + c.phone.replace(/[^\d+]/g, '');
@@ -110,16 +110,21 @@
     var n; try { n = Number(t.price_from).toLocaleString({ en: 'en-US', ru: 'ru-RU', hy: 'hy-AM' }[lang()] || 'en-US', { style: 'currency', currency: t.currency || 'USD', maximumFractionDigits: 0 }); } catch (e) { n = '$' + t.price_from; }
     return lang() === 'hy' ? n + '-ից →' : (lang() === 'ru' ? 'от ' : 'from ') + n + ' →';
   }
+  function waNumber() {
+    var n = data && data.settings && data.settings.contacts && data.settings.contacts.whatsapp;
+    return /^\d{10,15}$/.test(n || '') ? n : ORIG.wa;
+  }
   function applyTours(list) {
     if (!list || !list.length) return;
     var stage = $('#carou-stage'), dots = $('.carou__dots'); if (!stage) return;
     stage.innerHTML = list.map(function (t) {
       var c = L(t.i18n) || {}, bg = cssUrl(t.photo_url);
-      return '<button class="tour" type="button" data-tour="' + esc(t.slug) + '">'
+      return '<article class="tour" data-tour="' + esc(t.slug) + '" role="button" tabindex="0">'
         + '<div class="photo ' + esc(t.photo_class || 'p-sea') + '"' + (bg ? ' style="--photo:' + esc(bg) + '"' : '') + '>'
         + (c.season ? '<span class="tour__season">' + esc(c.season) + '</span>' : '') + '</div>'
+        + '<a class="tour__wa" href="https://wa.me/' + esc(waNumber()) + '" target="_blank" rel="noopener" data-wa="tour" data-wa-tour="' + esc(t.slug) + '" aria-label="WhatsApp"><svg aria-hidden="true"><use href="#i-wa"/></svg></a>'
         + '<div class="tour__body"><h3>' + esc(c.card_title || c.title || t.slug) + '</h3><p>' + esc(c.card_text || '') + '</p>'
-        + '<div class="tour__foot"><span>' + esc(c.dates || '') + '</span><b>' + esc(price(t)) + '</b></div></div></button>';
+        + '<div class="tour__foot"><span>' + esc(c.dates || '') + '</span><b>' + esc(price(t)) + '</b></div></div></article>';
     }).join('');
     if (dots) dots.innerHTML = list.map(function (_, i) { return '<button type="button" role="tab" data-carou-go="' + i + '" aria-label="Slide ' + (i + 1) + '"></button>'; }).join('');
     if (window.SAM_CAROUSEL_REFRESH) window.SAM_CAROUSEL_REFRESH();
@@ -215,21 +220,27 @@
     if (f === 'always' || PREVIEW) return;
     var s = store(f === 'once' ? 'once' : 'session'); try { if (s) s.setItem('sam-promo-' + p.id, '1'); } catch (e) {}
   }
-  function link(p) {
-    if (p.link === 'wa') {
-      var wa = (data && data.settings && data.settings.contacts && data.settings.contacts.whatsapp) || ORIG.wa;
-      return 'https://wa.me/' + wa + '?text=' + encodeURIComponent([Ls(p.i18n, 'title') || Ls(p.i18n, 'text'), p.coupon_code].filter(Boolean).join(' — '));
-    }
-    return safeHref(p.link || '#hot');
+  /* a banner that leads to WhatsApp: js/app.js writes the message into the link — the general
+     text plus «Промокод: …» — and js/track.js sends the banner's id with the click */
+  function link(p) { return p.link === 'wa' ? 'https://wa.me/' + waNumber() : safeHref(p.link || '#hot'); }
+  function ctaAttrs(p) {
+    var l = link(p);
+    return ' href="' + esc(l) + '"' + (/^https:/.test(l) ? ' target="_blank" rel="noopener"' : '')
+      + (p.link === 'wa' ? ' data-wa="promo"' + (p.coupon_code ? ' data-wa-coupon="' + esc(p.coupon_code) + '" data-wa-promo="' + esc(p.id) + '"' : '') : '') + ' data-promo-cta';
   }
-  function useCoupon(code) {
+  /* The visitor took a promo code (pressed the code or the banner's button): from now on
+     every WhatsApp message from this page carries it, and the click event names the banner. */
+  function useCoupon(code, promoId) {
     if (!code) return;
-    state.coupon = code;
-    var inp = $('#f-coupon'); if (inp) { inp.value = code; var det = inp.closest('details'); if (det) det.open = true; }
+    state.coupon = code; state.promoId = promoId || '';
+    refreshWa();
   }
+  function refreshWa() { if (window.SAM_WA_REFRESH) window.SAM_WA_REFRESH(); }
+  window.SAM_WA_COUPON = function () { return state.coupon; };
+  window.SAM_WA_PROMO = function () { return state.promoId; };
   function track(name, p) { if (!PREVIEW && window.SAM_TRACK) window.SAM_TRACK(name, { promo_id: p.id }); }
   function codeBtn(p) {
-    return p.coupon_code ? '<button type="button" class="promo-code" data-promo-code="' + esc(p.coupon_code) + '" title="' + esc(TXT.code[lang()] || TXT.code.en) + '">' + esc(p.coupon_code) + '</button>' : '';
+    return p.coupon_code ? '<button type="button" class="promo-code" data-promo-code="' + esc(p.coupon_code) + '" data-promo-id="' + esc(p.id) + '" title="' + esc(TXT.code[lang()] || TXT.code.en) + '">' + esc(p.coupon_code) + '</button>' : '';
   }
   function renderBar(p) {
     var el = shown.bar && shown.bar.el;
@@ -243,9 +254,9 @@
     var cta = Ls(p.i18n, 'cta');
     el.setAttribute('aria-label', Ls(p.i18n, 'text'));
     el.innerHTML = '<span class="promo-bar__text">' + esc(Ls(p.i18n, 'text')) + '</span>' + codeBtn(p)
-      + (cta ? '<a class="promo-bar__cta" href="' + esc(link(p)) + '"' + (/^https:/.test(link(p)) ? ' target="_blank" rel="noopener"' : '') + ' data-promo-cta>' + esc(cta) + ' →</a>' : '')
+      + (cta ? '<a class="promo-bar__cta"' + ctaAttrs(p) + '>' + esc(cta) + ' →</a>' : '')
       + '<button type="button" class="promo-x" aria-label="' + esc(TXT.close[lang()] || 'Close') + '" data-promo-close>×</button>';
-    barHeight();
+    barHeight(); refreshWa();
   }
   function barHeight() {
     var b = shown.bar && shown.bar.el; if (!b) return;
@@ -272,7 +283,8 @@
     el.innerHTML = '<div class="promo-pop__card promo--' + esc(p.theme || 'brand') + '"><button type="button" class="promo-x" aria-label="' + esc(TXT.close[lang()] || 'Close') + '" data-promo-close>×</button>'
       + '<h3 id="promo-pop-t">' + esc(Ls(p.i18n, 'title')) + '</h3>' + (Ls(p.i18n, 'text') ? '<p>' + esc(Ls(p.i18n, 'text')) + '</p>' : '')
       + (p.coupon_code ? '<p class="promo-pop__code">' + esc(TXT.code[lang()] || TXT.code.en) + ': ' + codeBtn(p) + '</p>' : '')
-      + (cta ? '<a class="promo-pop__cta" href="' + esc(link(p)) + '"' + (/^https:/.test(link(p)) ? ' target="_blank" rel="noopener"' : '') + ' data-promo-cta>' + esc(cta) + '</a>' : '') + '</div>';
+      + (cta ? '<a class="promo-pop__cta"' + ctaAttrs(p) + '>' + esc(cta) + '</a>' : '') + '</div>';
+    refreshWa();
   }
   function closePopup(silent) {
     var s = shown.popup; if (!s) return;
@@ -282,12 +294,12 @@
   document.addEventListener('click', function (e) {
     var t = e.target;
     var code = t.closest && t.closest('[data-promo-code]');
-    if (code) { var c = code.getAttribute('data-promo-code'); useCoupon(c); try { navigator.clipboard.writeText(c).catch(function () {}); } catch (x) {} toast(TXT.copy[lang()] || TXT.copy.en); return; }
+    if (code) { var c = code.getAttribute('data-promo-code'); useCoupon(c, code.getAttribute('data-promo-id')); try { navigator.clipboard.writeText(c).catch(function () {}); } catch (x) {} toast(TXT.copy[lang()] || TXT.copy.en); return; }
     if (t.closest && t.closest('[data-promo-close]')) { if (t.closest('.promo-bar')) closeBar(); else closePopup(); return; }
     var cta = t.closest && t.closest('[data-promo-cta]');
     if (cta) {
       var s = cta.closest('.promo-bar') ? shown.bar : shown.popup; if (!s) return;
-      track('promo_click', s.p); useCoupon(s.p.coupon_code);
+      track('promo_click', s.p); useCoupon(s.p.coupon_code, s.p.id);
       if (s === shown.popup) closePopup(true);
     }
   });
@@ -326,47 +338,6 @@
     });
   }
 
-  /* ---------- lead form → CRM ---------- */
-  document.addEventListener('click', function (e) { var t = e.target.closest && e.target.closest('[data-tour]'); if (t) state.lastTour = t.getAttribute('data-tour'); }, true);
-  function submitLead(d) {
-    var ctx = window.SAM_TRACK_CTX ? window.SAM_TRACK_CTX() : {};
-    var p = {}; var k;
-    for (k in ctx) p[k] = ctx[k];
-    for (k in d) p[k] = d[k];
-    p.source = 'form'; p.tour = state.lastTour || '';
-    p.coupon_code = (d.coupon_code || state.coupon || '').toUpperCase();
-    if (DEMO) return demoSubmit(p);
-    if (!backend || !window.sb) return Promise.reject(new Error('backend unavailable'));
-    return window.sb.rpc('submit_lead', { p: p }).then(function (r) { if (r.error) throw r.error; return r.data; });
-  }
-  /* demo: drop the lead straight into the panel's demo data in this browser */
-  function demoSubmit(p) {
-    return new Promise(function (res, rej) {
-      try {
-        var key = 'sam-admin-demo-v1', st = JSON.parse(localStorage.getItem(key) || 'null');
-        if (st && !p.website) {
-          var now = new Date().toISOString();
-          /* the same rules as submit_lead(): 5 leads per sender in 10 minutes, promo code checked */
-          var recent = st.leads.filter(function (l) { return l.source === 'form' && Date.now() - new Date(l.created_at).getTime() < 600e3; }).length;
-          if (recent >= 5) { rej(new Error('rate_limited')); return; }
-          var details = {};
-          if (p.coupon_code) {
-            var t = Date.now(), hit = (st.coupons || []).filter(function (c) { return String(c.code).toUpperCase() === p.coupon_code; });
-            details.coupon_valid = !hit.length ? 'no' : hit.some(function (c) {
-              return c.active && new Date(c.valid_from) <= t && (!c.valid_until || new Date(c.valid_until) > t) && (c.max_uses == null || (c.used_count || 0) < c.max_uses);
-            }) ? 'yes' : 'expired';
-          }
-          st.leads.unshift({ id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())), created_at: now, updated_at: now, name: p.name, phone: p.phone, email: null, message: p.message || null,
-            source: 'form', tour: p.tour || null, details: details, lang: p.lang, device: p.device, page: p.page, referrer: p.referrer || null,
-            utm_source: p.utm_source || null, utm_medium: p.utm_medium || null, utm_campaign: p.utm_campaign || null, utm_content: p.utm_content || null, utm_term: null,
-            coupon_code: p.coupon_code || null, status: 'new', lost_reason: null, value: null, currency: 'USD', assigned_to: null, tags: [], follow_up_at: null, first_response_at: null, closed_at: null, user_id: null });
-          localStorage.setItem(key, JSON.stringify(st));
-        }
-      } catch (e) {}
-      setTimeout(res, 500);
-    });
-  }
-
   /* ---------- load + apply ---------- */
   function apply() {
     if (!data) return;
@@ -381,6 +352,7 @@
     try { applySeo(s.seo); } catch (e) { console.warn('cms seo', e); }
     if (shown.bar) renderBar(shown.bar.p);
     if (shown.popup) renderPopup(shown.popup.p);
+    refreshWa();   // the tour cards were rebuilt: their WhatsApp buttons need the text again
   }
   function first() {
     apply();
@@ -404,6 +376,6 @@
     }, function () {});
   }
 
-  window.SAM_CMS = { submitLead: submitLead, lastTour: function () { return state.lastTour; }, data: function () { return data; }, reload: load };
+  window.SAM_CMS = { data: function () { return data; }, reload: load };
   load();
 })();

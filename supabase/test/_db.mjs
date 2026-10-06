@@ -13,6 +13,7 @@
 //   as(who, sql, params)        запрос от имени 'anon' | 'owner' | 'mkt' | 'mgr' | 'cli'
 //   ok(msg) / bad(msg)          отметить проверку; bad делает код выхода 1
 //   expectErr(who, sql, params, label)   запрос обязан упасть
+//   formBack()                  вернуть гостям submit_lead — для тестов формы заявки (см. ниже)
 import { PGlite } from '@electric-sql/pglite';
 import fs from 'node:fs';
 
@@ -65,3 +66,9 @@ export async function as(who, sql, params) {
 export async function expectErr(who, sql, params, label) {
   try { await as(who, sql, params); bad(label + ' — should fail'); } catch (e) { ok(label + ' → ' + e.message.slice(0, 60)); }
 }
+
+// Этап 7 (070_whatsapp.sql) отозвал submit_lead у гостей: формы заявки на сайте нет. Сама
+// функция, её лимиты и письмо о заявке остаются в базе «на случай возврата формы», и тесты
+// этапов 0–5 продолжают их проверять. Для этого тест делает то же, что сделала бы миграция,
+// возвращающая форму, — одну строку grant.
+export const formBack = () => db.exec(`grant execute on function public.submit_lead(jsonb) to anon`);

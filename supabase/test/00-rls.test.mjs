@@ -1,6 +1,8 @@
 // Права (RLS) и функции базовой схемы: миграции 001_schema + 002_admin.
 // Запуск: npm test  (или node supabase/test/run.mjs 00)
-import { db, U, as, ok, bad, expectErr } from './_db.mjs';
+import { db, U, as, ok, bad, expectErr, formBack } from './_db.mjs';
+
+await formBack();   // форма заявки снята этапом 7; здесь проверяется то, что осталось в базе на случай её возврата
 
 const ps = (await as('anon', `select public_site() s`)).rows[0].s;
 ps.tours.length === 5 ? ok('public_site: 5 published tours') : bad('tours ' + ps.tours.length);

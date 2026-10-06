@@ -3,7 +3,7 @@
 import { h, $$, mount, clear, icon, fmt, toast, drawer, confirmDlg, field, input, select, toggle, chipsPick, i18nEditor, langDots, pageHead, seg, LANGS, pickLang } from '../ui.js';
 
 const THEMES = [['brand', 'Фирменный'], ['dark', 'Тёмный'], ['sunset', 'Закат'], ['sea', 'Море']];
-const LINKS = [['#hot', 'Горящие туры'], ['#plan', 'Подбор тура'], ['#contacts', 'Форма заявки'], ['#checklist', 'Чек-лист'], ['wa', 'WhatsApp менеджеру'], ['custom', 'Своя ссылка…']];
+const LINKS = [['#hot', 'Горящие туры'], ['#plan', 'Подбор тура'], ['#contacts', 'Контакты'], ['#checklist', 'Чек-лист'], ['wa', 'WhatsApp менеджеру'], ['custom', 'Своя ссылка…']];
 const FIELDS = {
   bar: [{ key: 'text', label: 'Текст', max: 90 }, { key: 'cta', label: 'Кнопка', max: 24, optional: true }],
   popup: [{ key: 'title', label: 'Заголовок', max: 40 }, { key: 'text', label: 'Текст', type: 'textarea', max: 180 }, { key: 'cta', label: 'Кнопка', max: 24 }],

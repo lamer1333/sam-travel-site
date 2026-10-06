@@ -5,9 +5,7 @@
 // Views only ever talk to this interface.
 // ---------------------------------------------------------------------------
 
-export const LEADS_WINDOW_DAYS = 90;   // closed leads older than this come by search and pages
 const PAGE = 500;
-const OPEN = ['new', 'contacted', 'quoted'];
 const READONLY = ['created_at', 'updated_at', 'updated_by', 'phone_digits'];
 const clean = (row) => { const r = { ...row }; READONLY.forEach((k) => delete r[k]); if (!r.id) delete r.id; return r; };
 function must({ data, error }) { if (error) throw error; return data; }
@@ -21,76 +19,46 @@ export class LiveApi {
   async signOut() { await this.sb.auth.signOut(); }
   async whoami() { return must(await this.sb.rpc('whoami')); }
 
-  // ---- leads ----
-  // PostgREST gives at most `max rows` (1000 by default) per request, so nothing here asks
-  // for "everything" in one go: a list is read page by page until the server's own count.
-  async pages(make) {
-    const out = [];
-    for (;;) {
-      const { data, error, count } = await make().order('created_at', { ascending: false }).order('id').range(out.length, out.length + PAGE - 1);
-      if (error) throw error;
-      out.push(...data);
-      if (!data.length || count == null || out.length >= count) return out;
-    }
-  }
-  /** What the panel keeps in memory: every open lead + the ones closed (or created) in the last `days`. */
-  async leads({ days = LEADS_WINDOW_DAYS } = {}) {
-    const since = JSON.stringify(new Date(Date.now() - days * 86400e3).toISOString());
-    const sel = () => this.sb.from('leads').select('*', { count: 'exact' });
-    const [open, closed] = await Promise.all([
-      this.pages(() => sel().in('status', OPEN)),
-      this.pages(() => sel().in('status', ['won', 'lost', 'spam']).or(`closed_at.gte.${since},created_at.gte.${since}`)),
-    ]);
-    return open.concat(closed).sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-  }
-  /** Everything else: one page of a search over all leads, newest first → { rows, total }. */
-  async findLeads({ q, phone, source, manager, tour, spam, mine, noProfit, since, offset = 0, limit = PAGE } = {}) {
-    let r = this.sb.from('leads').select('*', { count: 'exact' });
-    if (!spam) r = r.neq('status', 'spam');
-    if (source) r = r.eq('source', source);
-    if (manager) r = manager === 'none' ? r.is('assigned_to', null) : r.eq('assigned_to', manager);
-    if (mine) r = r.eq('assigned_to', mine);
-    if (tour) r = r.eq('tour', tour);
-    if (since) r = r.gte('created_at', since);
-    if (noProfit) r = r.eq('status', 'won').or('profit.is.null,value.is.null,value.lte.0');
-    if (phone) r = r.like('phone_digits', '%' + String(phone).replace(/\D/g, '') + '%');
+  // ---- sales journal ----
+  // The site has no request form (TZ-BACKEND.md §4.11): the `leads` table holds only what the
+  // owner typed in — sales (won) and refunds (lost). PostgREST gives at most `max rows`
+  // (1000 by default) per request, so the journal is read page by page → { rows, total }.
+  async journal({ q, status, noProfit, since, offset = 0, limit = PAGE } = {}) {
+    let r = this.sb.from('leads').select('*', { count: 'exact' }).in('status', status ? [status] : ['won', 'lost']);
+    if (since) r = r.gte('closed_at', since);
+    if (noProfit) r = r.eq('status', 'won').is('profit', null);
     if (q) {
-      const like = JSON.stringify('%' + q + '%'), digits = q.replace(/\D/g, '');
+      const like = JSON.stringify('%' + q + '%'), digits = q.replace(/\D/g, ''), ref = q.toUpperCase().replace(/[^0-9A-Z]/g, '');
       const any = [`name.ilike.${like}`, `message.ilike.${like}`];
       if (/^[\p{L}\p{N}_-]+$/u.test(q)) any.push(`tags.cs.{${q}}`);   // a tag is one word
       if (digits.length >= 3) any.push(`phone_digits.like.%${digits}%`);
+      if (ref.length === 5) any.push(`ref.eq.${ref}`);
       r = r.or(any.join(','));
     }
-    const { data, error, count } = await r.order('created_at', { ascending: false }).order('id').range(offset, offset + limit - 1);
+    const { data, error, count } = await r.order('closed_at', { ascending: false }).order('id').range(offset, offset + limit - 1);
     if (error) throw error;
     return { rows: data, total: count == null ? offset + data.length : count };
   }
-  async lead(id) { return must(await this.sb.from('leads').select('*').eq('id', id).maybeSingle()); }
-  async leadActivity(id) { return must(await this.sb.from('lead_activity').select('*').eq('lead_id', id).order('created_at')); }
-  // The rules of a sale (amount, income, sale date, currency, lost reason) live in the
-  // leads_guard trigger, 010_guards.sql: one request, and the database answers with the row
-  // as it really is — or with an error errText() below translates.
-  async updateLead(id, patch) { return must(await this.sb.from('leads').update(clean(patch)).eq('id', id).select().single()); }
-  async updateLeads(ids, patch) { must(await this.sb.from('leads').update(clean(patch)).in('id', ids)); }
-  async createLead(row) {
+  async sale(id) { return must(await this.sb.from('leads').select('*').eq('id', id).maybeSingle()); }
+  async saleActivity(id) { return must(await this.sb.from('lead_activity').select('*').eq('lead_id', id).order('created_at')); }
+  // The rules of a sale live in the database: leads_guard (010_guards.sql) keeps the amount,
+  // the income, the sale date, the currency and the refund reason; leads_attribution
+  // (070_whatsapp.sql) fills the advert tags, tour, language and device from the reference
+  // number. One request, and the database answers with the row as it really is — or with an
+  // error errText() below translates.
+  async createSale(row) {
     const l = must(await this.sb.from('leads').insert(clean(row)).select().single());
-    await this.addActivity(l.id, 'system', 'Добавлена вручную').catch(() => {});
+    await this.addActivity(l.id, 'system', 'Продажа внесена').catch(() => {});
     return l;
   }
-  async deleteLead(id) { must(await this.sb.from('leads').delete().eq('id', id)); }
+  async updateSale(id, patch) { return must(await this.sb.from('leads').update(clean(patch)).eq('id', id).select().single()); }
+  async deleteSale(id) { must(await this.sb.from('leads').delete().eq('id', id)); }
   async addActivity(lead_id, kind, body, meta = {}) {
     const me = (await this.session()).user.id;
     return must(await this.sb.from('lead_activity').insert({ lead_id, kind, body, meta, actor: me }).select().single());
   }
-  /** cb(lead) for a new lead; onChange('UPDATE'|'DELETE', row) when a colleague edits or removes one */
-  onLead(cb, onChange) {
-    const ch = this.sb.channel('leads-live')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'leads' }, (p) => cb(p.new))
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'leads' }, (p) => onChange && onChange('UPDATE', p.new))
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'leads' }, (p) => onChange && onChange('DELETE', p.old))
-      .subscribe();
-    return () => this.sb.removeChannel(ch);
-  }
+  /** what the site knows about the visit with this reference number («№ K7M2X» at the end of a WhatsApp message), or null */
+  async waRef(code) { return must(await this.sb.rpc('wa_ref', { p_code: code })); }
 
   // ---- people ----
   async users() { return must(await this.sb.rpc('users_list')); }
@@ -119,12 +87,10 @@ export class LiveApi {
   async saveSetting(key, value) { must(await this.sb.from('site_settings').upsert({ key, value })); }
 
   // ---- analytics / audit ----
-  // Every number of the reports is counted by the database (030_stats.sql); the panel only shows it.
+  // Every number of the reports is counted by the database (070_whatsapp.sql); the panel only shows it.
   async stats(from, to) { return must(await this.sb.rpc('stats_traffic', { p_from: from.toISOString(), p_to: to.toISOString() })); }
   async sales(from, to) { return must(await this.sb.rpc('stats_sales', { p_from: from.toISOString(), p_to: to.toISOString() })); }
   async couponStats() { return must(await this.sb.rpc('stats_coupons')); }
-  /** письма о заявках: { last_sent_at, pending, failed_7d, last_error, last_error_at } — только владельцу */
-  async notifyStatus() { return must(await this.sb.rpc('notify_status')); }
   async audit(limit = 300) { return must(await this.sb.from('audit_log').select('*').order('at', { ascending: false }).limit(limit)); }
 
   // ---- files ----
@@ -149,7 +115,9 @@ export function errText(e) {
   if (/profit_out_of_range/.test(m)) return 'Доход агентства — от нуля до суммы продажи; сначала укажите сумму';
   if (/value_negative/.test(m)) return 'Сумма не может быть отрицательной';
   if (/sale_date_in_future/.test(m)) return 'Дата продажи не может быть в будущем';
-  if (/lost_reason_required/.test(m)) return 'Укажите причину отказа';
+  if (/lost_reason_required/.test(m)) return 'Укажите причину возврата';
+  if (/ref_invalid/.test(m)) return 'Номер обращения — 5 знаков из конца сообщения клиента, например K7M2X';
+  if (/ref_not_found/.test(m)) return 'Обращения с таким номером за последние 90 дней нет. Проверьте номер или внесите продажу без него';
   if (/last_owner/.test(m)) return 'Это последний владелец — сначала назначьте другого';
   if (/role_change_forbidden/.test(m)) return 'Роль меняет только владелец в разделе «Клиенты и команда»';
   if (/profile_field_forbidden/.test(m)) return 'Это поле профиля менять нельзя';

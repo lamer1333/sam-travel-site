@@ -1600,3 +1600,30 @@ html.has-promo-bar .topbar { top: var(--promo-h, 0px); }
 .promo-preview-tag { position: fixed; left: 50%; top: 76px; transform: translateX(-50%); z-index: 1300; background: #6d4fd8; color: #fff; font: 700 12px/1.3 system-ui, sans-serif; padding: 7px 11px; border-radius: 9px; box-shadow: 0 8px 20px rgba(0,0,0,0.3); }
 @media (max-width: 560px) { .promo-bar { font-size: 13px; padding: 8px 44px 8px 14px; justify-content: flex-start; text-align: left; } }
 @media (prefers-reduced-motion: reduce) { .promo-pop, .promo-pop__card { transition: none; } }
+
+/* ---------- everything goes through WhatsApp (TZ-BACKEND.md §4.11) ----------
+   A tour card is an <article> with a green WhatsApp button that writes about this tour
+   straight away; a tap anywhere else on the card opens the description. */
+.tour { position: relative; }
+.tour:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+.tour__wa { position: absolute; top: 12px; left: 12px; z-index: 3; width: 44px; height: 44px; border-radius: 999px; display: grid; place-items: center;
+  background: #25D366; color: #06230f; box-shadow: 0 8px 20px -8px rgba(0,0,0,0.55); transition: transform 160ms var(--ease-out), background 160ms var(--ease-out); }
+.tour__wa svg { width: 22px; height: 22px; }
+.tour__wa:active { transform: scale(0.94); }
+.tour__wa:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .tour__wa:hover { background: #3ddc76; } }
+.tour .photo .ph { left: 66px; top: 22px; }
+.carou .tour { position: absolute; }
+.carou .tour .ph { left: 68px; top: 24px; }
+.carou .tour__wa { top: 14px; left: 14px; opacity: 0; transition: opacity 240ms var(--ease-out), transform 160ms var(--ease-out), background 160ms var(--ease-out); }
+.carou .tour.is-current .tour__wa { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .tour__wa, .carou .tour__wa { transition: none; } }
+
+/* contacts: instead of the request form — write on WhatsApp or call */
+.cta-card { align-content: center; gap: 14px; }
+.cta-card h3 { font-size: clamp(1.25rem, 2.2vw, 1.6rem); line-height: 1.2; }
+.cta-card p { color: var(--ink-2); line-height: 1.6; max-width: 42ch; }
+.cta-card__btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.cta-card__btns .btn { flex: 1 1 200px; justify-content: center; }
+.cta-card .btn svg, .sheet__cta .btn svg { width: 22px; height: 22px; flex: none; }
+.sheet__cta .btn { flex: 1 1 180px; justify-content: center; min-width: 0; text-align: center; line-height: 1.2; padding-block: 10px; }

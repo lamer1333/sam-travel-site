@@ -2,7 +2,9 @@
 // Функция проверяется целиком на поддельном вебхуке: её обращения к базе идут в ту же
 // тестовую базу (от имени суперпользователя = service_role), почтовый сервис подменён.
 // Запуск: npm test  (или node supabase/test/run.mjs 50)
-import { db, as, ok, bad, expectErr } from './_db.mjs';
+import { db, as, ok, bad, expectErr, formBack } from './_db.mjs';
+
+await formBack();   // форма заявки снята этапом 7; здесь проверяется то, что осталось в базе на случай её возврата
 import { handle, buildMail } from '../functions/lead-mail/handler.mjs';
 
 const ENV = {
