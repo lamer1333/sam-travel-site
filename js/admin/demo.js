@@ -7,6 +7,7 @@
 // lead → sale attribution in the reports is internally consistent.
 // ---------------------------------------------------------------------------
 import { TOURS } from './demo-seed.js';
+import { channelOf, cohortStats, marginOf, salesStats, couponStats, inWorkingSet } from './metrics.js';
 
 const STORE_KEY = 'sam-admin-demo-v1';
 const DAY = 86400e3, MIN = 60e3;
@@ -284,20 +285,19 @@ export function couponState(coupons, code) {
   return found.some(usable) ? 'yes' : 'expired';
 }
 
-// ------------------------------------------------------------------ stats (same shape as stats_traffic)
-export function computeStats(visits, leads, from, to) {
+// ------------------------------------------------------------------ stats (same shape and formulas as stats_traffic, 030_stats.sql)
+export function computeStats(visits, leads, from, to, settings) {
   const f = from.getTime(), t = to.getTime();
   const vs = visits.filter((v) => v.ts >= f && v.ts < t);
-  const ls = leads.filter((l) => { const x = new Date(l.created_at).getTime(); return x >= f && x < t && l.status !== 'spam'; });
+  const co = cohortStats(leads, from, to, settings), ls = co.leads;   // leads that came in the period, money «по заявкам периода»
   const day = (x) => yv(x).toISOString().slice(0, 10);
-  const srcOfV = (v) => v.utm_source || v.ref_host || 'direct';
-  const srcOfL = (l) => l.utm_source || (l.referrer ? l.referrer.replace(/^https?:\/\/(www\.)?([^/]+).*$/, '$2') : 'direct');
+  const srcOfV = (v) => channelOf(null, v.utm_source, v.ref_host);   // one rule for visits and leads
   const inc = (o, k, n = 1) => { o[k] = (o[k] || 0) + n; };
   const daily = {};
   for (let d = new Date(day(f) + 'T00:00:00Z'); d.toISOString().slice(0, 10) <= day(t - 1000); d = new Date(d.getTime() + DAY)) daily[d.toISOString().slice(0, 10)] = { d: d.toISOString().slice(0, 10), visits: 0, contacts: 0, leads: 0 };
   const sources = {}, camps = {}, devices = {}, langs = {}, sections = {}, ctas = {}, tours = {}, heat = {}, lheat = {}, promos = {};
-  const S = (k) => sources[k] || (sources[k] = { src: k, visits: 0, leads: 0, won: 0, revenue: 0 });
-  const C = (k) => camps[k] || (camps[k] = { campaign: k, visits: 0, contacts: 0, leads: 0, won: 0, revenue: 0, profit: 0, revenue_est: 0 });
+  const S = (k) => sources[k] || (sources[k] = { src: k, visits: 0, leads: 0, won: 0, revenue: 0, profit_total: 0, estimated: false });
+  const C = (k) => camps[k] || (camps[k] = { campaign: k, visits: 0, contacts: 0, leads: 0, won: 0, revenue: 0, profit: 0, revenue_est: 0, profit_total: 0, estimated: false });
   const T = (k) => tours[k] || (tours[k] = { tour: k, opens: 0, leads: 0 });
   let engaged = 0, intent = 0, contact = 0;
   for (const v of vs) {
@@ -321,20 +321,21 @@ export function computeStats(visits, leads, from, to) {
   }
   for (const l of ls) {
     const dd = daily[day(l.created_at)]; if (dd) dd.leads++;
-    const s = S(srcOfL(l)); s.leads++; if (l.status === 'won') { s.won++; s.revenue += +l.value || 0; }
-    if (l.utm_campaign) { const c = C(l.utm_campaign); c.leads++; if (l.status === 'won') { c.won++; c.revenue += +l.value || 0; if (l.profit != null) c.profit = (c.profit || 0) + +l.profit; else c.revenue_est = (c.revenue_est || 0) + (+l.value || 0); } }
     if (l.tour) T(l.tour).leads++;
     const y = yv(l.created_at); inc(lheat, (y.getUTCDay() || 7) + ':' + y.getUTCHours());
     if (['form', 'plan'].includes(l.source)) contact++;
   }
+  Object.entries(co.sources).forEach(([k, x]) => Object.assign(S(k), { leads: x.leads, won: x.won, revenue: x.revenue, profit_total: x.profit_total, estimated: x.estimated }));
+  Object.entries(co.campaigns).forEach(([k, x]) => Object.assign(C(k), x));
   const cells = (o, key) => Object.entries(o).map(([k, n]) => { const [dow, h] = k.split(':').map(Number); return { dow, h, [key]: n }; });
   return {
+    margin_pct: marginOf(settings), raw_from: null,   // the demo keeps every visit, nothing is rolled up
     daily: Object.values(daily),
-    sources: Object.values(sources).sort((a, b) => b.visits - a.visits),
+    sources: Object.values(sources).sort((a, b) => b.visits - a.visits || b.leads - a.leads),
     campaigns: Object.values(camps), devices, langs, sections, ctas,
     tours: Object.values(tours).sort((a, b) => b.opens - a.opens),
     heat: cells(heat, 'visits'), lead_heat: cells(lheat, 'leads'), promos: Object.values(promos),
-    funnel: { visits: vs.length, engaged, intent, contact: Math.min(contact, intent + ls.length), leads: ls.length, won: ls.filter((l) => l.status === 'won').length },
+    funnel: { visits: vs.length, visits_detailed: vs.length, engaged, intent, contact: Math.min(contact, intent + ls.length), leads: ls.length, won: co.won },
   };
 }
 
@@ -391,7 +392,23 @@ export class DemoApi {
   async signOut() {}
   async whoami() { const m = this.me; return this.wait({ id: m.id, email: m.email, full_name: m.full_name, role: this.st.role, lang: m.lang }, 60); }
 
-  async leads() { this.guard('leads'); return this.wait(this.st.leads, 180); }
+  // The same loading rule as LiveApi: open leads + closed (or created) in the last `days`
+  // stay in memory, the rest come by search and pages.
+  async leads({ days = 90 } = {}) { this.guard('leads'); const since = Date.now() - days * DAY; return this.wait(this.st.leads.filter((l) => inWorkingSet(l, since)), 180); }
+  async findLeads({ q, phone, source, manager, tour, spam, mine, noProfit, since, offset = 0, limit = 500 } = {}) {
+    this.guard('leads');
+    const text = String(q || '').toLowerCase(), qd = text.replace(/\D/g, ''), pd = String(phone || '').replace(/\D/g, '');
+    const digits = (l) => String(l.phone || '').replace(/\D/g, '');
+    const all = this.st.leads.filter((l) => (spam || l.status !== 'spam')
+      && (!source || l.source === source) && (!manager || (manager === 'none' ? !l.assigned_to : l.assigned_to === manager))
+      && (!mine || l.assigned_to === mine) && (!tour || l.tour === tour) && (!since || l.created_at >= since)
+      && (!noProfit || (l.status === 'won' && (l.profit == null || !(+l.value > 0))))
+      && (!pd || digits(l).includes(pd))
+      && (!text || (l.name || '').toLowerCase().includes(text) || (l.message || '').toLowerCase().includes(text) || (qd.length >= 3 && digits(l).includes(qd)) || (l.tags || []).includes(text)))
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    return this.wait({ rows: all.slice(offset, offset + limit), total: all.length }, 140);
+  }
+  async lead(id) { this.guard('leads'); return this.wait(this.st.leads.find((l) => l.id === id) || null, 60); }
   async leadActivity(id) {
     this.guard('leads');
     const l = this.st.leads.find((x) => x.id === id);
@@ -513,6 +530,7 @@ export class DemoApi {
     if (TABLE_WRITE[table]) this.guard(TABLE_WRITE[table]);
     const list = this.st[table];
     if (table === 'campaigns' && list.some((x) => x.utm_campaign === row.utm_campaign && x.id !== row.id)) throw new Error('duplicate key utm_campaign');
+    if (table === 'campaigns') row = { ...row, currency: this.campaignCurrency(row) };
     if (table === 'coupons' && list.some((x) => x.code.toUpperCase() === String(row.code).toUpperCase() && x.id !== row.id)) throw new Error('duplicate key code');
     if (table === 'tours' && list.some((x) => x.slug === row.slug && x.id !== row.id)) throw new Error('duplicate key slug');
     const now = iso(Date.now());
@@ -543,7 +561,19 @@ export class DemoApi {
     this.st.settings[key] = value; this.persist();
   }
 
-  async stats(from, to) { this.guard('stats'); return this.wait(computeStats(this.st.visits, this.st.leads, from, to), 220); }
+  // the spend is counted in the currency of the day it was typed in (campaigns_currency, 030_stats.sql)
+  campaignCurrency(row) {
+    const cur = row.id && this.st.campaigns.find((x) => x.id === row.id);
+    return !cur || Number(cur.spend) !== Number(row.spend) ? this.currency : cur.currency;
+  }
+  // The reports: the same formulas as the database, see metrics.js
+  async stats(from, to) { this.guard('stats'); return this.wait(computeStats(this.st.visits, this.st.leads, from, to, this.st.settings), 220); }
+  async sales(from, to) {
+    this.guard('stats');
+    const f = from.getTime(), t = to.getTime();
+    return this.wait(salesStats({ leads: this.st.leads, users: this.st.users, settings: this.st.settings, from, to, visits: this.st.visits.filter((v) => v.ts >= f && v.ts < t).length }), 200);
+  }
+  async couponStats() { this.guard('stats'); return this.wait(couponStats(this.st.coupons, this.st.leads), 100); }
   async audit() { this.guard('audit'); return this.wait(this.st.audit, 100); }
   async upload(file) {
     return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });

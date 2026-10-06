@@ -310,7 +310,21 @@ function openPalette() {
     }
     sel = Math.min(sel, Math.max(0, items.length - 1));
     paint();
+    findOlder(q);
   }
+  // closed leads older than the panel keeps in memory are looked up on the server
+  let asked = '';
+  const findOlder = debounce(async (q) => {
+    if (q.length < 3 || q === asked || !ctx.can('leads') || !ctx.cache.leads) return;
+    asked = q;
+    try {
+      const { rows } = await ctx.api.findLeads({ q, spam: true, limit: 7 });
+      const fresh = rows.filter((r) => !ctx.cache.leads.some((x) => x.id === r.id));
+      if (!fresh.length || !box.isConnected) return;
+      ctx.cache.leads.push(...fresh);
+      if (inp.value.trim().toLowerCase() === q) build();
+    } catch (e) {}
+  }, 350);
   function paint() {
     clear(list); let g = null;
     if (!items.length) list.appendChild(h('li', { style: { color: 'var(--ink-3)', cursor: 'default' } }, 'Ничего не найдено'));

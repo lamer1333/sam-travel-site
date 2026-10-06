@@ -1,24 +1,30 @@
 // Leads — mini-CRM: kanban with drag & drop, table with bulk actions,
 // a lead card with WhatsApp templates, timeline, SLA, duplicates.
+// In memory: every open lead + the ones closed in the last 90 days (ctx.leads()). Older
+// leads come from the server by search and page by page («За всё время») — a list asked
+// for in one request would silently stop at the first thousand rows.
 import { h, $, $$, add, mount, clear, icon, fmt, toast, modal, drawer, confirmDlg, field, input, textarea, select, seg, tagsInput, table, csv, copyText, debounce, pageHead, plural, currency } from '../ui.js';
 import { STATUS, STATUS_NAME, SOURCE_NAME } from '../main.js';
-import { slaBadge, waLink, fillTemplate, loadTours, tourName, minutesBetween, inWorkingHours, ymd, saleIso, isManual } from './common.js';
+import { slaBadge, isOverdue, waLink, fillTemplate, loadTours, tourName, inWorkingHours, ymd, saleIso, isManual, srcName } from './common.js';
+import { leadCsvColumns, responseMinutes, inWorkingSet } from '../metrics.js';
+import { LEADS_WINDOW_DAYS } from '../api.js';
 
 const COLS = ['new', 'contacted', 'quoted', 'won', 'lost'];
 const state = { view: localStorage.getItem('sam-leads-view') || 'kanban', q: '', quick: 'all', source: '', manager: '', tour: '', days: '', spam: false };
 
 export default async function leadsView(root, ctx, params) {
   const [leads, settings] = await Promise.all([ctx.leads(), ctx.settings(), ctx.users().catch(() => []), loadTours(ctx)]);
-  const sla = (settings.hours && settings.hours.sla_min) || 60;
-  const body = h('div');
+  const hours = settings.hours, sla = (hours && hours.sla_min) || 60;
+  const body = h('div'), moreBox = h('div');
   const headSub = h('span');
+  if (state.days === '') state.days = 'recent';
   root.append(
     pageHead('Заявки', null,
       h('div.seg', { role: 'group', 'aria-label': 'Вид' },
         [['kanban', 'Канбан', 'kanban'], ['table', 'Таблица', 'list']].map(([v, l, ic]) => h('button', { type: 'button', 'aria-pressed': String(state.view === v), onclick: (e) => {
           state.view = v; localStorage.setItem('sam-leads-view', v); $$('button', e.currentTarget.parentNode).forEach((b) => b.setAttribute('aria-pressed', String(b === e.currentTarget))); paint();
         } }, icon(ic), ' ', l))),
-      h('button.btn', { onclick: () => exportCsv(filtered()) }, icon('download'), 'CSV'),
+      h('button.btn', { title: 'Все заявки под текущий фильтр, а не только показанные на экране', onclick: async (e) => { const b = e.currentTarget; b.disabled = true; try { await pullAll(); exportCsv(filtered()); } finally { b.disabled = false; } } }, icon('download'), 'CSV'),
       h('button.btn', { title: 'Клиент уже оплатил — записать продажу сразу', onclick: () => createLead(ctx, paint, { sale: true }) }, icon('check'), 'Продажа'),
       h('button.btn.btn--primary', { onclick: () => createLead(ctx, paint) }, icon('plus'), 'Заявка')),
   );
@@ -30,7 +36,7 @@ export default async function leadsView(root, ctx, params) {
     ['all', 'Все', () => true],
     ['mine', 'Мои', (l) => l.assigned_to === me],
     ['unassigned', 'Без ответственного', (l) => !l.assigned_to && !['won', 'lost', 'spam'].includes(l.status)],
-    ['overdue', 'Ждут дольше ' + sla + ' мин', (l) => l.status === 'new' && minutesBetween(l.created_at, Date.now()) > sla],
+    ['overdue', 'Ждут дольше ' + sla + ' мин', (l) => isOverdue(l, hours)],
     ['followup', 'Перезвонить сегодня', (l) => l.follow_up_at && ymd(l.follow_up_at) <= ymd(Date.now()) && !['won', 'lost', 'spam'].includes(l.status)],
     ['noprofit', 'Продажи без дохода агентства', (l) => l.status === 'won' && (l.profit == null || !(+l.value > 0))],
   ];
@@ -39,27 +45,71 @@ export default async function leadsView(root, ctx, params) {
     clear(quickRow);
     QUICK.forEach(([k, label, fn]) => {
       const n = k === 'all' ? null : leads.filter(fn).length;
-      quickRow.appendChild(h('button.chip', { type: 'button', 'aria-pressed': String(state.quick === k), onclick: () => { state.quick = k; paintQuick(); paint(); } }, label, n != null ? h('b', { style: { marginLeft: '4px', color: k === 'overdue' && n ? 'var(--bad)' : '' } }, String(n)) : null));
+      quickRow.appendChild(h('button.chip', { type: 'button', 'aria-pressed': String(state.quick === k), onclick: () => { state.quick = k; paintQuick(); refresh(); } }, label, n != null ? h('b', { style: { marginLeft: '4px', color: k === 'overdue' && n ? 'var(--bad)' : '' } }, String(n)) : null));
     });
   }
   const sources = Array.from(new Set(leads.map((l) => l.source))).map((s) => [s, SOURCE_NAME[s] || s]);
   const tours = Array.from(new Set(leads.map((l) => l.tour).filter(Boolean))).map((t) => [t, tourName(ctx, t)]);
   const search = input(state.q, { placeholder: 'Имя, телефон, текст…', attrs: { type: 'search', 'aria-label': 'Поиск' } });
   search.addEventListener('input', debounce(() => { state.q = search.value.trim().toLowerCase(); paint(); }, 150));
+  search.addEventListener('input', debounce(() => pull(), 450));   // older leads are searched on the server
   const toolbar = h('div.toolbar',
     h('div', { style: { position: 'relative', flex: '1 1 220px', maxWidth: '340px' } }, search),
-    select([['', 'Все источники'], ...sources], state.source, (v) => { state.source = v; paint(); }),
-    select([['', 'Все менеджеры'], ['none', 'Без ответственного'], ...ctx.team().map((u) => [u.id, u.full_name || u.email])], state.manager, (v) => { state.manager = v; paint(); }),
-    select([['', 'Все направления'], ...tours], state.tour, (v) => { state.tour = v; paint(); }),
-    select([['', 'За всё время'], ['1', 'Сегодня'], ['7', '7 дней'], ['30', '30 дней'], ['90', '90 дней']], state.days, (v) => { state.days = v; paint(); }),
-    h('label.switch', h('input', { type: 'checkbox', checked: state.spam, onchange: (e) => { state.spam = e.target.checked; paint(); } }), h('i'), h('span', 'Спам')));
-  root.append(quickRow, toolbar, body);
+    select([['', 'Все источники'], ...sources], state.source, (v) => { state.source = v; refresh(); }),
+    select([['', 'Все менеджеры'], ['none', 'Без ответственного'], ...ctx.team().map((u) => [u.id, u.full_name || u.email])], state.manager, (v) => { state.manager = v; refresh(); }),
+    select([['', 'Все направления'], ...tours], state.tour, (v) => { state.tour = v; refresh(); }),
+    select([['recent', 'В работе и закрытые за ' + LEADS_WINDOW_DAYS + ' дней'], ['1', 'Сегодня'], ['7', '7 дней'], ['30', '30 дней'], ['90', '90 дней'], ['all', 'За всё время']], state.days, (v) => { state.days = v; refresh(); }),
+    h('label.switch', h('input', { type: 'checkbox', checked: state.spam, onchange: (e) => { state.spam = e.target.checked; refresh(); } }), h('i'), h('span', 'Спам')));
+  root.append(quickRow, toolbar, body, moreBox);
+
+  // ---------- the part of the selection that lives on the server ----------
+  const sinceMs = () => (/^\d+$/.test(state.days) ? (state.days === '1' ? new Date(ymd(Date.now()) + 'T00:00:00+04:00').getTime() : Date.now() - state.days * 86400e3) : 0);
+  const remote = { key: '', loaded: 0, total: null, busy: false };
+  // null = the leads in memory are the whole answer (open ones always are)
+  function remoteFilter() {
+    if (['unassigned', 'overdue', 'followup'].includes(state.quick)) return null;
+    if (state.days !== 'all' && !state.q) return null;
+    return { q: state.q, source: state.source, manager: state.manager, tour: state.tour, spam: state.spam, mine: state.quick === 'mine' ? me : null, noProfit: state.quick === 'noprofit',
+      since: sinceMs() ? new Date(sinceMs()).toISOString() : null };
+  }
+  function merge(rows) {
+    rows.forEach((r) => { const i = leads.findIndex((x) => x.id === r.id); if (i >= 0) Object.assign(leads[i], r); else leads.push(r); });
+    leads.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+  }
+  async function pull(more) {
+    const f = remoteFilter(), key = JSON.stringify(f);
+    if (!f) { remote.key = ''; remote.total = null; paintMore(); return; }
+    if (key !== remote.key) { remote.key = key; remote.loaded = 0; remote.total = null; } else if (!more || remote.busy) return;
+    remote.busy = true; paintMore();
+    try {
+      const { rows, total } = await ctx.api.findLeads({ ...f, offset: remote.loaded });
+      if (key !== remote.key) return;   // the filter changed while the page was on its way
+      merge(rows); remote.loaded += rows.length; remote.total = rows.length ? total : remote.loaded;
+    } catch (e) { ctx.err(e); remote.total = remote.loaded; }
+    finally { if (key === remote.key) { remote.busy = false; paint(); } }
+  }
+  /** for the export: every page of the current selection */
+  async function pullAll() {
+    if (!remoteFilter()) return;
+    if (JSON.stringify(remoteFilter()) !== remote.key || remote.total == null) await pull();
+    while (remote.total != null && remote.loaded < remote.total) await pull(true);
+  }
+  function paintMore() {
+    const left = remote.total == null ? 0 : remote.total - remote.loaded;
+    mount(moreBox, remote.busy ? h('p.muted', { style: { textAlign: 'center', margin: '14px 0' } }, 'Ищем в старых заявках…')
+      : left > 0 ? h('div', { style: { textAlign: 'center', margin: '14px 0' } }, h('button.btn', { onclick: () => pull(true) }, 'Показать ещё ' + Math.min(left, 500) + ' из ' + left + ' более ранних'))
+      : remoteFilter() && remote.total != null ? h('p.muted', { style: { textAlign: 'center', margin: '14px 0', fontSize: '12.5px' } }, 'Показаны все заявки под этот фильтр')
+      : state.days === 'recent' ? h('p.muted', { style: { textAlign: 'center', margin: '14px 0', fontSize: '12.5px' } }, 'Здесь все открытые заявки и закрытые за ' + LEADS_WINDOW_DAYS + ' дней. Более ранние — через поиск или «За всё время».') : null);
+  }
+  const refresh = () => { paint(); pull(); };
 
   function filtered() {
     const q = state.q, qd = q.replace(/\D/g, '');
     const quick = QUICK.find((x) => x[0] === state.quick)[2];
-    const since = state.days ? (state.days === '1' ? new Date(ymd(Date.now()) + 'T00:00:00+04:00').getTime() : Date.now() - state.days * 86400e3) : 0;
+    const since = sinceMs();
+    const recent = Date.now() - LEADS_WINDOW_DAYS * 86400e3;   // older leads pulled in by an earlier search do not belong to «в работе и за 90 дней»
     return leads.filter((l) => (state.spam || l.status !== 'spam') && quick(l)
+      && (state.days !== 'recent' || q || inWorkingSet(l, recent))
       && (!state.source || l.source === state.source)
       && (!state.manager || (state.manager === 'none' ? !l.assigned_to : l.assigned_to === state.manager))
       && (!state.tour || l.tour === state.tour)
@@ -68,11 +118,13 @@ export default async function leadsView(root, ctx, params) {
   }
   function paint() {
     const rows = filtered();
-    const nNew = leads.filter((l) => l.status === 'new').length, nLate = leads.filter((l) => l.status === 'new' && minutesBetween(l.created_at, Date.now()) > sla).length;
-    headSub.textContent = `${fmt.num(rows.length)} ${plural(rows.length, 'заявка', 'заявки', 'заявок')} в выборке · ${nNew} новых` + (nLate ? ` · ${nLate} ждут дольше ${sla} мин` : '');
+    const nNew = leads.filter((l) => l.status === 'new').length, nLate = leads.filter((l) => isOverdue(l, hours)).length;
+    const left = remote.total == null ? 0 : remote.total - remote.loaded;
+    headSub.textContent = `${fmt.num(rows.length)} ${plural(rows.length, 'заявка', 'заявки', 'заявок')} в выборке` + (left > 0 ? ` (ещё ${fmt.num(left)} более ранних не загружено)` : '') + ` · ${nNew} новых` + (nLate ? ` · ${nLate} ждут дольше ${sla} мин` : '');
     ctx.setBadge(nNew);
     paintQuick();
     mount(body, state.view === 'kanban' ? kanban(rows) : tableView(rows));
+    paintMore();
   }
 
   // ---------- kanban ----------
@@ -99,7 +151,7 @@ export default async function leadsView(root, ctx, params) {
   }
   function leadCard(l) {
     const c = h('article.lcard', { draggable: 'true', tabindex: '0', onclick: () => openLead(ctx, l.id, paint), onkeydown: (e) => { if (e.key === 'Enter') openLead(ctx, l.id, paint); } },
-      h('div.row.row--between', h('b', l.name), slaBadge(l, sla)),
+      h('div.row.row--between', h('b', l.name), slaBadge(l, hours)),
       h('div.lcard__meta', h('span.tag', SOURCE_NAME[l.source] || l.source), l.tour ? h('span.tag', tourName(ctx, l.tour)) : null, (l.tags || []).map((t) => h('span.tag', '#' + t))),
       l.message ? h('div.lcard__msg', l.message) : null,
       h('div.lcard__foot', h('span.muted', fmt.ago(l.created_at) + (l.assigned_to ? ' · ' + ctx.staffName(l.assigned_to).split(' ')[0] : '')), l.value ? h('b', fmt.money(l.value)) : null));
@@ -152,7 +204,7 @@ export default async function leadsView(root, ctx, params) {
       columns: [
         { key: 'name', label: 'Клиент', sort: true, render: (l) => h('div.cell-main', h('b', l.name), h('small', l.phone)) },
         { key: 'status', label: 'Статус', sort: true, render: (l) => h('span.badge.badge--' + l.status, STATUS_NAME[l.status]) },
-        { key: 'sla', label: 'Ответ', sort: (l) => l.first_response_at ? minutesBetween(l.created_at, l.first_response_at) : 1e9, render: (l) => slaBadge(l, sla) },
+        { key: 'sla', label: 'Ответ', sort: (l) => responseMinutes(l, hours) ?? 1e9, render: (l) => slaBadge(l, hours) },
         { key: 'tour', label: 'Направление', sort: true, render: (l) => tourName(ctx, l.tour) },
         { key: 'source', label: 'Источник', sort: true, render: (l) => h('div.cell-main', h('b', SOURCE_NAME[l.source] || l.source), l.utm_campaign ? h('small', l.utm_campaign) : null) },
         { key: 'assigned_to', label: 'Менеджер', sort: (l) => ctx.staffName(l.assigned_to), render: (l) => l.assigned_to ? ctx.staffName(l.assigned_to) : h('span.muted', '—') },
@@ -164,6 +216,7 @@ export default async function leadsView(root, ctx, params) {
   }
 
   paint();
+  pull();
   const onLive = () => paint();
   document.addEventListener('sam:lead', onLive);
   new MutationObserver((_, o) => { if (!root.isConnected || !root.contains(body)) { document.removeEventListener('sam:lead', onLive); o.disconnect(); } }).observe(root, { childList: true });
@@ -173,15 +226,14 @@ export default async function leadsView(root, ctx, params) {
   else if (params[0]) openLead(ctx, params[0], paint);
 }
 
+// The columns live in metrics.js: «Продажа», «Дата продажи» and «Первый ответ» follow the same
+// rules as the dashboard, so the file adds up to the same totals (ТЗ §9 п.3).
 function exportCsv(rows) {
   const ctx = window.__samPanel;
-  csv('leads-' + new Date().toISOString().slice(0, 10) + '.csv', rows, [
-    ['Дата', (l) => fmt.dt(l.created_at)], ['Имя', (l) => l.name], ['Телефон', (l) => l.phone], ['Email', (l) => l.email],
-    ['Статус', (l) => STATUS_NAME[l.status]], ['Направление', (l) => tourName(ctx, l.tour)], ['Сообщение', (l) => l.message],
-    ['Источник', (l) => SOURCE_NAME[l.source] || l.source], ['utm_source', (l) => l.utm_source], ['utm_campaign', (l) => l.utm_campaign],
-    ['Менеджер', (l) => l.assigned_to ? ctx.staffName(l.assigned_to) : ''], ['Сумма', (l) => l.value], ['Доход агентства', (l) => l.profit], ['Валюта', () => currency()], ['Дата продажи', (l) => l.status === 'won' && l.closed_at ? ymd(l.closed_at) : ''], ['Причина отказа', (l) => l.lost_reason],
-    ['Первый ответ, мин', (l) => l.first_response_at ? Math.round(minutesBetween(l.created_at, l.first_response_at)) : ''], ['Промокод', (l) => l.coupon_code], ['Теги', (l) => (l.tags || []).join(' ')],
-  ]);
+  csv('leads-' + new Date().toISOString().slice(0, 10) + '.csv', rows, leadCsvColumns({
+    fmtDt: fmt.dt, statusName: (st) => STATUS_NAME[st], sourceName: (x) => SOURCE_NAME[x] || x, channelName: srcName,
+    tourName: (t) => tourName(ctx, t), staffName: (id) => ctx.staffName(id), currency: currency(), hours: (ctx.cache.settings || {}).hours,
+  }));
 }
 
 // ---------- status change with the questions each status needs ----------
@@ -302,15 +354,20 @@ function couponMark(v) {
 const ACT_ICON = { note: 'edit', status: 'refresh', assign: 'users', call: 'phone', whatsapp: 'wa', email: 'mail', system: 'zap', money: 'tag' };
 export async function openLead(ctx, id, after) {
   const leads = await ctx.leads();
-  const l = leads.find((x) => x.id === id);
+  let l = leads.find((x) => x.id === id);
+  // an old closed lead is not in memory: a link, the search or the dashboard may still point at it
+  if (!l) { l = await ctx.api.lead(id).catch(() => null); if (l) leads.push(l); }
   if (!l) { toast('Заявка не найдена', 'bad'); return; }
   if (location.hash !== '#/leads/' + id) history.replaceState(null, '', '#/leads/' + id);
-  const sla = ((ctx.cache.settings || {}).hours || {}).sla_min || 60;
+  const hours = (ctx.cache.settings || {}).hours;
+  // earlier requests from the same number may be older than what is in memory
+  const tail = l.phone.replace(/\D/g, '').slice(-8);
+  if (tail.length >= 6) await ctx.api.findLeads({ phone: tail, spam: true, limit: 20 }).then(({ rows }) => rows.forEach((r) => { if (!leads.some((x) => x.id === r.id)) leads.push(r); })).catch(() => {});
   const dups = leads.filter((x) => x.id !== l.id && x.phone && (x.phone || '').replace(/\D/g, '').slice(-8) === l.phone.replace(/\D/g, '').slice(-8));
   const tl = h('div.tl');
   const headRow = h('div.row', { style: { marginTop: '10px' } }), work = h('div');
-  const paintHead = () => mount(headRow, h('span.badge.badge--' + l.status, STATUS_NAME[l.status]), slaBadge(l, sla),
-    !isManual(l) && !inWorkingHours(l.created_at, (ctx.cache.settings || {}).hours) ? h('span.badge.badge--plain', 'вне рабочего времени') : null,
+  const paintHead = () => mount(headRow, h('span.badge.badge--' + l.status, STATUS_NAME[l.status]), slaBadge(l, hours),
+    !isManual(l) && !inWorkingHours(l.created_at, hours) ? h('span.badge.badge--plain', { title: 'Время ответа считается с открытия офиса' }, 'вне рабочего времени') : null,
     dups.length ? h('span.badge.badge--warn', 'повторное обращение ×' + (dups.length + 1)) : null);
   paintHead();
   let templates = [];

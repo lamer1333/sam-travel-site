@@ -1,5 +1,6 @@
 // Campaigns: UTM link builder with QR, and each campaign's spend → visits →
-// leads → sales → ROMI, over the campaign's whole life.
+// leads → sales → ROMI, over the campaign's whole life. Leads, sales, revenue and the
+// agency income come ready from stats_traffic() — money «по заявкам кампании» (§5).
 import { h, $, mount, clear, icon, fmt, toast, drawer, confirmDlg, field, input, textarea, select, table, copyText, slug, pageHead, card, csv, currency } from '../ui.js';
 import { CHANNELS } from './common.js';
 
@@ -32,13 +33,14 @@ function status(c) {
 }
 
 export default async function campaignsView(root, ctx, params) {
-  let [rows, settings] = await Promise.all([ctx.api.list('campaigns'), ctx.settings()]);
-  // ROMI is counted on the agency's gross profit, not the tour price: a $2,000 tour
-  // earns the agency its margin, and that is what the ad spend has to pay back.
-  const marginPct = Number((settings.company || {}).margin_pct) || 12, margin = marginPct / 100;
+  let rows = await ctx.api.list('campaigns');
   const earliest = rows.reduce((m, c) => Math.min(m, new Date(c.starts_on || c.created_at).getTime()), Date.now() - 30 * 86400e3);
   const stats = await ctx.api.stats(new Date(earliest), new Date(Date.now() + 60e3));
   const byC = Object.fromEntries(stats.campaigns.map((x) => [x.campaign, x]));
+  // ROMI is counted on the agency's income, not the tour price: a $2,000 tour earns the
+  // agency its commission, and that is what the ad spend has to pay back. The database
+  // sums the commissions managers entered and estimates the rest by the margin.
+  const marginPct = stats.margin_pct;
   let showArchived = false;
   const tableBox = h('div');
 
@@ -51,12 +53,16 @@ export default async function campaignsView(root, ctx, params) {
   if (orphan.length) root.append(h('div.note.note--warn', { style: { marginBottom: '14px' } }, icon('alert'),
     h('span', 'Есть трафик с метками, для которых нет кампании: ', orphan.map((o, i) => [i ? ', ' : '', h('b', o.campaign), ' (' + o.visits + ' пос.)']), '. Создайте кампанию с таким utm_campaign, чтобы учесть расход.')));
 
-  root.append(h('div.row', { style: { marginBottom: '12px' } }, h('span.muted', { style: { fontSize: '12.5px', marginRight: 'auto' } }, 'ROMI считается от дохода агентства: комиссия, которую менеджер указал в продаже; где не указал — выручка × маржа ' + marginPct + '%' + (ctx.can('owner') ? ' (меняется в «Контакты и реквизиты»)' : ' (задаёт владелец)') + '.'), h('label.switch', h('input', { type: 'checkbox', onchange: (e) => { showArchived = e.target.checked; paint(); } }), h('i'), h('span', 'Показать архив'))), tableBox);
+  // the spend was typed in one currency, the sales are counted in another: ROMI of such a campaign is wrong
+  const foreign = rows.filter((c) => !c.archived && +c.spend > 0 && c.currency && c.currency !== currency());
+  if (foreign.length) root.append(h('div.note.note--warn', { style: { marginBottom: '14px' } }, icon('alert'),
+    h('span', 'Валюта панели сменилась на ' + currency() + ', а расход этих кампаний введён в другой валюте и не пересчитывается: ', foreign.map((c, i) => [i ? ', ' : '', h('b', c.name), ' (' + c.currency + ')']), '. Впишите расход заново в ' + currency() + ' — иначе цена заявки и ROMI неверны.')));
+
+  root.append(h('div.row', { style: { marginBottom: '12px' } }, h('span.muted', { style: { fontSize: '12.5px', marginRight: 'auto' } }, 'Продажи, выручка и доход — по заявкам кампании: считаются заявки с её меткой, когда бы они ни стали продажей. ROMI считается от дохода агентства: комиссия, которую менеджер указал в продаже; где не указал — ' + (marginPct != null ? 'выручка × маржа ' + marginPct + '%' : 'ничего, пока не задана маржа') + (ctx.can('owner') ? ' (меняется в «Контакты и реквизиты»)' : ' (задаёт владелец)') + '. «≈» — в доходе есть такая оценка.'), h('label.switch', h('input', { type: 'checkbox', onchange: (e) => { showArchived = e.target.checked; paint(); } }), h('i'), h('span', 'Показать архив'))), tableBox);
 
   function metrics(c) {
-    const s = byC[c.utm_campaign] || { visits: 0, contacts: 0, leads: 0, won: 0, revenue: 0 };
-    // entered commissions are used as they are; sales without one are estimated by the margin
-    const profit = s.revenue_est == null ? s.revenue * margin : (+s.profit || 0) + (+s.revenue_est || 0) * margin;
+    const s = byC[c.utm_campaign] || { visits: 0, contacts: 0, leads: 0, won: 0, revenue: 0, profit_total: 0, estimated: false };
+    const profit = +s.profit_total || 0;   // ready from the database, with the «estimated» flag
     return { ...c, ...s, cpl: s.leads ? c.spend / s.leads : null, cpa: s.won ? c.spend / s.won : null, profit, romi: c.spend ? (profit - c.spend) / c.spend : null, cr: s.visits ? s.leads / s.visits : null };
   }
   function paint() {
@@ -72,14 +78,14 @@ export default async function campaignsView(root, ctx, params) {
         { key: 'leads', label: 'Заявки', align: 'r', sort: true },
         { key: 'cr', label: 'Конв.', align: 'r', sort: (r) => r.cr || 0, render: (r) => fmt.pct(r.cr, 1) },
         { key: 'won', label: 'Продажи', align: 'r', sort: true },
-        { key: 'revenue', label: 'Выручка', align: 'r', sort: true, render: (r) => r.revenue ? fmt.money(r.revenue) : '—' },
+        { key: 'revenue', label: 'Выручка · по заявкам', align: 'r', sort: true, render: (r) => r.revenue ? fmt.money(r.revenue) : '—' },
         { key: 'cpl', label: 'Цена заявки', align: 'r', sort: (r) => r.cpl ?? 1e9, render: (r) => fmt.money(r.cpl) },
-        { key: 'romi', label: 'ROMI', align: 'r', sort: (r) => r.romi ?? -1e9, render: (r) => r.romi == null ? '—' : h('b', { style: { color: r.romi >= 0 ? 'var(--ok)' : 'var(--bad)' }, title: '(доход агентства − расход) ÷ расход. Доход: ' + fmt.money(r.profit) }, (r.romi > 0 ? '+' : '') + fmt.pct(r.romi, 0)) },
+        { key: 'romi', label: 'ROMI', align: 'r', sort: (r) => r.romi ?? -1e9, render: (r) => r.romi == null ? '—' : h('b', { style: { color: r.romi >= 0 ? 'var(--ok)' : 'var(--bad)' }, title: '(доход агентства − расход) ÷ расход. Доход: ' + fmt.money(r.profit) + (r.estimated ? ' — часть оценена по марже' : '') }, (r.estimated ? '≈ ' : '') + (r.romi > 0 ? '+' : '') + fmt.pct(r.romi, 0)) },
         { key: 'link', label: '', render: (r) => h('button.btn.btn--ghost.btn--sm', { title: 'Скопировать ссылку', onclick: () => copyText(buildUrl(r), 'Ссылка скопирована') }, icon('link')) },
       ],
       foot: () => h('tr', h('td', 'Итого'), h('td'), h('td.r.num', fmt.money(tot.spend)), h('td.r.num', fmt.num(tot.visits)), h('td.r.num', fmt.num(tot.leads)), h('td.r.num', fmt.pct(tot.visits ? tot.leads / tot.visits : null, 1)),
         h('td.r.num', fmt.num(tot.won)), h('td.r.num', fmt.money(tot.revenue)), h('td.r.num', fmt.money(tot.leads ? tot.spend / tot.leads : null)),
-        h('td.r.num', tot.spend ? (tot.profit > tot.spend ? '+' : '') + fmt.pct((tot.profit - tot.spend) / tot.spend, 0) : '—'), h('td')),
+        h('td.r.num', tot.spend ? (data.some((r) => r.estimated) ? '≈ ' : '') + (tot.profit > tot.spend ? '+' : '') + fmt.pct((tot.profit - tot.spend) / tot.spend, 0) : '—'), h('td')),
     })));
   }
   function spendCell(r) {
@@ -91,7 +97,7 @@ export default async function campaignsView(root, ctx, params) {
   }
   function exportAll() {
     csv('campaigns.csv', rows.map(metrics), [['Кампания', (r) => r.name], ['Канал', (r) => CHANNELS[r.channel] || r.channel], ['utm_source', (r) => r.utm_source], ['utm_medium', (r) => r.utm_medium], ['utm_campaign', (r) => r.utm_campaign],
-      ['Начало', (r) => r.starts_on], ['Конец', (r) => r.ends_on], ['Расход', (r) => r.spend], ['Посещения', (r) => r.visits], ['Заявки', (r) => r.leads], ['Продажи', (r) => r.won], ['Выручка', (r) => r.revenue],
+      ['Начало', (r) => r.starts_on], ['Конец', (r) => r.ends_on], ['Расход', (r) => r.spend], ['Посещения', (r) => r.visits], ['Заявки', (r) => r.leads], ['Продажи', (r) => r.won], ['Выручка (по заявкам кампании)', (r) => r.revenue], ['Доход агентства', (r) => r.profit], ['Доход — оценка по марже', (r) => (r.estimated ? 'да' : '')], ['Валюта расхода', (r) => r.currency],
       ['Цена заявки', (r) => r.cpl ? r.cpl.toFixed(2) : ''], ['ROMI %', (r) => r.romi != null ? (r.romi * 100).toFixed(0) : ''], ['Ссылка', (r) => buildUrl(r)]]);
   }
 
@@ -139,7 +145,7 @@ export default async function campaignsView(root, ctx, params) {
           h('div.btns', h('button.btn.btn--primary', { onclick: () => copyText(buildUrl(d, lang), 'Ссылка скопирована') }, icon('copy'), 'Скопировать'),
             h('button.btn', { onclick: () => { const cv = $('canvas', qr), img = $('img', qr); const src2 = cv ? cv.toDataURL('image/png') : img && img.src; if (!src2) return; const a = h('a', { href: src2, download: 'qr-' + (d.utm_campaign || 'sam') + '.png' }); document.body.appendChild(a); a.click(); a.remove(); } }, icon('download'), 'QR в PNG')),
           qr,
-          s ? card('Результат кампании', null, h('dl.kv', h('dt', 'Посещения'), h('dd', fmt.num(s.visits)), h('dt', 'Контакты'), h('dd', fmt.num(s.contacts)), h('dt', 'Заявки'), h('dd', fmt.num(s.leads)), h('dt', 'Продажи'), h('dd', fmt.num(s.won)), h('dt', 'Выручка'), h('dd', fmt.money(s.revenue)))) : null,
+          s ? card('Результат кампании', null, h('dl.kv', h('dt', 'Посещения'), h('dd', fmt.num(s.visits)), h('dt', 'Контакты'), h('dd', fmt.num(s.contacts)), h('dt', 'Заявки'), h('dd', fmt.num(s.leads)), h('dt', 'Продажи'), h('dd', fmt.num(s.won)), h('dt', 'Выручка'), h('dd', fmt.money(s.revenue)), h('dt', s.estimated ? 'Доход агентства ≈' : 'Доход агентства'), h('dd', fmt.money(s.profit_total)))) : null,
           h('div.note', icon('spark'), h('span', 'Для Instagram-профиля используйте отдельную ссылку с utm_medium=bio — так видно, сколько клиентов приносит сам профиль, а не реклама.')))),
       footer: (api) => h('div.btns', { style: { width: '100%', justifyContent: 'space-between' } },
         h('div.btns', c.id ? h('button.btn.btn--ghost', { onclick: async () => { try { const u = await ctx.api.save('campaigns', { ...c, archived: !c.archived }); Object.assign(c, u); toast(c.archived ? 'В архиве' : 'Возвращена'); api.close(); paint(); } catch (e) { ctx.err(e); } } }, c.archived ? 'Вернуть из архива' : 'В архив') : null,
