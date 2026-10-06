@@ -6,7 +6,7 @@ import { ymd, LANG_NAME } from './common.js';
 
 export default async function audienceView(root, ctx, params) {
   const rows = await ctx.api.audience();
-  const f = { q: '', langs: [], src: [], buyers: false };
+  const f = { q: '', langs: [], src: [] };
   const now = Date.now(), d30 = now - 30 * 86400e3, d60 = now - 60 * 86400e3;
   const new30 = rows.filter((r) => r.consent_at && new Date(r.consent_at) > d30).length;
   const new60 = rows.filter((r) => r.consent_at && new Date(r.consent_at) > d60 && new Date(r.consent_at) <= d30).length;
@@ -18,7 +18,6 @@ export default async function audienceView(root, ctx, params) {
   root.append(h('div.kpis',
     kpi({ label: 'Подписчиков', value: fmt.num(rows.length) }),
     kpi({ label: 'Новых за 30 дней', value: fmt.num(new30), cur: new30, prev: new60 }),
-    kpi({ label: 'Уже покупали', value: fmt.num(rows.filter((r) => r.bookings > 0).length), hint: 'Есть хотя бы одно бронирование' }),
     kpi({ label: 'Пришли через соцвход', value: fmt.pct(rows.length ? rows.filter((r) => r.consent_source === 'onboarding_social').length / rows.length : null, 0), hint: 'Согласились на экране после входа через Google / Mail.ru' })));
 
   // growth: cumulative by consent date, last 180 days
@@ -42,13 +41,12 @@ export default async function audienceView(root, ctx, params) {
       h('button.btn.btn--sm', { onclick: () => exportAs('generic') }, icon('download'), 'CSV (все поля)'))),
     h('div.toolbar', search,
       chipsPick([['ru', 'RU'], ['hy', 'HY'], ['en', 'EN']], [], (v) => { f.langs = v; paint(); }),
-      chipsPick([['signup_form', 'Регистрация'], ['onboarding_social', 'Соцвход']], [], (v) => { f.src = v; paint(); }),
-      h('label.switch', h('input', { type: 'checkbox', onchange: (e) => { f.buyers = e.target.checked; paint(); } }), h('i'), h('span', 'Только покупатели'))),
+      chipsPick([['signup_form', 'Регистрация'], ['onboarding_social', 'Соцвход']], [], (v) => { f.src = v; paint(); })),
     listBox));
 
   function filtered() {
     return rows.filter((r) => (!f.q || (r.email || '').toLowerCase().includes(f.q) || (r.full_name || '').toLowerCase().includes(f.q))
-      && (!f.langs.length || f.langs.includes(r.lang)) && (!f.src.length || f.src.includes(r.consent_source)) && (!f.buyers || r.bookings > 0));
+      && (!f.langs.length || f.langs.includes(r.lang)) && (!f.src.length || f.src.includes(r.consent_source)));
   }
   function paint() {
     const data = filtered();
@@ -57,15 +55,14 @@ export default async function audienceView(root, ctx, params) {
         { key: 'email', label: 'Email', sort: true, render: (r) => h('div.cell-main', h('b', r.email), r.full_name ? h('small', r.full_name) : null) },
         { key: 'lang', label: 'Язык', sort: true, render: (r) => (r.lang || '').toUpperCase() },
         { key: 'consent_source', label: 'Как подписался', sort: true, render: (r) => r.consent_source === 'onboarding_social' ? 'Соцвход' : r.consent_source === 'signup_form' ? 'Регистрация' : (r.consent_source || '—') },
-        { key: 'bookings', label: 'Брони', align: 'r', sort: true },
         { key: 'consent_at', label: 'Согласие', sort: true, render: (r) => fmt.date(r.consent_at) },
       ] }),
       data.length > 500 ? h('div.muted', { style: { marginTop: '8px' } }, 'Показаны первые 500 — выгрузка возьмёт всех') : null);
   }
   function exportAs(kind, list = filtered(), suffix = '') {
     const name = 'subscribers' + (suffix ? '-' + suffix : '') + '-' + new Date().toISOString().slice(0, 10) + '.csv';
-    if (kind === 'brevo') csv(name, list, [['EMAIL', (r) => r.email], ['FIRSTNAME', (r) => (r.full_name || '').split(' ')[0]], ['LASTNAME', (r) => (r.full_name || '').split(' ').slice(1).join(' ')], ['LANG', (r) => r.lang], ['OPT_IN_DATE', (r) => r.consent_at ? r.consent_at.slice(0, 10) : ''], ['BUYER', (r) => r.bookings > 0 ? 'yes' : 'no']]);
-    else csv(name, list, [['email', (r) => r.email], ['name', (r) => r.full_name], ['lang', (r) => r.lang], ['consent_source', (r) => r.consent_source], ['consent_at', (r) => r.consent_at], ['registered_at', (r) => r.created_at], ['bookings', (r) => r.bookings]]);
+    if (kind === 'brevo') csv(name, list, [['EMAIL', (r) => r.email], ['FIRSTNAME', (r) => (r.full_name || '').split(' ')[0]], ['LASTNAME', (r) => (r.full_name || '').split(' ').slice(1).join(' ')], ['LANG', (r) => r.lang], ['OPT_IN_DATE', (r) => r.consent_at ? r.consent_at.slice(0, 10) : '']]);
+    else csv(name, list, [['email', (r) => r.email], ['name', (r) => r.full_name], ['lang', (r) => r.lang], ['consent_source', (r) => r.consent_source], ['consent_at', (r) => r.consent_at], ['registered_at', (r) => r.created_at]]);
   }
   paint();
   if (params[0] === 'export') exportAs('brevo');

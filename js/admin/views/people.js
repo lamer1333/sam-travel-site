@@ -1,19 +1,16 @@
-// People: the team and their roles, registered clients, cabinet bookings.
+// People: the team and their roles, registered clients.
 import { h, $$, mount, icon, fmt, toast, confirmDlg, input, select, table, csv, debounce, pageHead, initials, plural } from '../ui.js';
 import { ROLE_NAMES } from '../main.js';
 
 const ROLE_HINT = {
   admin: 'Всё: заявки, контент, роли, реквизиты, журнал',
-  manager: 'Заявки, клиенты, бронирования',
+  manager: 'Заявки и клиенты',
   marketer: 'Аналитика, кампании, промо, промокоды, подписчики, туры и отзывы. Без телефонов клиентов',
   client: 'Только свой личный кабинет',
 };
-const BOOK = [['new', 'Новая'], ['in_progress', 'В работе'], ['confirmed', 'Подтверждена'], ['cancelled', 'Отменена']];
-const BOOK_B = { new: 'new', in_progress: 'contacted', confirmed: 'won', cancelled: 'lost' };
-
 export default async function peopleView(root, ctx, params) {
   const owner = ctx.can('owner');
-  const TABS = [['team', 'Команда'], owner ? ['clients', 'Клиенты'] : null, ['bookings', 'Бронирования']].filter(Boolean);
+  const TABS = [['team', 'Команда'], owner ? ['clients', 'Клиенты'] : null].filter(Boolean);
   const tab = TABS.some((t) => t[0] === params[0]) ? params[0] : 'team';
   root.append(pageHead('Клиенты и команда', owner ? 'Чтобы добавить сотрудника: он регистрируется на сайте обычным способом, а вы назначаете ему роль здесь.' : null),
     h('div.tabs', { role: 'tablist' }, TABS.map(([k, l]) => h('button', { role: 'tab', 'aria-selected': String(k === tab), onclick: () => ctx.go('people/' + k) }, l))));
@@ -51,7 +48,7 @@ export default async function peopleView(root, ctx, params) {
     s.addEventListener('input', debounce(() => { f.q = s.value.trim().toLowerCase(); paint(); }, 150));
     const data = () => clients.filter((u) => (!f.q || [u.full_name, u.email, u.phone].some((x) => (x || '').toLowerCase().includes(f.q))) && (!f.consent || String(u.marketing_consent) === f.consent));
     box.append(h('div.toolbar', s, select([['', 'Все'], ['true', 'Подписаны на акции'], ['false', 'Не подписаны']], '', (v) => { f.consent = v; paint(); }),
-      h('span', { style: { flex: 1 } }), h('button.btn', { onclick: () => csv('clients.csv', data(), [['Имя', (u) => u.full_name], ['Email', (u) => u.email], ['Телефон', (u) => u.phone], ['Язык', (u) => u.lang], ['Вход через', (u) => u.provider], ['Согласие на рассылку', (u) => u.marketing_consent ? 'да' : 'нет'], ['Брони', (u) => u.bookings], ['Регистрация', (u) => fmt.date(u.created_at)]]) }, icon('download'), 'CSV')), list);
+      h('span', { style: { flex: 1 } }), h('button.btn', { onclick: () => csv('clients.csv', data(), [['Имя', (u) => u.full_name], ['Email', (u) => u.email], ['Телефон', (u) => u.phone], ['Язык', (u) => u.lang], ['Вход через', (u) => u.provider], ['Согласие на рассылку', (u) => u.marketing_consent ? 'да' : 'нет'], ['Регистрация', (u) => fmt.date(u.created_at)]]) }, icon('download'), 'CSV')), list);
     function paint() {
       const rows = data();
       mount(list, h('div.muted', { style: { margin: '0 0 8px', fontSize: '12.5px' } }, fmt.num(rows.length) + ' ' + plural(rows.length, 'клиент', 'клиента', 'клиентов')),
@@ -60,25 +57,12 @@ export default async function peopleView(root, ctx, params) {
           { key: 'provider', label: 'Вход', sort: true, render: (u) => ({ email: 'Email', google: 'Google', mailru: 'Mail.ru' }[u.provider] || u.provider) },
           { key: 'lang', label: 'Язык', sort: true, render: (u) => (u.lang || '').toUpperCase() },
           { key: 'marketing_consent', label: 'Акции', sort: (u) => +u.marketing_consent, render: (u) => u.marketing_consent ? h('span.badge.badge--ok', 'да') : h('span.badge.badge--off', 'нет') },
-          { key: 'bookings', label: 'Брони', align: 'r', sort: true },
           { key: 'created_at', label: 'Регистрация', sort: true, render: (u) => fmt.date(u.created_at) },
           { key: 'last_sign_in_at', label: 'Последний вход', sort: true, render: (u) => fmt.ago(u.last_sign_in_at) },
           { key: 'act', label: '', render: (u) => h('button.btn.btn--ghost.btn--sm', { title: 'Сделать сотрудником', onclick: () => setRole(u, 'manager') }, 'В команду') },
         ] })));
     }
     paint();
-  }
-
-  if (tab === 'bookings') {
-    const rows = await ctx.api.bookings();
-    const byId = Object.fromEntries(users.map((u) => [u.id, u]));
-    box.append(h('p.muted', { style: { marginTop: 0 } }, 'Бронирования из личного кабинета клиентов. Статус видит клиент у себя.'),
-      h('div.card.card--flush', table({ rows, initialSort: ['created_at', -1], empty: 'Бронирований пока нет', columns: [
-        { key: 'tour', label: 'Тур', sort: true, render: (b) => h('div.cell-main', h('b', b.tour), h('small', [b.dates, b.details].filter(Boolean).join(' · '))) },
-        { key: 'user_id', label: 'Клиент', render: (b) => byId[b.user_id] ? h('div.cell-main', h('b', byId[b.user_id].full_name || '—'), h('small', byId[b.user_id].email)) : h('span.mono', b.user_id.slice(0, 8)) },
-        { key: 'status', label: 'Статус', sort: true, render: (b) => select(BOOK, b.status, async (v, el) => { try { await ctx.api.updateBooking(b.id, { status: v }); b.status = v; toast('Статус брони: ' + BOOK.find((x) => x[0] === v)[1]); } catch (e) { el.value = b.status; ctx.err(e); } }) },
-        { key: 'created_at', label: 'Создана', sort: true, render: (b) => fmt.date(b.created_at) },
-      ] })));
   }
 
   async function setRole(u, role) {

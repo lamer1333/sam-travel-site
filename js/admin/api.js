@@ -56,8 +56,6 @@ export class LiveApi {
   async users() { return must(await this.sb.rpc('users_list')); }
   async setRole(id, role) { must(await this.sb.rpc('set_role', { p_user: id, p_role: role })); }
   async audience() { return must(await this.sb.rpc('audience_list')); }
-  async bookings() { return must(await this.sb.from('bookings').select('*').order('created_at', { ascending: false }).limit(1000)); }
-  async updateBooking(id, patch) { return must(await this.sb.from('bookings').update(patch).eq('id', id).select().single()); }
 
   // ---- generic content tables ----
   async list(table, order = 'sort') {

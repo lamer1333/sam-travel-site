@@ -212,12 +212,6 @@ function generate() {
     ['Առաջին պատասխան', 'hy', 'Բարև, {name}։ {manager}-ն է, SAM TRAVEL-ից։ Ստացանք ձեր հայտը{tour}։ Կճշտե՞ք ամսաթվերը և քանի հոգի եք։'],
   ].map(([title, lang, body], i) => ({ id: uuid(), title, lang, body, sort: i, created_at: iso(now - 50 * DAY) }));
   const clients = users.filter((x) => x.role === 'client');
-  const bookings = [];
-  for (let i = 0; i < 34; i++) {
-    const c = pick(clients), t = pick(tours), ts = now - R() * 150 * DAY;
-    bookings.push({ id: uuid(), user_id: c.id, tour: t.i18n.ru.title, details: pick(['2 взрослых', '2 взрослых + ребёнок', '4 человека', '1 взрослый']), dates: pick(['12–19 окт', '3–8 ноя', '2–9 дек', '8–12 янв']), status: ts < now - 20 * DAY ? pick(['confirmed', 'confirmed', 'cancelled']) : pick(['new', 'in_progress', 'confirmed']), coupon_id: null, created_at: iso(ts), updated_at: iso(ts + DAY) });
-    c.bookings++;
-  }
   const audit = [];
   const aud = (d, actor, table_name, action, before, after) => audit.push({ id: audit.length + 1, at: iso(now - d * DAY), actor, table_name, row_id: (after || before).id || (after || before).key, action, before, after });
   aud(0.2, MK, 'promos', 'update', { ...promos[0], active: false }, promos[0]);
@@ -230,7 +224,7 @@ function generate() {
   aud(12, OWNER, 'team', 'update', { ...team[0], i18n: { ...team[0].i18n, en: { name: 'Anna G.', role: 'Beach · 8 years' } } }, team[0]);
   audit.reverse();
 
-  return { v: 2, generated: now, me: OWNER, role: 'admin', users, campaigns, promos, visits, leads, activity: {}, coupons, reviews, team, tours, settings, reels, wa_templates, bookings, audit };
+  return { v: 3, generated: now, me: OWNER, role: 'admin', users, campaigns, promos, visits, leads, activity: {}, coupons, reviews, team, tours, settings, reels, wa_templates, audit };
 }
 
 // ------------------------------------------------------------------ stats (same shape as stats_traffic)
@@ -424,8 +418,6 @@ export class DemoApi {
     this.guard('audience');
     return this.wait(this.st.users.filter((u) => u.marketing_consent).map(({ id, email, full_name, lang, consent_at, consent_source, created_at, bookings }) => ({ id, email, full_name, lang, consent_at, consent_source, created_at, bookings })));
   }
-  async bookings() { this.guard('leads'); return this.wait(this.st.bookings); }
-  async updateBooking(id, patch) { const b = this.st.bookings.find((x) => x.id === id); Object.assign(b, patch); this.persist(); return this.wait(b); }
 
   async list(table) {
     if (['leads'].includes(table)) this.guard('leads');
