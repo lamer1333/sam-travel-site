@@ -101,7 +101,7 @@ function generate() {
   ].map((c) => ({ id: uuid(), ...c, currency: 'USD', starts_on: iso(now + c.s * DAY).slice(0, 10), ends_on: c.e == null ? null : iso(now + c.e * DAY).slice(0, 10), notes: '', archived: false, created_at: iso(now + c.s * DAY - DAY), updated_at: iso(now - 2 * DAY) }));
 
   const promos = [
-    { name: 'Осенние горящие туры', kind: 'bar', theme: 'sunset', active: true, starts_at: iso(now - 10 * DAY), ends_at: iso(now + 12 * DAY), link: '#hot', coupon_code: 'AUTUMN7',
+    { name: 'Осенние горящие туры', kind: 'bar', theme: 'sunset', active: false, starts_at: iso(now - 10 * DAY), ends_at: iso(now + 12 * DAY), link: '#hot', coupon_code: 'AUTUMN7',
       i18n: { ru: { text: 'Горящие туры октября — минус 7% по промокоду', cta: 'Смотреть туры' }, en: { text: 'October hot tours — 7% off with the code', cta: 'See tours' }, hy: { text: 'Հոկտեմբերի թեժ տուրեր՝ 7% զեղչ պրոմոկոդով', cta: 'Դիտել տուրերը' } },
       audience: { langs: [], devices: [], frequency: 'always' } },
     { name: 'Новый год у моря', kind: 'popup', theme: 'brand', active: true, starts_at: iso(now + 20 * DAY), ends_at: iso(now + 60 * DAY), link: '#plan', coupon_code: 'NY2027',
@@ -281,7 +281,7 @@ function generate() {
   aud(12, OWNER, 'team', 'update', { ...team[0], i18n: { ...team[0].i18n, en: { name: 'Anna G.', role: 'Beach · 8 years' } } }, team[0]);
   audit.reverse();
 
-  return { v: 5, generated: now, me: OWNER, role: 'admin', users, campaigns, promos, visits, leads, activity: {}, coupons, reviews, team, tours, settings, reels, wa_templates, audit };
+  return { v: 6, generated: now, me: OWNER, role: 'admin', users, campaigns, promos, visits, leads, activity: {}, coupons, reviews, team, tours, settings, reels, wa_templates, audit };
 }
 
 // ------------------------------------------------------------------ promo code in a lead (same as coupon_state() in SQL)
