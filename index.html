@@ -65,7 +65,7 @@
 }
 </script>
 
-<link rel="stylesheet" href="css/styles.css?v=20261006">
+<link rel="stylesheet" href="css/styles.css?v=20261006b">
 </head>
 <body>
 <svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
@@ -84,6 +84,7 @@
     <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
     <symbol id="i-phone" viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="3" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M10.5 18.5h3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
     <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="m3.5 7.5 8.5 6 8.5-6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M8 3v4M16 3v4M3.5 10.5h17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
     <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
     <symbol id="i-wa" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9.2 8.6c.2-.5.5-.5.8-.5h.5c.2 0 .4.1.5.4l.7 1.7c.1.2 0 .4-.1.6l-.5.6c-.1.1-.2.3 0 .5a6.4 6.4 0 0 0 3 2.8c.2.1.4.1.5-.1l.7-.8c.2-.2.4-.2.6-.1l1.7.8c.3.1.4.3.4.5 0 .6-.3 1.4-.9 1.8-.6.4-1.2.5-1.9.3A9 9 0 0 1 9 11.4c-.4-.8-.3-1.9.2-2.8Z" fill="currentColor"/></symbol>
     <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3 2.8 5.8 6.4.9-4.6 4.5 1.1 6.3L12 17.5l-5.7 3 1.1-6.3L2.8 9.7l6.4-.9L12 3Z" fill="currentColor"/></symbol>
@@ -743,6 +744,13 @@
               <span class="ifield__icon"><svg><use href="#i-mail"/></svg></span>
               <input type="email" data-field="email" autocomplete="email" data-ph="emailPh" inputmode="email">
             </label>
+            <label class="ifield ifield--date">
+              <span class="ifield__icon"><svg><use href="#i-cal"/></svg></span>
+              <span class="ifield__stack">
+                <small data-a="birth"></small>
+                <input type="date" data-field="birth" autocomplete="bday">
+              </span>
+            </label>
             <label class="ifield">
               <span class="ifield__icon"><svg><use href="#i-lock"/></svg></span>
               <input type="password" data-field="password" autocomplete="new-password" data-ph="passwordPh">
@@ -786,6 +794,22 @@
         </div>
       </div>
     </div>
+    <!-- Step 2 of both forms: the 6-digit code from the confirmation email. js/app.js clones it in. -->
+    <template id="acode-tpl">
+      <div class="astep" data-step="2">
+        <h2 class="atitle" data-a="codeTitle"></h2>
+        <p class="asent"><span data-a="codeSent"></span> <b data-code-email></b><br><span data-a="codeHint"></span></p>
+        <label class="ifield">
+          <span class="ifield__icon"><svg><use href="#i-lock"/></svg></span>
+          <input type="text" data-field="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" data-ph="codePh">
+        </label>
+        <p class="aerr" role="alert" aria-live="polite"></p>
+        <button class="btn btn--brand abtn" type="submit" data-a="codeConfirm"></button>
+        <button class="alink alink--forgot" type="button" data-code-resend></button>
+        <button class="alink alink--back alink--forgot" type="button" data-code-back data-a="codeBack"></button>
+        <p class="amsg" role="status" aria-live="polite" hidden></p>
+      </div>
+    </template>
     <p class="astub"><span data-a="stub"></span></p>
   </div>
 </section>
@@ -807,7 +831,7 @@
       <!-- ===== English ===== -->
       <div data-lng="en">
         <h1>Privacy Policy</h1>
-        <p class="legal__meta">Last updated: 21 September 2026</p>
+        <p class="legal__meta">Last updated: 6 October 2026</p>
         <p>SAM TRAVEL (“we”, “us”) operates this website and arranges travel services. This policy explains what personal data we collect, why we use it, and the choices you have.</p>
 
         <h2>Who we are</h2>
@@ -816,6 +840,7 @@
         <h2>What we collect</h2>
         <ul>
           <li><b>Details you send us</b> — your name, phone number or WhatsApp, and the trip details you describe — through the request form or messaging apps.</li>
+          <li><b>Account details</b> — if you create an account: your name, email and date of birth. We ask for the date of birth to confirm that you are at least 16 and, if you agreed to receive our offers, to send you a birthday greeting with a discount. Only the agency owner and the marketing specialist see it; you can change it in your account.</li>
           <li><b>Usage data</b> — with your consent, analytics cookies collect anonymous statistics about how the site is used (pages viewed, device type, approximate region).</li>
         </ul>
 
@@ -849,7 +874,7 @@
       <!-- ===== Русский ===== -->
       <div data-lng="ru">
         <h1>Политика конфиденциальности</h1>
-        <p class="legal__meta">Обновлено: 21 сентября 2026</p>
+        <p class="legal__meta">Обновлено: 6 октября 2026</p>
         <p>SAM TRAVEL («мы») ведёт этот сайт и организует туристические услуги. Здесь описано, какие персональные данные мы собираем, зачем и какие у вас есть права.</p>
 
         <h2>Кто мы</h2>
@@ -858,6 +883,7 @@
         <h2>Что мы собираем</h2>
         <ul>
           <li><b>Данные, которые вы отправляете</b> — имя, телефон или WhatsApp и детали поездки, которые вы описываете, — через форму заявки или мессенджеры.</li>
+          <li><b>Данные аккаунта</b> — если вы регистрируетесь: имя, email и дата рождения. Дату рождения мы просим, чтобы убедиться, что вам есть 16 лет, и — если вы согласились получать наши акции — поздравить вас с днём рождения скидкой. Её видят только владелец агентства и маркетолог; изменить дату можно в личном кабинете.</li>
           <li><b>Данные об использовании</b> — с вашего согласия аналитические cookie собирают анонимную статистику о том, как используется сайт (просмотры страниц, тип устройства, примерный регион).</li>
         </ul>
 
@@ -891,7 +917,7 @@
       <!-- ===== Հայերեն ===== -->
       <div data-lng="hy">
         <h1>Գաղտնիության քաղաքականություն</h1>
-        <p class="legal__meta">Թարմացվել է՝ 2026 թ. սեպտեմբերի 21</p>
+        <p class="legal__meta">Թարմացվել է՝ 2026 թ. հոկտեմբերի 6</p>
         <p>SAM TRAVEL-ը («մենք») շահագործում է այս կայքը և կազմակերպում ճամփորդական ծառայություններ։ Այս քաղաքականությունը բացատրում է, թե ինչ անձնական տվյալներ ենք հավաքում, ինչու և ինչ իրավունքներ ունեք դուք։</p>
 
         <h2>Ովքեր ենք մենք</h2>
@@ -900,6 +926,7 @@
         <h2>Ինչ ենք հավաքում</h2>
         <ul>
           <li><b>Ձեր ուղարկած տվյալները</b>՝ անունը, հեռախոսը կամ WhatsApp-ը և ճամփորդության մանրամասները, որ նկարագրում եք՝ հայտի ձևի կամ մեսենջերների միջոցով։</li>
+          <li><b>Հաշվի տվյալները</b>՝ եթե գրանցվում եք՝ անունը, էլ. փոստը և ծննդյան ամսաթիվը։ Ծննդյան ամսաթիվը խնդրում ենք՝ համոզվելու, որ ձեր 16 տարին լրացել է, և, եթե համաձայնել եք ստանալ մեր ակցիաները, ձեր ծննդյան օրը զեղչով շնորհավորելու համար։ Այն տեսնում են միայն գործակալության սեփականատերը և մարքեթոլոգը. ամսաթիվը կարող եք փոխել անձնական էջում։</li>
           <li><b>Օգտագործման տվյալները</b>՝ ձեր համաձայնությամբ վերլուծական cookie-ները հավաքում են անանուն վիճակագրություն այն մասին, թե ինչպես է օգտագործվում կայքը (դիտված էջեր, սարքի տեսակ, մոտավոր տարածաշրջան)։</li>
         </ul>
 
@@ -964,10 +991,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/supabase-config.js"></script>
-<script src="js/i18n.js"></script>
+<script src="js/i18n.js?v=20261006b"></script>
 <script src="js/pages.js"></script>
 <script src="js/track.js"></script>
-<script src="js/app.js?v=20261006"></script>
+<script src="js/app.js?v=20261006b"></script>
 <script src="js/cms.js"></script>
 <script src="js/shader.js"></script>
 <script defer src="js/analytics.js"></script>

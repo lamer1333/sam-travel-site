@@ -12,7 +12,7 @@ export default async function audienceView(root, ctx, params) {
   const new60 = rows.filter((r) => r.consent_at && new Date(r.consent_at) > d60 && new Date(r.consent_at) <= d30).length;
   const byLang = (l) => rows.filter((r) => r.lang === l).length;
 
-  root.append(pageHead('Подписчики', 'Только те, кто сам поставил галочку «присылайте акции» — при регистрации или при первом входе. Рассылка идёт через сервис рассылок (Brevo, Mailchimp) — с отпиской в каждом письме.',
+  root.append(pageHead('Подписчики', 'Только те, кто сам поставил галочку «присылайте акции» — при регистрации или при первом входе — и подтвердил адрес почты. Рассылка идёт через сервис рассылок (Brevo, Mailchimp) — с отпиской в каждом письме.',
     h('button.btn.btn--primary', { onclick: () => exportAs('brevo') }, icon('download'), 'Выгрузить для Brevo')));
 
   root.append(h('div.kpis',
@@ -55,6 +55,7 @@ export default async function audienceView(root, ctx, params) {
         { key: 'email', label: 'Email', sort: true, render: (r) => h('div.cell-main', h('b', r.email), r.full_name ? h('small', r.full_name) : null) },
         { key: 'lang', label: 'Язык', sort: true, render: (r) => (r.lang || '').toUpperCase() },
         { key: 'consent_source', label: 'Как подписался', sort: true, render: (r) => r.consent_source === 'onboarding_social' ? 'Соцвход' : r.consent_source === 'signup_form' ? 'Регистрация' : (r.consent_source || '—') },
+        { key: 'requests', label: 'Заявки / покупки', sort: (r) => (r.purchases || 0) * 1000 + (r.requests || 0), render: (r) => (r.requests || 0) + ' / ' + (r.purchases || 0) },
         { key: 'consent_at', label: 'Согласие', sort: true, render: (r) => fmt.date(r.consent_at) },
       ] }),
       data.length > 500 ? h('div.muted', { style: { marginTop: '8px' } }, 'Показаны первые 500 — выгрузка возьмёт всех') : null);
@@ -62,7 +63,7 @@ export default async function audienceView(root, ctx, params) {
   function exportAs(kind, list = filtered(), suffix = '') {
     const name = 'subscribers' + (suffix ? '-' + suffix : '') + '-' + new Date().toISOString().slice(0, 10) + '.csv';
     if (kind === 'brevo') csv(name, list, [['EMAIL', (r) => r.email], ['FIRSTNAME', (r) => (r.full_name || '').split(' ')[0]], ['LASTNAME', (r) => (r.full_name || '').split(' ').slice(1).join(' ')], ['LANG', (r) => r.lang], ['OPT_IN_DATE', (r) => r.consent_at ? r.consent_at.slice(0, 10) : '']]);
-    else csv(name, list, [['email', (r) => r.email], ['name', (r) => r.full_name], ['lang', (r) => r.lang], ['consent_source', (r) => r.consent_source], ['consent_at', (r) => r.consent_at], ['registered_at', (r) => r.created_at]]);
+    else csv(name, list, [['email', (r) => r.email], ['name', (r) => r.full_name], ['lang', (r) => r.lang], ['consent_source', (r) => r.consent_source], ['consent_at', (r) => r.consent_at], ['registered_at', (r) => r.created_at], ['birth_date', (r) => r.birth_date || ''], ['requests', (r) => r.requests || 0], ['purchases', (r) => r.purchases || 0]]);
   }
   paint();
   if (params[0] === 'export') exportAs('brevo');

@@ -45,6 +45,7 @@ const NAV = {
       ['m/promos', 'Баннеры и поп-апы', 'megaphone', ['admin', 'marketer']],
       ['m/coupons', 'Промокоды', 'tag', ['admin', 'marketer']],
       ['m/audience', 'Подписчики', 'mail', ['admin', 'marketer']],
+      ['m/birthdays', 'Именинники месяца', 'calendar', ['admin', 'marketer']],
     ]],
     ['Сайт', [
       ['m/content', 'Туры и отзывы', 'layout', ['admin', 'marketer']],
@@ -57,7 +58,7 @@ const VIEWS = {
   content: () => import('./views/content.js'), contacts: () => import('./views/contacts.js'), templates: () => import('./views/templates.js'),
   health: () => import('./views/health.js'), audit: () => import('./views/audit.js'),
   'm/overview': () => import('./views/m-overview.js'), 'm/campaigns': () => import('./views/campaigns.js'), 'm/promos': () => import('./views/promos.js'),
-  'm/coupons': () => import('./views/coupons.js'), 'm/audience': () => import('./views/audience.js'), 'm/content': () => import('./views/content.js'), 'm/seo': () => import('./views/seo.js'),
+  'm/coupons': () => import('./views/coupons.js'), 'm/audience': () => import('./views/audience.js'), 'm/birthdays': () => import('./views/birthdays.js'), 'm/content': () => import('./views/content.js'), 'm/seo': () => import('./views/seo.js'),
 };
 const PERIOD_VIEWS = ['dashboard', 'm/overview', 'm/promos'];
 function wsOf(route) { return route.startsWith('m/') ? 'mkt' : 'owner'; }
@@ -286,6 +287,7 @@ const ACTIONS = [
   ['Сгенерировать промокоды', 'tag', 'marketing', 'm/coupons/new'],
   ['Новый горящий тур', 'layout', 'marketing', (ctx) => (ctx.role === 'marketer' ? 'm/content' : 'content') + '/tours/new'],
   ['Выгрузить подписчиков (CSV)', 'download', 'marketing', 'm/audience/export'],
+  ['Именинники месяца (CSV)', 'calendar', 'marketing', 'm/birthdays/export'],
 ];
 function openPalette() {
   if ($('.cmdk')) return;

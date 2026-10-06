@@ -54,6 +54,8 @@ export class LiveApi {
   async users() { return must(await this.sb.rpc('users_list')); }
   async setRole(id, role) { must(await this.sb.rpc('set_role', { p_user: id, p_role: role })); }
   async audience() { return must(await this.sb.rpc('audience_list')); }
+  /** month 1–12; clients with consent and a confirmed address — owner and marketer only */
+  async birthdays(month) { return must(await this.sb.rpc('birthdays', { p_month: month })); }
 
   // ---- generic content tables ----
   async list(table, order = 'sort') {
@@ -95,6 +97,7 @@ export function errText(e) {
   const m = (e && (e.message || e.error_description)) || String(e);
   if (/invalid login credentials/i.test(m)) return 'Неверный email или пароль';
   if (/forbidden|permission denied|row-level security/i.test(m)) return 'Недостаточно прав для этого действия';
+  if (/bad_month/.test(m)) return 'Месяц — число от 1 до 12';
   if (/sale_needs_value/.test(m)) return 'У продажи должна быть сумма больше нуля';
   if (/profit_out_of_range/.test(m)) return 'Доход агентства — от нуля до суммы продажи; сначала укажите сумму';
   if (/value_negative/.test(m)) return 'Сумма не может быть отрицательной';
