@@ -341,13 +341,23 @@
   }
   /* demo: drop the lead straight into the panel's demo data in this browser */
   function demoSubmit(p) {
-    return new Promise(function (res) {
+    return new Promise(function (res, rej) {
       try {
         var key = 'sam-admin-demo-v1', st = JSON.parse(localStorage.getItem(key) || 'null');
         if (st && !p.website) {
           var now = new Date().toISOString();
+          /* the same rules as submit_lead(): 5 leads per sender in 10 minutes, promo code checked */
+          var recent = st.leads.filter(function (l) { return l.source === 'form' && Date.now() - new Date(l.created_at).getTime() < 600e3; }).length;
+          if (recent >= 5) { rej(new Error('rate_limited')); return; }
+          var details = {};
+          if (p.coupon_code) {
+            var t = Date.now(), hit = (st.coupons || []).filter(function (c) { return String(c.code).toUpperCase() === p.coupon_code; });
+            details.coupon_valid = !hit.length ? 'no' : hit.some(function (c) {
+              return c.active && new Date(c.valid_from) <= t && (!c.valid_until || new Date(c.valid_until) > t) && (c.max_uses == null || (c.used_count || 0) < c.max_uses);
+            }) ? 'yes' : 'expired';
+          }
           st.leads.unshift({ id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())), created_at: now, updated_at: now, name: p.name, phone: p.phone, email: null, message: p.message || null,
-            source: 'form', tour: p.tour || null, details: {}, lang: p.lang, device: p.device, page: p.page, referrer: p.referrer || null,
+            source: 'form', tour: p.tour || null, details: details, lang: p.lang, device: p.device, page: p.page, referrer: p.referrer || null,
             utm_source: p.utm_source || null, utm_medium: p.utm_medium || null, utm_campaign: p.utm_campaign || null, utm_content: p.utm_content || null, utm_term: null,
             coupon_code: p.coupon_code || null, status: 'new', lost_reason: null, value: null, currency: 'USD', assigned_to: null, tags: [], follow_up_at: null, first_response_at: null, closed_at: null, user_id: null });
           localStorage.setItem(key, JSON.stringify(st));
