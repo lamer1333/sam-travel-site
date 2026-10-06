@@ -574,14 +574,16 @@
     document.addEventListener('click', function (e) { if (!langcBtn.contains(e.target)) langcOpen(false); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') langcOpen(false); });
   }
-  /* ?lang=ru / ?lang=hy in the URL wins over the saved choice — shared links and
-     search-engine hreflang crawls must render the language they ask for. */
-  var saved = 'en';
+  /* ?lang=en / ?lang=ru / ?lang=hy in the URL wins over the saved choice — shared links and
+     search-engine hreflang crawls must render the language they ask for. English is the
+     page's own text and has no dictionary in I18N, so it is accepted by name. */
+  var saved = 'en', qlang = null;
   try {
-    var qlang = new URLSearchParams(location.search).get('lang');
-    saved = (qlang && I18N[qlang]) ? qlang : (localStorage.getItem('sam-lang') || 'en');
+    qlang = new URLSearchParams(location.search).get('lang');
+    saved = (qlang === 'en' || (qlang && I18N[qlang])) ? qlang : (localStorage.getItem('sam-lang') || 'en');
   } catch (err) {}
-  if (saved !== 'en') applyLang(saved);
+  /* an explicit ?lang=en is applied too, so it replaces a previously saved language */
+  if (saved !== 'en' || qlang === 'en') applyLang(saved);
 
   /* ---------- toast ---------- */
   var toastEl;
