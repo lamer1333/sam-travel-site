@@ -23,7 +23,7 @@ function generate() {
   const pick = (arr) => arr[Math.floor(R() * arr.length)];
   const wpick = (pairs) => { const tot = pairs.reduce((a, p) => a + p[1], 0); let x = R() * tot; for (const p of pairs) { x -= p[1]; if (x <= 0) return p[0]; } return pairs[pairs.length - 1][0]; };
   const now = Date.now();
-  const u = (id, email, full_name, role, lang, extra = {}) => ({ id, email, full_name, role, lang, phone: null, marketing_consent: false, created_at: iso(now - 400 * DAY), last_sign_in_at: iso(now - R() * 3 * DAY), provider: 'email', bookings: 0, ...extra });
+  const u = (id, email, full_name, role, lang, extra = {}) => ({ id, email, full_name, role, lang, phone: null, marketing_consent: false, created_at: iso(now - 400 * DAY), last_sign_in_at: iso(now - R() * 3 * DAY), provider: 'email', email_confirmed: true, birth_date: null, ...extra });
   const OWNER = uuid(), M1 = uuid(), M2 = uuid(), MK = uuid();
   const users = [
     u(OWNER, 'owner@samtravel.am', 'Самвел', 'admin', 'ru'),
@@ -211,6 +211,15 @@ function generate() {
     ['Առաջին պատասխան', 'hy', 'Բարև, {name}։ {manager}-ն է, SAM TRAVEL-ից։ Ստացանք ձեր հայտը{tour}։ Կճշտե՞ք ամսաթվերը և քանի հոգի եք։'],
   ].map(([title, lang, body], i) => ({ id: uuid(), title, lang, body, sort: i, created_at: iso(now - 50 * DAY) }));
   const clients = users.filter((x) => x.role === 'client');
+  // Stage 4 (ТЗ §4.9): date of birth, e-mail confirmation, and which requests came from a
+  // signed-in client. A separate generator, so the rest of the demo data stays as it was.
+  const R4 = rng(4040);
+  users.forEach((x) => {
+    x.birth_date = iso(now - (18 + R4() * 50) * 365.25 * DAY).slice(0, 10);
+    // social logins are confirmed by the provider; a few e-mail sign-ups never opened the letter
+    x.email_confirmed = x.role !== 'client' || x.provider !== 'email' || R4() > 0.12;
+  });
+  leads.forEach((l) => { if (['form', 'plan', 'tour', 'promo'].includes(l.source) && R4() < 0.3) l.user_id = clients[Math.floor(R4() * clients.length)].id; });
   const audit = [];
   const aud = (d, actor, table_name, action, before, after) => audit.push({ id: audit.length + 1, at: iso(now - d * DAY), actor, table_name, row_id: (after || before).id || (after || before).key, action, before, after });
   aud(0.2, MK, 'promos', 'update', { ...promos[0], active: false }, promos[0]);
@@ -223,7 +232,7 @@ function generate() {
   aud(12, OWNER, 'team', 'update', { ...team[0], i18n: { ...team[0].i18n, en: { name: 'Anna G.', role: 'Beach · 8 years' } } }, team[0]);
   audit.reverse();
 
-  return { v: 3, generated: now, me: OWNER, role: 'admin', users, campaigns, promos, visits, leads, activity: {}, coupons, reviews, team, tours, settings, reels, wa_templates, audit };
+  return { v: 4, generated: now, me: OWNER, role: 'admin', users, campaigns, promos, visits, leads, activity: {}, coupons, reviews, team, tours, settings, reels, wa_templates, audit };
 }
 
 // ------------------------------------------------------------------ stats (same shape as stats_traffic)
@@ -408,10 +417,17 @@ export class DemoApi {
     return () => { clearInterval(t); window.removeEventListener('storage', onStorage); };
   }
 
+  // «заявок» — без спама, «покупок» — проданные с суммой: как users_list / audience_list в 040_clients.sql
+  counts_(id) {
+    const mine = this.st.leads.filter((l) => l.user_id === id);
+    return { requests: mine.filter((l) => l.status !== 'spam').length, purchases: mine.filter((l) => l.status === 'won' && l.value > 0).length };
+  }
   async users() {
     this.guard('users');
     const rows = this.st.role === 'admin' ? this.st.users : this.st.users.filter((u) => u.role !== 'client');
-    return this.wait(rows, 120);
+    // the date of birth goes to the owner and the marketer only; a manager gets null
+    const seesBirth = ROLE_OK.audience.includes(this.st.role);
+    return this.wait(rows.map((u) => ({ ...u, birth_date: seesBirth ? u.birth_date : null, ...this.counts_(u.id) })), 120);
   }
   async setRole(id, role) {
     this.guard('write_owner');
@@ -422,7 +438,17 @@ export class DemoApi {
   }
   async audience() {
     this.guard('audience');
-    return this.wait(this.st.users.filter((u) => u.marketing_consent).map(({ id, email, full_name, lang, consent_at, consent_source, created_at, bookings }) => ({ id, email, full_name, lang, consent_at, consent_source, created_at, bookings })));
+    // only confirmed addresses reach the mailing list
+    return this.wait(this.st.users.filter((u) => u.marketing_consent && u.email_confirmed).map(({ id, email, full_name, lang, consent_at, consent_source, created_at, birth_date }) => ({ id, email, full_name, lang, consent_at, consent_source, created_at, birth_date, ...this.counts_(id) })));
+  }
+  /** birthdays(month): clients with consent and a confirmed address, born in that month (1–12) */
+  async birthdays(month) {
+    this.guard('audience');
+    const m = Number(month);
+    if (!(m >= 1 && m <= 12)) throw new Error('bad_month');
+    return this.wait(this.st.users.filter((u) => u.role === 'client' && u.marketing_consent && u.email_confirmed && u.birth_date && Number(u.birth_date.slice(5, 7)) === m)
+      .sort((a, b) => a.birth_date.slice(8).localeCompare(b.birth_date.slice(8)) || (a.full_name || '').localeCompare(b.full_name || ''))
+      .map(({ id, full_name, email, birth_date, lang }) => ({ id, full_name, email, birth_date, lang })));
   }
 
   async list(table) {

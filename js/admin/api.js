@@ -76,6 +76,8 @@ export class LiveApi {
   async users() { return must(await this.sb.rpc('users_list')); }
   async setRole(id, role) { must(await this.sb.rpc('set_role', { p_user: id, p_role: role })); }
   async audience() { return must(await this.sb.rpc('audience_list')); }
+  /** month 1–12; clients with consent and a confirmed address — owner and marketer only */
+  async birthdays(month) { return must(await this.sb.rpc('birthdays', { p_month: month })); }
 
   // ---- generic content tables ----
   async list(table, order = 'sort') {
@@ -117,6 +119,7 @@ export function errText(e) {
   const m = (e && (e.message || e.error_description)) || String(e);
   if (/invalid login credentials/i.test(m)) return 'Неверный email или пароль';
   if (/forbidden|permission denied|row-level security/i.test(m)) return 'Недостаточно прав для этого действия';
+  if (/bad_month/.test(m)) return 'Месяц — число от 1 до 12';
   if (/cannot_change_own_role/.test(m)) return 'Свою роль менять нельзя — попросите другого владельца';
   if (/duplicate key.*utm_campaign/i.test(m)) return 'Кампания с таким utm_campaign уже есть';
   if (/duplicate key.*code/i.test(m)) return 'Такой промокод уже существует';

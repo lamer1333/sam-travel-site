@@ -353,3 +353,35 @@ window.SAM_TOURS_I18N = {
     georgia:  { meta: "Վրաստան · դեկ–մար", title: "Գուդաուրի", text: "Դահուկներ՝ Երևանից հինգ ժամ մեքենայով։ Հյուրանոցներ լանջի մոտ, սքի-պասներ, հրահանգիչներ սկսնակների համար և խաչապուրի՝ հետո։", inc: ["Տրանսֆեր Երևանից մեքենայով", "Հյուրանոց լանջի մոտ և սքի-պաս", "Հրահանգիչ և սարքավորումների վարձույթ ըստ պահանջի", "Մենեջերը կապի մեջ է ամբողջ ուղևորության ընթացքում"] }
   }
 };
+
+/* Sign-up form: date of birth and the "code from the email" step (stage 4, ТЗ §4.9).
+   js/app.js lays these over the base auth strings from js/pages.js (SAM_PAGES.AUI). */
+window.SAM_I18N_AUTH = {
+  en: {
+    birth: "Date of birth", errBirth: "Enter a valid date of birth.", errBirthAge: "You must be at least 16 to sign up.",
+    codeTitle: "Confirm your email", codeSent: "We sent an email to", codeHint: "Enter the 6-digit code from it — or just open the link in the email.",
+    codePh: "6-digit code", codeConfirm: "Confirm", codeResend: "Send the email again", codeResendIn: "Send again in {s} s",
+    codeResent: "Sent. Check your inbox and the spam folder.", codeBack: "Back",
+    codeNeed: "This email is not confirmed yet. Enter the code from the email or request a new one.",
+    errCode: "Enter the 6 digits from the email.", errCodeBad: "The code is wrong or has expired. Request a new email.",
+    errWait: "Too soon — an email can be sent once a minute."
+  },
+  ru: {
+    birth: "Дата рождения", errBirth: "Укажите корректную дату рождения.", errBirthAge: "Регистрация доступна с 16 лет.",
+    codeTitle: "Подтвердите почту", codeSent: "Мы отправили письмо на", codeHint: "Введите код из 6 цифр из письма — или просто перейдите по ссылке в нём.",
+    codePh: "Код из 6 цифр", codeConfirm: "Подтвердить", codeResend: "Отправить письмо ещё раз", codeResendIn: "Отправить ещё раз через {s} с",
+    codeResent: "Отправили. Проверьте входящие и папку «Спам».", codeBack: "Назад",
+    codeNeed: "Эта почта ещё не подтверждена. Введите код из письма или запросите новое.",
+    errCode: "Введите 6 цифр из письма.", errCodeBad: "Код неверный или устарел. Запросите новое письмо.",
+    errWait: "Слишком рано — письмо можно отправлять раз в минуту."
+  },
+  hy: {
+    birth: "Ծննդյան ամսաթիվ", errBirth: "Նշեք ճիշտ ծննդյան ամսաթիվ։", errBirthAge: "Գրանցումը հասանելի է 16 տարեկանից։",
+    codeTitle: "Հաստատեք էլ. փոստը", codeSent: "Նամակ ենք ուղարկել՝", codeHint: "Մուտքագրեք նամակի 6-նիշ կոդը կամ պարզապես անցեք նամակի հղումով։",
+    codePh: "6-նիշ կոդ", codeConfirm: "Հաստատել", codeResend: "Ուղարկել նամակը կրկին", codeResendIn: "Կրկին ուղարկել {s} վրկ հետո",
+    codeResent: "Ուղարկված է։ Ստուգեք մուտքային նամակները և «Սպամ» թղթապանակը։", codeBack: "Հետ",
+    codeNeed: "Այս էլ. փոստը դեռ հաստատված չէ։ Մուտքագրեք նամակի կոդը կամ պահանջեք նոր նամակ։",
+    errCode: "Մուտքագրեք նամակի 6 թվանշանը։", errCodeBad: "Կոդը սխալ է կամ ժամկետանց։ Պահանջեք նոր նամակ։",
+    errWait: "Շատ շուտ է. նամակ կարելի է ուղարկել րոպեն մեկ անգամ։"
+  }
+};

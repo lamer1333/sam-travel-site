@@ -60,6 +60,8 @@ export const srcName = (s) => SRC_NAME[s] || s;
 export const SECTION_NAME = { 'band-prices': 'Первый экран', hot: 'Горящие туры', how: 'Как это работает', services: 'Услуги', about: 'О нас', reviews: 'Отзывы', blog: 'Рилсы', contacts: 'Контакты и форма' };
 export const CTA_NAME = { wa_click: 'Клик в WhatsApp', tel_click: 'Клик по телефону', mail_click: 'Клик по email', tour_open: 'Открыли тур', plan_open: 'Открыли «Подбор тура»', plan_send: 'Отправили подбор в WhatsApp', checklist_open: 'Открыли чек-лист', form_start: 'Начали заполнять форму', lead_submit: 'Отправили форму', lang_switch: 'Сменили язык', auth_open: 'Открыли вход', promo_view: 'Показ промо', promo_click: 'Клик по промо', promo_close: 'Закрыли промо' };
 export const DEVICE_NAME = { mobile: 'Телефон', desktop: 'Компьютер', tablet: 'Планшет', '?': 'Неизвестно' };
+/** '1996-10-06' → '6 октября 1996'. A date of birth has no time zone: print the day as written. */
+export const birthDate = (d) => d ? new Date(d.slice(0, 10) + 'T00:00:00Z').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '—';
 export const LANG_NAME = { ru: 'Русский', hy: 'Армянский', en: 'Английский', '?': '—' };
 
 /** Downscale an image before upload: max 1600px, JPEG/WebP ~0.82 — keeps the site fast */

@@ -590,56 +590,140 @@
   })();
   var authBox = $('#auth-box');
   var sb = window.sb;                 /* Supabase client from js/supabase-config.js */
-  function aT() { return P.AUI[cur] || P.AUI.en; }
+  /* base strings live in js/pages.js; date of birth and the code step — in js/i18n.js */
+  /* (applyLang() above already calls aT() before this line runs — keep it free of local state) */
+  function aT() { var AX = window.SAM_I18N_AUTH || {}; return Object.assign({}, P.AUI.en, AX.en, P.AUI[cur], AX[cur]); }
+
+  /* step 2 (code from the email) is one template, cloned into both forms */
+  var codeTpl = $('#acode-tpl');
+  $$('.aform').forEach(function (f) { if (codeTpl) f.appendChild(codeTpl.content.cloneNode(true)); });
 
   function setMode(mode) {
     authBox.classList.toggle('is-signup', mode === 'signup');
     var f = authBox.querySelector('.aform--' + mode);
     resetForm(authBox.querySelector('.aform--' + (mode === 'signup' ? 'signin' : 'signup')));
-    setTimeout(function () { var i = f.querySelector('input:not([type=checkbox])'); if (i) i.focus(); }, 620);
+    setTimeout(function () { var i = f.querySelector('.astep.is-on input:not([type=checkbox])'); if (i) i.focus(); }, 620);
   }
-  function resetForm(f) { if (!f) return; err(f, ''); msg(f, ''); }
+  function resetForm(f) { if (!f) return; err(f, ''); msg(f, ''); setStep(f, 1); }
+  function stepEl(f) { return f.querySelector('.astep.is-on') || f; }
+  function setStep(f, n) {
+    $$('.astep', f).forEach(function (s) { s.classList.toggle('is-on', s.dataset.step === String(n)); });
+    f.dataset.step = String(n);
+  }
 
   function err(f, text, field) {
     $$('.aerr', f).forEach(function (e) { e.textContent = ''; });
     $$('.ifield', f).forEach(function (e) { e.classList.remove('is-bad'); });
     if (!text) return;
-    var box = f.querySelector('.aerr'); if (box) box.textContent = text;
+    var box = stepEl(f).querySelector('.aerr'); if (box) box.textContent = text;
     if (field) field.closest('.ifield').classList.add('is-bad');
   }
   function msg(f, text, kind) {
-    var m = f.querySelector('.amsg'); if (!m) return;
+    $$('.amsg', f).forEach(function (m) { m.textContent = ''; m.hidden = true; });
+    var m = stepEl(f).querySelector('.amsg'); if (!m) return;
     m.textContent = text || ''; m.dataset.kind = kind || ''; m.hidden = !text;
   }
+
+  /* ---- confirmation email: one per minute per address (the server enforces the same) ---- */
+  var RESEND_MS = 60000, SENT_KEY = 'sam-otp-sent';
+  function sentMap() { try { return JSON.parse(sessionStorage.getItem(SENT_KEY)) || {}; } catch (e) { return {}; } }
+  function markSent(email) { var m = sentMap(); m[email] = Date.now(); try { sessionStorage.setItem(SENT_KEY, JSON.stringify(m)); } catch (e) {} }
+  function waitLeft(email) { var at = sentMap()[email] || 0; return Math.max(0, Math.ceil((at + RESEND_MS - Date.now()) / 1000)); }
+  function paintResend() {
+    var t = aT();
+    $$('.aform').forEach(function (f) {
+      var b = f.querySelector('[data-code-resend]'); if (!b) return;
+      var left = f.dataset.email ? waitLeft(f.dataset.email) : 0;
+      b.disabled = left > 0 || b.dataset.busy === '1';
+      b.textContent = left > 0 ? t.codeResendIn.replace('{s}', left) : t.codeResend;
+    });
+  }
+  setInterval(function () { if ($('.aform[data-step="2"]')) paintResend(); }, 1000);
+
+  function showCode(f, email, note) {
+    f.dataset.email = email;
+    setStep(f, 2); err(f, '');
+    f.querySelector('[data-code-email]').textContent = email;
+    var c = f.querySelector('[data-field="code"]'); c.value = '';
+    msg(f, note || '', note ? 'err' : '');
+    paintResend();
+    setTimeout(function () { c.focus(); }, 60);
+  }
+
+  /* full years between a yyyy-mm-dd date and today; NaN for garbage */
+  function ageOf(ymd) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd || ''); if (!m) return NaN;
+    var d = new Date(+m[1], +m[2] - 1, +m[3]), now = new Date();
+    if (d.getMonth() !== +m[2] - 1) return NaN;
+    var age = now.getFullYear() - d.getFullYear();
+    if (now.getMonth() < d.getMonth() || (now.getMonth() === d.getMonth() && now.getDate() < d.getDate())) age--;
+    return age;
+  }
+  function isoDay(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 
   function paintAuth() {
     var t = aT();
     paint($('#auth'), 'data-a', t);
     $$('[data-ph]', $('#auth')).forEach(function (i) { i.placeholder = t[i.dataset.ph] || ''; });
+    paintResend();
   }
 
   function friendly(e) {
     var t = aT(), m = (e && e.message) || String(e);
     if (/invalid login credentials/i.test(m)) return t.errCreds;
     if (/already registered|already been registered|user already exists/i.test(m)) return t.errExists;
+    if (/birth_date|database error saving new user/i.test(m)) return t.errBirth;
+    if (/rate limit|only request this after|too many requests/i.test(m)) return t.errWait;
+    if (/token has expired|otp.*expired|invalid.*(token|otp)|expired or is invalid/i.test(m)) return t.errCodeBad;
     return m;
   }
 
   if (sb) {
+    var cabinetUrl = function () { return new URL('cabinet.html', location.href).href; };
+
     $$('.aform').forEach(function (f) {
       var isSignup = f.classList.contains('aform--signup');
       var emailEl = f.querySelector('[data-field="email"]');
       var passEl = f.querySelector('[data-field="password"]');
       var nameEl = f.querySelector('[data-field="name"]');
+      var birthEl = f.querySelector('[data-field="birth"]');
       var consentEl = f.querySelector('[data-field="consent"]');
-      var submitBtn = f.querySelector('button[type="submit"]');
+      var codeEl = f.querySelector('[data-field="code"]');
+      var submitBtn = f.querySelector('.astep[data-step="1"] button[type="submit"]');
+      var codeBtn = f.querySelector('.astep[data-step="2"] button[type="submit"]');
+      var resendBtn = f.querySelector('[data-code-resend]');
+
+      if (birthEl) {
+        var now = new Date();
+        birthEl.max = isoDay(new Date(now.getFullYear() - 16, now.getMonth(), now.getDate()));
+        birthEl.min = isoDay(new Date(now.getFullYear() - 120, now.getMonth(), now.getDate()));
+      }
+      if (codeEl) codeEl.addEventListener('input', function () { codeEl.value = codeEl.value.replace(/\D/g, '').slice(0, 6); });
+
+      function verifyCode() {
+        var t = aT(), code = (codeEl.value || '').trim(), email = f.dataset.email;
+        err(f, ''); msg(f, '');
+        if (!/^\d{6}$/.test(code)) { err(f, t.errCode, codeEl); return; }
+        codeBtn.disabled = true;
+        var done = function () { codeBtn.disabled = false; };
+        sb.auth.verifyOtp({ email: email, token: code, type: 'signup' }).then(function (r) {
+          if (r.error) throw r.error;
+          location.assign('cabinet.html');
+        }).catch(function (e2) { err(f, friendly(e2), codeEl); }).then(done, done);
+      }
 
       f.addEventListener('submit', function (e) {
         e.preventDefault();
+        if (f.dataset.step === '2') { verifyCode(); return; }
         var t = aT(); err(f, ''); msg(f, '');
         var email = (emailEl.value || '').trim(), pass = passEl.value || '';
         if (isSignup && nameEl && !nameEl.value.trim()) { err(f, t.errName, nameEl); return; }
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { err(f, t.errEmail, emailEl); return; }
+        if (isSignup && birthEl) {
+          var age = ageOf(birthEl.value);
+          if (isNaN(age) || age < 0 || age > 120) { err(f, t.errBirth, birthEl); return; }
+          if (age < 16) { err(f, t.errBirthAge, birthEl); return; }
+        }
         if (pass.length < 6) { err(f, t.errPass, passEl); return; }
 
         submitBtn.disabled = true;
@@ -649,33 +733,59 @@
           sb.auth.signUp({
             email: email, password: pass,
             options: {
-              emailRedirectTo: new URL('cabinet.html', location.href).href,
+              emailRedirectTo: cabinetUrl(),
               data: {
                 full_name: (nameEl && nameEl.value.trim()) || '',
                 lang: cur,
+                birth_date: birthEl.value,
                 marketing_consent: !!(consentEl && consentEl.checked),
                 consent_source: 'signup_form'
               }
             }
           }).then(function (r) {
             if (r.error) throw r.error;
-            if (r.data && r.data.session) location.assign('cabinet.html');
-            else msg(f, t.msgConfirm, 'ok');   /* email confirmation is on */
+            if (r.data && r.data.session) { location.assign('cabinet.html'); return; }
+            /* with "Confirm email" on, an address that already has a confirmed account
+               comes back as a user without identities — no email is sent to it */
+            var u = r.data && r.data.user;
+            if (u && u.identities && !u.identities.length) { err(f, t.errExists, emailEl); return; }
+            markSent(email); showCode(f, email);
           }).catch(function (e2) { err(f, friendly(e2)); }).then(done, done);
         } else {
           sb.auth.signInWithPassword({ email: email, password: pass }).then(function (r) {
             if (r.error) throw r.error;
             location.assign('cabinet.html');
-          }).catch(function (e2) { err(f, friendly(e2)); }).then(done, done);
+          }).catch(function (e2) {
+            /* registered but never confirmed: the same code screen, with "send again" */
+            if (/email not confirmed/i.test((e2 && e2.message) || '')) showCode(f, email, aT().codeNeed);
+            else err(f, friendly(e2));
+          }).then(done, done);
         }
       });
+
+      if (resendBtn) resendBtn.addEventListener('click', function () {
+        var t = aT(), email = f.dataset.email;
+        if (!email || waitLeft(email) > 0) return;
+        err(f, ''); msg(f, '');
+        resendBtn.dataset.busy = '1'; paintResend();
+        sb.auth.resend({ type: 'signup', email: email, options: { emailRedirectTo: cabinetUrl() } }).then(function (r) {
+          if (r.error) throw r.error;
+          markSent(email); msg(f, t.codeResent, 'ok');
+        }).catch(function (e2) {
+          /* the server refused as "too soon": start our own minute so the button agrees with it */
+          if (/rate limit|only request this after|too many requests/i.test((e2 && e2.message) || '')) markSent(email);
+          msg(f, friendly(e2), 'err');
+        }).then(function () { resendBtn.dataset.busy = ''; paintResend(); });
+      });
+      var backBtn = f.querySelector('[data-code-back]');
+      if (backBtn) backBtn.addEventListener('click', function () { err(f, ''); msg(f, ''); setStep(f, 1); });
 
       /* Google (native) / Mail.ru (via edge function) */
       $$('[data-oauth]', f).forEach(function (b) {
         b.addEventListener('click', function () {
           err(f, ''); msg(f, '');
           var prov = b.dataset.oauth;
-          var back = new URL('cabinet.html', location.href).href;
+          var back = cabinetUrl();
           if (prov === 'mailru') {
             var base = (window.SAM_SUPABASE && window.SAM_SUPABASE.url) || '';
             location.href = base + '/functions/v1/mailru-auth/start?redirect_to=' + encodeURIComponent(back);
@@ -692,7 +802,7 @@
         var t = aT(); err(f, ''); msg(f, '');
         var email = (emailEl.value || '').trim();
         if (!email) { msg(f, t.msgResetFirst, 'err'); return; }
-        sb.auth.resetPasswordForEmail(email, { redirectTo: new URL('cabinet.html', location.href).href })
+        sb.auth.resetPasswordForEmail(email, { redirectTo: cabinetUrl() })
           .then(function (r) { msg(f, r.error ? friendly(r.error) : t.msgReset, r.error ? 'err' : 'ok'); });
       });
     });
