@@ -19,18 +19,6 @@
 -- текст письма — supabase/templates/confirm-signup.html.
 -- ============================================================================
 
--- ---------- тестовая база: колонка, которая в Supabase есть всегда -----------
--- auth.users.email_confirmed_at ведёт Supabase Auth. В тестовой подмене схемы auth
--- (supabase/test/_db.mjs) этой колонки нет — добавляем её только там, со значением
--- «подтверждён», чтобы прежние тесты видели тех же подписчиков. На боевом проекте
--- колонка существует, блок ничего не делает.
-do $$ begin
-  if not exists (select 1 from information_schema.columns
-                 where table_schema = 'auth' and table_name = 'users' and column_name = 'email_confirmed_at') then
-    alter table auth.users add column email_confirmed_at timestamptz default now();
-  end if;
-end $$;
-
 -- ---------- дата рождения ----------------------------------------------------
 alter table public.profiles add column if not exists birth_date date;
 
