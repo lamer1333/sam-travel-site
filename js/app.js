@@ -639,7 +639,7 @@
           sb.auth.signUp({
             email: email, password: pass,
             options: {
-              emailRedirectTo: location.origin + '/cabinet.html',
+              emailRedirectTo: new URL('cabinet.html', location.href).href,
               data: {
                 full_name: (nameEl && nameEl.value.trim()) || '',
                 lang: cur,
@@ -665,7 +665,7 @@
         b.addEventListener('click', function () {
           err(f, ''); msg(f, '');
           var prov = b.dataset.oauth;
-          var back = location.origin + '/cabinet.html';
+          var back = new URL('cabinet.html', location.href).href;
           if (prov === 'mailru') {
             var base = (window.SAM_SUPABASE && window.SAM_SUPABASE.url) || '';
             location.href = base + '/functions/v1/mailru-auth/start?redirect_to=' + encodeURIComponent(back);
@@ -682,7 +682,7 @@
         var t = aT(); err(f, ''); msg(f, '');
         var email = (emailEl.value || '').trim();
         if (!email) { msg(f, t.msgResetFirst, 'err'); return; }
-        sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + '/cabinet.html' })
+        sb.auth.resetPasswordForEmail(email, { redirectTo: new URL('cabinet.html', location.href).href })
           .then(function (r) { msg(f, r.error ? friendly(r.error) : t.msgReset, r.error ? 'err' : 'ok'); });
       });
     });
