@@ -36,18 +36,38 @@ export class LiveApi {
       r = await run(rest);
       if (!r.error) this.missingProfit = true;
     }
-    return must(r);
+    let row = must(r);
+    // The database stamps closed_at itself when a lead is closed. A sale registered a day
+    // late carries its own date, so set it again once the row is already closed.
+    if (patch.closed_at && row && Math.abs(new Date(row.closed_at) - new Date(patch.closed_at)) > 60e3) {
+      row = must(await run({ closed_at: patch.closed_at }));
+    }
+    return row;
   }
   async updateLeads(ids, patch) { must(await this.sb.from('leads').update(clean(patch)).in('id', ids)); }
-  async createLead(row) { return must(await this.sb.from('leads').insert(clean(row)).select().single()); }
+  async createLead(row) {
+    const run = (p) => this.sb.from('leads').insert(clean(p)).select().single();
+    let r = await run(row);
+    if (r.error && 'profit' in row && /profit/.test(r.error.message || '')) {
+      const { profit, ...rest } = row;
+      r = await run(rest);
+      if (!r.error) this.missingProfit = true;
+    }
+    const l = must(r);
+    await this.addActivity(l.id, 'system', 'Добавлена вручную').catch(() => {});
+    return l;
+  }
   async deleteLead(id) { must(await this.sb.from('leads').delete().eq('id', id)); }
   async addActivity(lead_id, kind, body, meta = {}) {
     const me = (await this.session()).user.id;
     return must(await this.sb.from('lead_activity').insert({ lead_id, kind, body, meta, actor: me }).select().single());
   }
-  onLead(cb) {
+  /** cb(lead) for a new lead; onChange('UPDATE'|'DELETE', row) when a colleague edits or removes one */
+  onLead(cb, onChange) {
     const ch = this.sb.channel('leads-live')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'leads' }, (p) => cb(p.new))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'leads' }, (p) => onChange && onChange('UPDATE', p.new))
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'leads' }, (p) => onChange && onChange('DELETE', p.old))
       .subscribe();
     return () => this.sb.removeChannel(ch);
   }

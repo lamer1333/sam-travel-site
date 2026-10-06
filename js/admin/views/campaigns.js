@@ -1,6 +1,6 @@
 // Campaigns: UTM link builder with QR, and each campaign's spend → visits →
 // leads → sales → ROMI, over the campaign's whole life.
-import { h, $, mount, clear, icon, fmt, toast, drawer, confirmDlg, field, input, textarea, select, table, copyText, slug, pageHead, card, csv } from '../ui.js';
+import { h, $, mount, clear, icon, fmt, toast, drawer, confirmDlg, field, input, textarea, select, table, copyText, slug, pageHead, card, csv, currency } from '../ui.js';
 import { CHANNELS } from './common.js';
 
 const PRESETS = [
@@ -62,7 +62,7 @@ export default async function campaignsView(root, ctx, params) {
   }
   function paint() {
     const data = rows.filter((c) => showArchived || !c.archived).map(metrics);
-    const tot = data.reduce((a, r) => ({ spend: a.spend + (+r.spend || 0), visits: a.visits + r.visits, leads: a.leads + r.leads, won: a.won + r.won, revenue: a.revenue + r.revenue, contacts: a.contacts + r.contacts }), { spend: 0, visits: 0, leads: 0, won: 0, revenue: 0, contacts: 0 });
+    const tot = data.reduce((a, r) => ({ spend: a.spend + (+r.spend || 0), visits: a.visits + r.visits, leads: a.leads + r.leads, won: a.won + r.won, revenue: a.revenue + r.revenue, contacts: a.contacts + r.contacts, profit: a.profit + r.profit }), { spend: 0, visits: 0, leads: 0, won: 0, revenue: 0, contacts: 0, profit: 0 });
     mount(tableBox, h('div.card.card--flush', table({
       rows: data, onRow: (r) => edit(rows.find((c) => c.id === r.id)), initialSort: ['leads', -1], empty: 'Кампаний пока нет — создайте первую, и ссылка будет готова через минуту',
       columns: [
@@ -80,7 +80,7 @@ export default async function campaignsView(root, ctx, params) {
       ],
       foot: () => h('tr', h('td', 'Итого'), h('td'), h('td.r.num', fmt.money(tot.spend)), h('td.r.num', fmt.num(tot.visits)), h('td.r.num', fmt.num(tot.leads)), h('td.r.num', fmt.pct(tot.visits ? tot.leads / tot.visits : null, 1)),
         h('td.r.num', fmt.num(tot.won)), h('td.r.num', fmt.money(tot.revenue)), h('td.r.num', fmt.money(tot.leads ? tot.spend / tot.leads : null)),
-        h('td.r.num', tot.spend ? (tot.revenue * margin >= tot.spend ? '+' : '') + fmt.pct((tot.revenue * margin - tot.spend) / tot.spend, 0) : '—'), h('td')),
+        h('td.r.num', tot.spend ? (tot.profit > tot.spend ? '+' : '') + fmt.pct((tot.profit - tot.spend) / tot.spend, 0) : '—'), h('td')),
     })));
   }
   function spendCell(r) {
@@ -98,7 +98,7 @@ export default async function campaignsView(root, ctx, params) {
 
   // ---------- builder / editor ----------
   function edit(c) {
-    const d = { channel: 'instagram', utm_source: 'instagram', utm_medium: 'paid_social', utm_campaign: '', utm_content: '', landing: '#hot', spend: 0, currency: 'USD', name: '', starts_on: new Date().toISOString().slice(0, 10), ends_on: '', notes: '', archived: false, ...c };
+    const d = { channel: 'instagram', utm_source: 'instagram', utm_medium: 'paid_social', utm_campaign: '', utm_content: '', landing: '#hot', spend: 0, currency: currency(), name: '', starts_on: new Date().toISOString().slice(0, 10), ends_on: '', notes: '', archived: false, ...c };
     let lang = '', campTouched = !!c.id;
     const out = h('div.utm-out'), qr = h('div.qr'), note = h('small.muted');
     const camp = input(d.utm_campaign, { placeholder: 'dubai_nov', oninput: (v) => { campTouched = true; d.utm_campaign = slug(v); upd(); } });
@@ -131,7 +131,7 @@ export default async function campaignsView(root, ctx, params) {
           h('div.grid2', field('Канал', chSel), field('Куда ведёт', landSel)),
           h('div.grid2', field('utm_source', src), field('utm_medium', med)),
           h('div.grid2', field('utm_campaign', camp, 'Латиница, без пробелов'), field('utm_content', input(d.utm_content, { placeholder: 'reels_v1', oninput: (v) => { d.utm_content = slug(v); upd(); } }), 'Чтобы сравнить креативы')),
-          h('div.grid3', field('Бюджет / расход, $', input(d.spend, { type: 'number', oninput: (v) => { d.spend = Number(v) || 0; } })),
+          h('div.grid3', field('Бюджет / расход, ' + currency(), input(d.spend, { type: 'number', oninput: (v) => { d.spend = Number(v) || 0; } })),
             field('Начало', input(d.starts_on, { type: 'date', oninput: (v) => { d.starts_on = v || null; } })),
             field('Конец', input(d.ends_on || '', { type: 'date', oninput: (v) => { d.ends_on = v || null; } }))),
           field('Заметки', textarea(d.notes, { rows: 2, placeholder: 'Аудитория, креативы, что тестируем', oninput: (v) => { d.notes = v; } }))),

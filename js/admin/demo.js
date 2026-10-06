@@ -360,7 +360,14 @@ export class DemoApi {
     if (patch.status && patch.status !== l.status) {
       this.logAct(id, 'status', patch.status, { from: l.status, to: patch.status });
       if (l.status === 'new' && !l.first_response_at) l.first_response_at = iso(Date.now());
-      l.closed_at = ['won', 'lost', 'spam'].includes(patch.status) ? iso(Date.now()) : null;
+      const closed = (s) => ['won', 'lost', 'spam'].includes(s);
+      if (!closed(patch.status)) l.closed_at = null;
+      else if (!closed(l.status)) l.closed_at = iso(Date.now());
+      // no online payment: a promo code counts as used when the sale is registered
+      if (l.coupon_code && (patch.status === 'won') !== (l.status === 'won')) {
+        const c = this.st.coupons.find((x) => x.code.toUpperCase() === l.coupon_code.toUpperCase());
+        if (c) c.used_count = Math.max(0, (c.used_count || 0) + (patch.status === 'won' ? 1 : -1));
+      }
     }
     if ('assigned_to' in patch && patch.assigned_to !== l.assigned_to) this.logAct(id, 'assign', null, { to: patch.assigned_to });
     Object.assign(l, patch, { updated_at: iso(Date.now()) });

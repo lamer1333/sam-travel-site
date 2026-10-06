@@ -101,11 +101,19 @@ export function icon(name, cls = '') {
 
 // ---------- formatting ----------
 const LOC = 'ru-RU';
+// The panel counts money in one currency (company.currency in «Контакты и реквизиты»).
+let CUR = 'USD';
+export const currency = () => CUR;
+export function setCurrency(c) { try { (0).toLocaleString(LOC, { style: 'currency', currency: c }); CUR = c; } catch (e) {} }
 export const fmt = {
   num: (n) => (n == null || isNaN(n)) ? '—' : Number(n).toLocaleString(LOC, { maximumFractionDigits: 0 }),
   dec: (n, d = 1) => (n == null || isNaN(n) || !isFinite(n)) ? '—' : Number(n).toLocaleString(LOC, { maximumFractionDigits: d }),
   compact: (n) => (n == null || isNaN(n)) ? '—' : Math.abs(n) >= 10000 ? Number(n).toLocaleString(LOC, { notation: 'compact', maximumFractionDigits: 1 }) : fmt.num(n),
-  money: (n, cur = 'USD') => (n == null || isNaN(n) || !isFinite(n)) ? '—' : Number(n).toLocaleString(LOC, { style: 'currency', currency: cur, maximumFractionDigits: 0 }),
+  money(n, cur) {
+    if (n == null || isNaN(n) || !isFinite(n)) return '—';
+    try { return Number(n).toLocaleString(LOC, { style: 'currency', currency: cur || CUR, maximumFractionDigits: 0 }); }
+    catch (e) { return fmt.num(n) + ' ' + cur; }   // a currency code the browser does not know
+  },
   pct: (x, d = 1) => (x == null || isNaN(x) || !isFinite(x)) ? '—' : (x * 100).toLocaleString(LOC, { maximumFractionDigits: d }) + '%',
   date: (d) => d ? new Date(d).toLocaleDateString(LOC, { day: 'numeric', month: 'short', year: 'numeric' }) : '—',
   day: (d) => d ? new Date(d).toLocaleDateString(LOC, { day: 'numeric', month: 'short' }) : '—',

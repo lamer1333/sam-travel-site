@@ -1,8 +1,8 @@
 // Owner dashboard: money, speed of answer, pipeline, who sells, where from.
-import { h, icon, fmt, table, card, right, plural } from '../ui.js';
+import { h, icon, fmt, table, card, right, plural, currency } from '../ui.js';
 import { kpi, timeChart, barList, heatmap, heatPeak, stackBar } from '../charts.js';
 import { STATUS_NAME, SOURCE_NAME } from '../main.js';
-import { inRange, median, sum, minutesBetween, ymd, slaBadge, loadTours, tourName, srcName } from './common.js';
+import { inRange, median, sum, minutesBetween, ymd, slaBadge, loadTours, tourName, srcName, isManual } from './common.js';
 
 export default async function dashboard(root, ctx) {
   const rg = ctx.range();
@@ -26,16 +26,18 @@ export default async function dashboard(root, ctx) {
   const noAmount = (xs) => won(xs).filter((l) => !(+l.value > 0));
   const conv = (xs) => xs.length ? won(xs).length / xs.length : null;
   const avg = (xs) => won(xs).length ? rev(xs) / won(xs).length : null;
-  const resp = (xs) => median(xs.filter((l) => l.first_response_at).map((l) => minutesBetween(l.created_at, l.first_response_at)));
-  const within = (xs) => { const r = xs.filter((l) => l.first_response_at); return r.length ? r.filter((l) => minutesBetween(l.created_at, l.first_response_at) <= sla).length / r.length : null; };
+  // answer speed is about requests from the site; a call the manager typed in was answered on the spot
+  const answered = (xs) => xs.filter((l) => l.first_response_at && !isManual(l));
+  const resp = (xs) => median(answered(xs).map((l) => minutesBetween(l.created_at, l.first_response_at)));
+  const within = (xs) => { const r = answered(xs); return r.length ? r.filter((l) => minutesBetween(l.created_at, l.first_response_at) <= sla).length / r.length : null; };
   const days = (stats && stats.daily) || [];
   const perDay = (xs, key = 'created_at', f = () => 1) => { const m = {}; xs.forEach((l) => { const d = ymd(l[key]); m[d] = (m[d] || 0) + f(l); }); return days.map((d) => m[d.d] || 0); };
   const visits = stats ? stats.funnel.visits : null, pVisits = prevStats ? prevStats.funnel.visits : null;
-  const cur = (ctx.cache.settings.company && ctx.cache.settings.company.currency) || 'USD';
+  const cur = currency();
 
   const nNew = real.filter((l) => l.status === 'new').length;
   root.append(h('div.page-head', h('div',
-    h('h2', greeting() + ', ' + (ctx.me.full_name || '').split(' ')[0] + '!'),
+    h('h2', greeting() + ((ctx.me.full_name || '').trim() ? ', ' + ctx.me.full_name.trim().split(' ')[0] : '') + '!'),
     h('p', `За ${ctx.period.days} ${plural(ctx.period.days, 'день', 'дня', 'дней')}: ${fmt.num(inCur.length)} ${plural(inCur.length, 'заявка', 'заявки', 'заявок')}, ${fmt.num(won(cClosed).length)} ${plural(won(cClosed).length, 'продажа', 'продажи', 'продаж')} на ${fmt.money(rev(cClosed), cur)}.` + (nNew ? ` Сейчас ${nNew} ${plural(nNew, 'новая заявка ждёт', 'новые заявки ждут', 'новых заявок ждут')} ответа.` : ' Все новые заявки разобраны.'))),
     h('div.btns', h('button.btn', { onclick: () => ctx.go('leads') }, icon('inbox'), 'К заявкам'), h('button.btn.btn--primary', { onclick: () => ctx.go('leads/new') }, icon('plus'), 'Заявка'))));
 
@@ -48,7 +50,7 @@ export default async function dashboard(root, ctx) {
     kpi({ label: 'Заявки', value: fmt.num(inCur.length), cur: inCur.length, prev: inPrev.length, spark: perDay(inCur), hint: 'Все обращения, кроме спама' }),
     kpi({ label: 'Конверсия в продажу', value: fmt.pct(conv(cClosed), 0), cur: conv(cClosed), prev: conv(pClosed), hint: 'Продажи ÷ закрытые заявки (продажа + отказ)' }),
     kpi({ label: 'Средний чек', value: fmt.money(avg(cClosed), cur), cur: avg(cClosed), prev: avg(pClosed) }),
-    kpi({ label: 'Первый ответ (медиана)', value: fmt.dur(resp(inCur)), cur: resp(inCur), prev: resp(inPrev), goodUp: false, hint: `В пределах ${sla} мин: ${fmt.pct(within(inCur), 0)} заявок` }),
+    kpi({ label: 'Первый ответ (медиана)', value: fmt.dur(resp(inCur)), cur: resp(inCur), prev: resp(inPrev), goodUp: false, hint: `Заявки с сайта. В пределах ${sla} мин: ${fmt.pct(within(inCur), 0)}` }),
     kpi({ label: 'Посещения → заявка', value: visits ? fmt.pct(inCur.length / visits, 1) : '—', cur: visits ? inCur.length / visits : null, prev: pVisits ? inPrev.length / pVisits : null, hint: visits ? fmt.num(visits) + ' посещений сайта' : 'Аналитика сайта ещё не накопилась' }),
   ));
 

@@ -1,6 +1,6 @@
 // Contacts & company details: one place, applied to every link on the site
 // (header, menu, contacts block, footer, floating WhatsApp, structured data).
-import { h, mount, icon, toast, field, input, chipsPick, pageHead, card, i18nEditor } from '../ui.js';
+import { h, mount, icon, toast, field, input, select, chipsPick, pageHead, card, i18nEditor, setCurrency } from '../ui.js';
 
 const SAMPLE = { licence: '23-1057-2023', insurance: 'TRV-2026-0412' };
 
@@ -39,9 +39,9 @@ export default async function contactsView(root, ctx) {
       field('Юридическое название', input(co.legal_name, { oninput: (v) => { co.legal_name = v; } })),
       field('Номер лицензии туроператора', lic), field('Номер страхового полиса (финансовая гарантия)', ins),
       h('div.grid2',
-        field('Валюта в отчётах', input(co.currency, { placeholder: 'USD', oninput: (v) => { co.currency = v.toUpperCase().slice(0, 3); } }), 'USD, EUR, AMD, RUB'),
+        field('Валюта панели', select(Array.from(new Set(['USD', 'EUR', 'AMD', 'RUB', co.currency])), co.currency, (v) => { co.currency = v; }), 'В ней менеджеры вводят продажи и считаются отчёты. Уже введённые суммы не пересчитываются'),
         field('Маржа агентства, %', input(co.margin_pct, { type: 'number', attrs: { min: 1, max: 100 }, oninput: (v) => { co.margin_pct = Math.max(1, Math.min(100, Number(v) || 12)); } }), 'Средняя комиссия с тура — для честного ROMI рекламы')),
-      h('div.btns', h('button.btn.btn--primary', { onclick: () => save('company', co) }, 'Сохранить реквизиты')))));
+      h('div.btns', h('button.btn.btn--primary', { onclick: () => save('company', co).then(() => setCurrency(co.currency)) }, 'Сохранить реквизиты')))));
 
   const days = [[1, 'Пн'], [2, 'Вт'], [3, 'Ср'], [4, 'Чт'], [5, 'Пт'], [6, 'Сб'], [7, 'Вс']];
   g.append(h('section.card.c12', h('div.card__h', h('div', h('h3', 'Рабочее время и скорость ответа'), h('p', 'На сайте обещано «ответим в течение часа в рабочие дни». По этим настройкам панель подсвечивает заявки, которые ждут слишком долго.'))),

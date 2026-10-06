@@ -109,3 +109,17 @@ const del = await as('mgr', `delete from leads where id=$1`, [lid]); del.affecte
 const del2 = await as('owner', `select count(*)::int n from leads`); del2.rows[0].n === 1 ? ok('owner still sees the lead') : bad('lead gone');
 const ps2 = (await as('anon', `select public_site() s`)).rows[0].s;
 ('margin_pct' in ps2.settings.company) ? bad('margin leaks to public_site') : ok('margin_pct hidden from public_site (licence still there: ' + ps2.settings.company.licence + ')');
+
+// ---- sales are registered by hand: no payment on the site ----
+const sold = (await as('mgr', `insert into leads(name, phone, source, status, value, profit, first_response_at, closed_at)
+  values ('Walk In', '+374 91 000111', 'walk_in', 'won', 1800, 200, now(), now() - interval '2 days') returning id, closed_at`)).rows[0];
+sold.closed_at && Date.now() - new Date(sold.closed_at) > 86400e3 ? ok('manager registers a sale made on the spot, back-dated') : bad('direct sale');
+const l2 = (await as('mgr', `insert into leads(name, phone, source, status, coupon_code) values ('Coupon Client', '+374 91 000222', 'phone', 'contacted', 'winter10') returning id`)).rows[0].id;
+await as('mgr', `update leads set status='won', value=900, closed_at=now() - interval '3 days' where id=$1`, [l2]);
+await as('mgr', `update leads set closed_at=now() - interval '3 days' where id=$1`, [l2]);   // what the panel sends when the sale is back-dated
+const bd = (await db.query(`select closed_at from leads where id=$1`, [l2])).rows[0].closed_at;
+Date.now() - new Date(bd) > 2 * 86400e3 ? ok('sale date can be set after closing') : bad('sale date not kept');
+const used = async () => (await db.query(`select used_count from coupons where code='WINTER10'`)).rows[0].used_count;
+(await used()) === 1 ? ok('promo code counted as used on the sale') : bad('used_count ' + (await used()));
+await as('mgr', `update leads set status='quoted' where id=$1`, [l2]);
+(await used()) === 0 ? ok('promo code released when the sale is reopened') : bad('used_count after reopen ' + (await used()));

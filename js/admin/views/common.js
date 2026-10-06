@@ -1,8 +1,11 @@
 // Helpers shared by several views.
 import { h, fmt } from '../ui.js';
+import { MANUAL_SOURCES } from '../main.js';
 
 export const yv = (d) => new Date(new Date(d).getTime() + 4 * 3600e3);          // Asia/Yerevan (UTC+4)
 export const ymd = (d) => yv(d).toISOString().slice(0, 10);
+/** a sale date picked in a form → timestamp: today keeps the real time, a past day lands at noon in Yerevan */
+export const saleIso = (day) => day === ymd(Date.now()) ? new Date().toISOString() : new Date(day + 'T12:00:00+04:00').toISOString();
 export const minutesBetween = (a, b) => (new Date(b) - new Date(a)) / 60e3;
 export function median(arr) { const a = arr.filter((x) => x != null && !isNaN(x)).sort((x, y) => x - y); if (!a.length) return null; const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; }
 export const sum = (arr, f = (x) => x) => arr.reduce((a, x) => a + (+f(x) || 0), 0);
@@ -16,13 +19,14 @@ export function inWorkingHours(d, hours) {
 }
 
 /** SLA badge for a lead: waiting time for a new one, answer time otherwise */
+export const isManual = (l) => MANUAL_SOURCES.includes(l.source);
 export function slaBadge(l, slaMin = 60) {
   if (l.status === 'new') {
     const w = minutesBetween(l.created_at, Date.now());
     const cls = w > slaMin ? 'bad' : w > slaMin * 0.6 ? 'warn' : 'ok';
     return h('span.sla.sla--' + cls, { title: 'Ждёт ответа' }, 'ждёт ' + fmt.dur(w));
   }
-  if (l.first_response_at) {
+  if (l.first_response_at && !isManual(l)) {
     const r = minutesBetween(l.created_at, l.first_response_at);
     return h('span.sla.sla--' + (r <= slaMin ? 'ok' : 'warn'), { title: 'Время первого ответа' }, 'ответ ' + fmt.dur(r));
   }

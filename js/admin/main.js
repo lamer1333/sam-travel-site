@@ -2,7 +2,7 @@
 // SAM TRAVEL panels — shell: sign-in, roles, two workspaces (owner / marketing),
 // hash router, period picker, command palette, live lead notifications.
 // ---------------------------------------------------------------------------
-import { h, $, $$, mount, clear, icon, toast, fmt, initials, input, field, debounce } from './ui.js';
+import { h, $, $$, mount, clear, icon, toast, fmt, initials, input, field, debounce, setCurrency } from './ui.js';
 import { LiveApi, errText } from './api.js';
 import { DemoApi } from './demo.js';
 
@@ -14,6 +14,8 @@ export const STATUS = [
   ['new', 'Новая'], ['contacted', 'На связи'], ['quoted', 'Предложение'], ['won', 'Продажа'], ['lost', 'Отказ'], ['spam', 'Спам'],
 ];
 export const STATUS_NAME = Object.fromEntries(STATUS);
+// leads a manager types in by hand: the client is already being talked to, so no answer timer
+export const MANUAL_SOURCES = ['manual', 'phone', 'walk_in', 'instagram'];
 export const SOURCE_NAME = { form: 'Форма на сайте', plan: 'Подбор тура', tour: 'Карточка тура', promo: 'Промо', manual: 'WhatsApp', phone: 'Звонок', walk_in: 'Пришли в офис', instagram: 'Instagram Direct' };
 
 // ---------- navigation ----------
@@ -108,6 +110,8 @@ async function start() {
   if (!ctx.me || !['admin', 'manager', 'marketer'].includes(ctx.me.role)) { mount(app, noAccess()); return; }
   ctx.role = ctx.me.role;
   ctx.cache = {};
+  // every sum in the panel is shown in the company currency
+  await ctx.settings().then((s) => setCurrency((s.company || {}).currency)).catch(() => {});
   renderShell();
   window.addEventListener('hashchange', route);
   route();
@@ -243,12 +247,24 @@ async function startLive() {
   if (!ctx.can('leads')) return;
   try { const ls = await ctx.leads(); setBadge(ls.filter((l) => l.status === 'new').length); } catch (e) { return; }
   ctx.api.onLead((l) => {
-    if (ctx.cache.leads && !ctx.cache.leads.some((x) => x.id === l.id)) ctx.cache.leads.unshift(l);
-    setBadge(badgeCount + 1);
-    beep();
-    toast('Новая заявка: ' + l.name + (l.tour ? ' · ' + l.tour : ''), 'lead', { icon: 'inbox', ms: 9000, onclick: () => ctx.go('leads/' + l.id) });
-    try { if (window.Notification && Notification.permission === 'granted' && document.hidden) new Notification('Новая заявка — SAM TRAVEL', { body: l.name + ' · ' + (l.phone || ''), icon: 'icon-192.png' }); } catch (e) {}
+    const known = !!ctx.cache.leads && ctx.cache.leads.some((x) => x.id === l.id);
+    if (ctx.cache.leads && !known) ctx.cache.leads.unshift(l);
+    // a call or a sale a colleague typed in is not a client waiting for an answer
+    if (l.status === 'new' && !known) {
+      setBadge(badgeCount + 1);
+      beep();
+      toast('Новая заявка: ' + l.name + (l.tour ? ' · ' + l.tour : ''), 'lead', { icon: 'inbox', ms: 9000, onclick: () => ctx.go('leads/' + l.id) });
+      try { if (window.Notification && Notification.permission === 'granted' && document.hidden) new Notification('Новая заявка — SAM TRAVEL', { body: l.name + ' · ' + (l.phone || ''), icon: 'icon-192.png' }); } catch (e) {}
+    }
     document.dispatchEvent(new CustomEvent('sam:lead', { detail: l }));
+  }, (type, row) => {
+    // a colleague took, closed or removed a lead: keep this screen in step with the database
+    const ls = ctx.cache.leads; if (!ls || !row) return;
+    const i = ls.findIndex((x) => x.id === row.id);
+    if (i < 0) return;
+    if (type === 'DELETE') ls.splice(i, 1); else Object.assign(ls[i], row);
+    setBadge(ls.filter((l) => l.status === 'new').length);
+    document.dispatchEvent(new CustomEvent('sam:lead', { detail: ls[i] || null }));
   });
 }
 function beep() {
@@ -264,6 +280,7 @@ function beep() {
 // ---------- command palette ----------
 const ACTIONS = [
   ['Новая заявка (звонок, визит)', 'plus', 'leads', 'leads/new'],
+  ['Оформить продажу', 'check', 'leads', 'leads/sale'],
   ['Новая кампания и UTM-ссылка', 'target', 'marketing', 'm/campaigns/new'],
   ['Новый баннер или поп-ап', 'megaphone', 'marketing', 'm/promos/new'],
   ['Сгенерировать промокоды', 'tag', 'marketing', 'm/coupons/new'],

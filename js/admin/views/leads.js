@@ -1,8 +1,8 @@
 // Leads — mini-CRM: kanban with drag & drop, table with bulk actions,
 // a lead card with WhatsApp templates, timeline, SLA, duplicates.
-import { h, $, $$, add, mount, clear, icon, fmt, toast, modal, drawer, confirmDlg, field, input, textarea, select, tagsInput, table, csv, copyText, debounce, pageHead, plural } from '../ui.js';
+import { h, $, $$, add, mount, clear, icon, fmt, toast, modal, drawer, confirmDlg, field, input, textarea, select, seg, tagsInput, table, csv, copyText, debounce, pageHead, plural, currency } from '../ui.js';
 import { STATUS, STATUS_NAME, SOURCE_NAME } from '../main.js';
-import { slaBadge, waLink, fillTemplate, loadTours, tourName, minutesBetween, inWorkingHours, ymd } from './common.js';
+import { slaBadge, waLink, fillTemplate, loadTours, tourName, minutesBetween, inWorkingHours, ymd, saleIso, isManual } from './common.js';
 
 const COLS = ['new', 'contacted', 'quoted', 'won', 'lost'];
 const state = { view: localStorage.getItem('sam-leads-view') || 'kanban', q: '', quick: 'all', source: '', manager: '', tour: '', days: '', spam: false };
@@ -19,6 +19,7 @@ export default async function leadsView(root, ctx, params) {
           state.view = v; localStorage.setItem('sam-leads-view', v); $$('button', e.currentTarget.parentNode).forEach((b) => b.setAttribute('aria-pressed', String(b === e.currentTarget))); paint();
         } }, icon(ic), ' ', l))),
       h('button.btn', { onclick: () => exportCsv(filtered()) }, icon('download'), 'CSV'),
+      h('button.btn', { title: 'Клиент уже оплатил — записать продажу сразу', onclick: () => createLead(ctx, paint, { sale: true }) }, icon('check'), 'Продажа'),
       h('button.btn.btn--primary', { onclick: () => createLead(ctx, paint) }, icon('plus'), 'Заявка')),
   );
   $('.page-head p', root) || $('.page-head > div', root).appendChild(h('p', headSub));
@@ -31,6 +32,7 @@ export default async function leadsView(root, ctx, params) {
     ['unassigned', 'Без ответственного', (l) => !l.assigned_to && !['won', 'lost', 'spam'].includes(l.status)],
     ['overdue', 'Ждут дольше ' + sla + ' мин', (l) => l.status === 'new' && minutesBetween(l.created_at, Date.now()) > sla],
     ['followup', 'Перезвонить сегодня', (l) => l.follow_up_at && ymd(l.follow_up_at) <= ymd(Date.now()) && !['won', 'lost', 'spam'].includes(l.status)],
+    ['noprofit', 'Продажи без дохода агентства', (l) => l.status === 'won' && (l.profit == null || !(+l.value > 0))],
   ];
   const quickRow = h('div.chips', { style: { marginBottom: '12px' } });
   function paintQuick() {
@@ -100,7 +102,7 @@ export default async function leadsView(root, ctx, params) {
       h('div.row.row--between', h('b', l.name), slaBadge(l, sla)),
       h('div.lcard__meta', h('span.tag', SOURCE_NAME[l.source] || l.source), l.tour ? h('span.tag', tourName(ctx, l.tour)) : null, (l.tags || []).map((t) => h('span.tag', '#' + t))),
       l.message ? h('div.lcard__msg', l.message) : null,
-      h('div.lcard__foot', h('span.muted', fmt.ago(l.created_at) + (l.assigned_to ? ' · ' + ctx.staffName(l.assigned_to).split(' ')[0] : '')), l.value ? h('b', fmt.money(l.value, l.currency)) : null));
+      h('div.lcard__foot', h('span.muted', fmt.ago(l.created_at) + (l.assigned_to ? ' · ' + ctx.staffName(l.assigned_to).split(' ')[0] : '')), l.value ? h('b', fmt.money(l.value)) : null));
     c.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/lead', l.id); e.dataTransfer.effectAllowed = 'move'; c.classList.add('is-dragging'); });
     c.addEventListener('dragend', () => c.classList.remove('is-dragging'));
     return c;
@@ -113,7 +115,17 @@ export default async function leadsView(root, ctx, params) {
     const paintBulk = () => {
       bulk.hidden = !selected.size; clear(bulk);
       add(bulk, h('b', 'Выбрано: ' + selected.size),
-        select([['', 'Сменить статус…'], ...STATUS], '', async (v) => { if (!v) return; await bulkDo({ status: v }); }),
+        select([['', 'Сменить статус…'], ...STATUS], '', async (v, el) => {
+          if (!v) return;
+          if (v === 'won') { el.value = ''; toast('Продажу оформляйте по одной заявке: у каждой своя сумма и доход', 'bad'); return; }
+          const patch = { status: v };
+          if (v === 'lost') {
+            const r = await ask('Причина отказа', 'Одна причина для всех выбранных заявок.', select(LOST_REASONS, LOST_REASONS[0]));
+            if (r === null) { el.value = ''; return; }
+            patch.lost_reason = r;
+          }
+          await bulkDo(patch);
+        }),
         select([['', 'Назначить…'], ...ctx.team().map((u) => [u.id, u.full_name || u.email])], '', async (v) => { if (!v) return; await bulkDo({ assigned_to: v }); }),
         h('button.btn.btn--sm', { onclick: () => exportCsv(leads.filter((l) => selected.has(l.id))) }, icon('download'), 'CSV'),
         ctx.can('owner') ? h('button.btn.btn--sm.btn--danger', { onclick: async () => {
@@ -144,7 +156,7 @@ export default async function leadsView(root, ctx, params) {
         { key: 'tour', label: 'Направление', sort: true, render: (l) => tourName(ctx, l.tour) },
         { key: 'source', label: 'Источник', sort: true, render: (l) => h('div.cell-main', h('b', SOURCE_NAME[l.source] || l.source), l.utm_campaign ? h('small', l.utm_campaign) : null) },
         { key: 'assigned_to', label: 'Менеджер', sort: (l) => ctx.staffName(l.assigned_to), render: (l) => l.assigned_to ? ctx.staffName(l.assigned_to) : h('span.muted', '—') },
-        { key: 'value', label: 'Сумма', align: 'r', sort: (l) => +l.value || 0, render: (l) => l.value ? fmt.money(l.value, l.currency) : '' },
+        { key: 'value', label: 'Сумма', align: 'r', sort: (l) => +l.value || 0, render: (l) => l.value ? fmt.money(l.value) : '' },
         { key: 'created_at', label: 'Создана', sort: true, render: (l) => h('span', { title: fmt.dt(l.created_at) }, fmt.ago(l.created_at)) },
       ],
     });
@@ -157,6 +169,7 @@ export default async function leadsView(root, ctx, params) {
   new MutationObserver((_, o) => { if (!root.isConnected || !root.contains(body)) { document.removeEventListener('sam:lead', onLive); o.disconnect(); } }).observe(root, { childList: true });
 
   if (params[0] === 'new') createLead(ctx, paint);
+  else if (params[0] === 'sale') createLead(ctx, paint, { sale: true });
   else if (params[0]) openLead(ctx, params[0], paint);
 }
 
@@ -166,7 +179,7 @@ function exportCsv(rows) {
     ['Дата', (l) => fmt.dt(l.created_at)], ['Имя', (l) => l.name], ['Телефон', (l) => l.phone], ['Email', (l) => l.email],
     ['Статус', (l) => STATUS_NAME[l.status]], ['Направление', (l) => tourName(ctx, l.tour)], ['Сообщение', (l) => l.message],
     ['Источник', (l) => SOURCE_NAME[l.source] || l.source], ['utm_source', (l) => l.utm_source], ['utm_campaign', (l) => l.utm_campaign],
-    ['Менеджер', (l) => l.assigned_to ? ctx.staffName(l.assigned_to) : ''], ['Сумма', (l) => l.value], ['Доход агентства', (l) => l.profit], ['Причина отказа', (l) => l.lost_reason],
+    ['Менеджер', (l) => l.assigned_to ? ctx.staffName(l.assigned_to) : ''], ['Сумма', (l) => l.value], ['Доход агентства', (l) => l.profit], ['Валюта', () => currency()], ['Дата продажи', (l) => l.status === 'won' && l.closed_at ? ymd(l.closed_at) : ''], ['Причина отказа', (l) => l.lost_reason],
     ['Первый ответ, мин', (l) => l.first_response_at ? Math.round(minutesBetween(l.created_at, l.first_response_at)) : ''], ['Промокод', (l) => l.coupon_code], ['Теги', (l) => (l.tags || []).join(' ')],
   ]);
 }
@@ -196,26 +209,41 @@ export async function changeStatus(ctx, l, st) {
 }
 // A sale without an amount would silently drop out of revenue, the average check and ROMI,
 // so the amount is required. The agency's own income is optional: until it is entered the
-// reports estimate it from the margin and say so.
-async function askSale(ctx, l) {
-  const cur = l.currency || 'USD';
-  const settings = await ctx.settings().catch(() => ({}));
-  const marginPct = Number((settings.company || {}).margin_pct) || null;
-  const v = input(l.value || '', { type: 'number', placeholder: '1500', attrs: { min: 1, step: 10 } });
-  const p = input(l.profit ?? '', { type: 'number', placeholder: marginPct ? 'по марже ' + marginPct + '%' : '0', attrs: { min: 0, step: 10 } });
+// reports estimate it from the margin and say so. The date is the day the client paid —
+// managers often register a sale the next morning.
+function saleFields(ctx, l = {}) {
+  const cur = currency(), today = ymd(Date.now());
+  const marginPct = Number((((ctx.cache.settings || {}).company) || {}).margin_pct) || null;
+  const v = input(l.value || '', { type: 'number', placeholder: '1500', attrs: { min: 1, step: 10, inputmode: 'decimal' } });
+  const p = input(l.profit ?? '', { type: 'number', placeholder: marginPct ? 'по марже ' + marginPct + '%' : '0', attrs: { min: 0, step: 10, inputmode: 'decimal' } });
+  const d = input(today, { type: 'date', attrs: { max: today } });
   const est = h('span');
-  const hint = () => { est.textContent = p.value !== '' || !marginPct || !(+v.value > 0) ? '' : ' Сейчас в отчётах: ≈ ' + fmt.money(+v.value * marginPct / 100, cur) + '.'; };
+  const hint = () => { est.textContent = p.value !== '' || !marginPct || !(+v.value > 0) ? '' : ' Сейчас в отчётах: ≈ ' + fmt.money(+v.value * marginPct / 100) + '.'; };
   v.addEventListener('input', hint); p.addEventListener('input', hint); hint();
+  return {
+    el: h('div.stack',
+      h('div.grid2', field('Сумма продажи, ' + cur, v, 'Сколько заплатил клиент за тур'),
+        field('Доход агентства, ' + cur, p, h('span', 'Ваша комиссия с этой продажи. Можно заполнить позже в карточке.', est))),
+      field('Дата продажи', d, 'Оформляете задним числом — поставьте день, когда клиент оплатил')),
+    read() {
+      if (!(+v.value > 0)) { toast('Укажите сумму продажи — без неё продажа не попадёт в выручку', 'bad'); v.focus(); return null; }
+      if (p.value !== '' && +p.value < 0) { toast('Доход агентства не может быть отрицательным', 'bad'); p.focus(); return null; }
+      if (p.value !== '' && +p.value > +v.value) { toast('Доход агентства не может быть больше суммы продажи', 'bad'); p.focus(); return null; }
+      if (!d.value || d.value > today) { toast('Дата продажи не может быть в будущем', 'bad'); d.focus(); return null; }
+      return { value: Number(v.value), profit: p.value === '' ? null : Number(p.value), currency: cur, closed_at: saleIso(d.value) };
+    },
+  };
+}
+function askSale(ctx, l) {
+  const f = saleFields(ctx, l);
   return new Promise((res) => {
     let done = false;
     modal({ title: 'Продажа', sub: 'Сайт ничего не продаёт сам — выручка и прибыль в отчётах складываются только из того, что вы укажете здесь.',
-      body: h('div', field('Сумма продажи, ' + cur, v, 'Сколько заплатил клиент за тур'),
-        h('div', { style: { marginTop: '12px' } }, field('Доход агентства, ' + cur, p, h('span', 'Ваша комиссия с этой продажи. Можно заполнить позже в карточке заявки.', est)))),
+      body: f.el,
       onClose: () => { if (!done) res(null); },
       actions: [{ label: 'Отмена', onClick: () => { done = true; res(null); } }, { label: 'Сохранить', kind: 'primary', onClick: () => {
-        if (!(+v.value > 0)) { toast('Укажите сумму продажи — без неё продажа не попадёт в выручку', 'bad'); v.focus(); return false; }
-        if (p.value !== '' && +p.value > +v.value) { toast('Доход агентства не может быть больше суммы продажи', 'bad'); p.focus(); return false; }
-        done = true; res({ value: Number(v.value), profit: p.value === '' ? null : Number(p.value) });
+        const r = f.read(); if (!r) return false;
+        done = true; res(r);
       } }] });
   });
 }
@@ -227,26 +255,39 @@ function ask(title, sub, ctrl) {
   });
 }
 
-// ---------- create (phone call, walk-in, Instagram DM) ----------
-export function createLead(ctx, after) {
-  const d = { name: '', phone: '', message: '', source: 'phone', tour: '', assigned_to: ctx.me.id, email: '' };
+// ---------- create (phone call, walk-in, Instagram DM, or a sale made on the spot) ----------
+export function createLead(ctx, after, { sale = false } = {}) {
+  const d = { name: '', phone: '', message: '', source: sale ? 'walk_in' : 'phone', tour: '', assigned_to: ctx.me.id, email: '' };
   const tours = (ctx.cache.tours || []).map((t) => [t.slug, tourName(ctx, t.slug)]);
+  let sold = sale;
+  const sf = saleFields(ctx);
+  const saleBox = h('div', { hidden: !sold }, sf.el);
   modal({
-    title: 'Новая заявка', sub: 'Звонок, визит в офис или сообщение в Instagram — чтобы всё было в одной воронке.',
+    title: sale ? 'Новая продажа' : 'Новая заявка',
+    sub: sale ? 'Клиент уже оплатил тур — продажа сразу попадёт в выручку и отчёты.' : 'Звонок, визит в офис или сообщение в Instagram — чтобы всё было в одной воронке.',
     body: h('div.stack',
       h('div.grid2', field('Имя', input('', { oninput: (v) => (d.name = v), attrs: { autofocus: true } })), field('Телефон', input('', { type: 'tel', placeholder: '+374 …', oninput: (v) => (d.phone = v) }))),
       h('div.grid2',
         field('Откуда', select([['phone', 'Звонок'], ['walk_in', 'Пришли в офис'], ['instagram', 'Instagram Direct'], ['manual', 'WhatsApp']], d.source, (v) => (d.source = v))),
         field('Направление', select([['', '—'], ...tours], '', (v) => (d.tour = v)))),
-      field('Что хотят', textarea('', { oninput: (v) => (d.message = v), placeholder: 'Даты, сколько человек, бюджет…' })),
+      field(sale ? 'Что купили' : 'Что хотят', textarea('', { oninput: (v) => (d.message = v), placeholder: sale ? 'Отель, даты, сколько человек…' : 'Даты, сколько человек, бюджет…' })),
       h('div.grid2', field('Email', input('', { type: 'email', oninput: (v) => (d.email = v) })),
-        field('Ответственный', select(ctx.team().map((u) => [u.id, u.full_name || u.email]), d.assigned_to, (v) => (d.assigned_to = v))))),
-    actions: [{ label: 'Отмена' }, { label: 'Создать', kind: 'primary', onClick: async () => {
+        field('Ответственный', select(ctx.team().map((u) => [u.id, u.full_name || u.email]), d.assigned_to, (v) => (d.assigned_to = v)))),
+      h('div.field', h('span', 'Что дальше'), seg([[false, 'В работу'], [true, 'Уже купили']], sold, (v) => { sold = v; saleBox.hidden = !v; })),
+      saleBox),
+    actions: [{ label: 'Отмена' }, { label: sale ? 'Записать продажу' : 'Создать', kind: 'primary', onClick: async () => {
       if (!d.name.trim() || d.phone.replace(/\D/g, '').length < 6) { toast('Нужны имя и телефон', 'bad'); return false; }
+      // typed in by a manager = the client is already being talked to: not «Новая», no answer timer
+      const row = { ...d, name: d.name.trim(), tour: d.tour || null, email: d.email || null, lang: 'ru', status: 'contacted', first_response_at: new Date().toISOString() };
+      if (sold) { const s = sf.read(); if (!s) return false; Object.assign(row, s, { status: 'won' }); }
       try {
-        const l = await ctx.api.createLead({ ...d, tour: d.tour || null, email: d.email || null, lang: 'ru' });
-        (ctx.cache.leads = ctx.cache.leads || []).unshift(l);
-        toast('Заявка создана'); after && after(); openLead(ctx, l.id, after);
+        const l = await ctx.api.createLead(row);
+        const list = (ctx.cache.leads = ctx.cache.leads || []);
+        const i = list.findIndex((x) => x.id === l.id);   // the live channel may have delivered it first
+        if (i >= 0) Object.assign(list[i], l); else list.unshift(l);
+        toast(sold ? 'Продажа записана: ' + fmt.money(l.value) : 'Заявка создана', '', { icon: 'check' });
+        if (ctx.api.missingProfit && row.profit != null) toast('Доход агентства не сохранён: база не обновлена. Выполните supabase/admin.sql в SQL Editor.', 'bad');
+        after && after(); openLead(ctx, l.id, after);
       } catch (e) { ctx.err(e); return false; }
     } }],
   });
@@ -262,15 +303,18 @@ export async function openLead(ctx, id, after) {
   const sla = ((ctx.cache.settings || {}).hours || {}).sla_min || 60;
   const dups = leads.filter((x) => x.id !== l.id && x.phone && (x.phone || '').replace(/\D/g, '').slice(-8) === l.phone.replace(/\D/g, '').slice(-8));
   const tl = h('div.tl');
+  const headRow = h('div.row', { style: { marginTop: '10px' } }), work = h('div');
+  const paintHead = () => mount(headRow, h('span.badge.badge--' + l.status, STATUS_NAME[l.status]), slaBadge(l, sla),
+    !isManual(l) && !inWorkingHours(l.created_at, (ctx.cache.settings || {}).hours) ? h('span.badge.badge--plain', 'вне рабочего времени') : null,
+    dups.length ? h('span.badge.badge--warn', 'повторное обращение ×' + (dups.length + 1)) : null);
+  paintHead();
   let templates = [];
   ctx.api.list('wa_templates').then((t) => { templates = t; }).catch(() => {});
 
   const dr = drawer({
     title: l.name,
     sub: 'Заявка от ' + fmt.dt(l.created_at) + ' · ' + (SOURCE_NAME[l.source] || l.source),
-    head: h('div.row', { style: { marginTop: '10px' } }, h('span.badge.badge--' + l.status, STATUS_NAME[l.status]), slaBadge(l, sla),
-      !inWorkingHours(l.created_at, (ctx.cache.settings || {}).hours) ? h('span.badge.badge--plain', 'вне рабочего времени') : null,
-      dups.length ? h('span.badge.badge--warn', 'повторное обращение ×' + (dups.length + 1)) : null),
+    head: headRow,
     onClose: () => { if (location.hash.startsWith('#/leads/')) history.replaceState(null, '', '#/leads'); after && after(); },
     body: () => {
       const b = h('div');
@@ -280,23 +324,9 @@ export async function openLead(ctx, id, after) {
         h('a.btn', { href: 'tel:' + l.phone.replace(/[^\d+]/g, ''), onclick: () => log('call', 'Звонок клиенту') }, icon('phone'), 'Позвонить'),
         h('button.btn', { onclick: () => copyText(l.phone, 'Телефон скопирован') }, icon('copy'), l.phone),
         l.email ? h('a.btn', { href: 'mailto:' + l.email, onclick: () => log('email', 'Письмо на ' + l.email) }, icon('mail'), 'Email') : null));
-      // editable fields
-      const statusSel = select(STATUS, l.status, async (v) => { const ok = await changeStatus(ctx, l, v); if (!ok) statusSel.value = l.status; else refreshTl(); });
-      const valueIn = input(l.value || '', { type: 'number', placeholder: '0', attrs: { min: 0, step: 10 } });
-      valueIn.addEventListener('change', () => save({ value: valueIn.value === '' ? null : Number(valueIn.value) }));
-      const profitIn = input(l.profit ?? '', { type: 'number', placeholder: '0', attrs: { min: 0, step: 10 } });
-      profitIn.addEventListener('change', () => save({ profit: profitIn.value === '' ? null : Number(profitIn.value) }));
-      const fu = input(l.follow_up_at ? toLocalInput(l.follow_up_at) : '', { type: 'datetime-local' });
-      fu.addEventListener('change', () => save({ follow_up_at: fu.value ? new Date(fu.value).toISOString() : null }));
-      add(b, h('div.section-t', 'Работа с заявкой'),
-        h('div.grid2',
-          field('Статус', statusSel),
-          field('Ответственный', select([['', '— не назначен —'], ...ctx.team().map((u) => [u.id, u.full_name || u.email])], l.assigned_to || '', (v) => save({ assigned_to: v || null }).then(refreshTl))),
-          field('Сумма сделки, ' + (l.currency || 'USD'), valueIn),
-          field('Доход агентства, ' + (l.currency || 'USD'), profitIn, 'Комиссия с продажи. Пусто — отчёты считают по марже'),
-          field('Перезвонить', fu, 'Появится в «Перезвонить сегодня»')),
-        l.status === 'lost' ? h('div', { style: { marginTop: '12px' } }, field('Причина отказа', select(LOST_REASONS, l.lost_reason || '', (v) => save({ lost_reason: v })))) : null,
-        h('div', { style: { marginTop: '12px' } }, field('Теги', tagsInput(l.tags, (t) => save({ tags: t })))));
+      // editable fields — repainted after a status change (a sale brings its amount and date)
+      paintWork();
+      add(b, work);
       // request details
       const det = l.details || {};
       add(b, h('div.section-t', 'Запрос'),
@@ -331,6 +361,45 @@ export async function openLead(ctx, id, after) {
       h('button.btn.btn--primary', { onclick: () => api.close() }, 'Готово')),
   });
 
+  function paintWork() {
+    const cur = currency(), won = l.status === 'won', today = ymd(Date.now());
+    const statusSel = select(STATUS, l.status, async (v) => { const ok = await changeStatus(ctx, l, v); if (!ok) statusSel.value = l.status; else { paintHead(); paintWork(); refreshTl(); } });
+    const num = (el) => el.value === '' ? null : Number(el.value);
+    const valueIn = input(l.value ?? '', { type: 'number', placeholder: '0', attrs: { min: 0, step: 10, inputmode: 'decimal' } });
+    valueIn.addEventListener('change', () => {
+      const v = num(valueIn);
+      const why = won && !(v > 0) ? 'У продажи должна быть сумма — без неё она выпадет из выручки'
+        : v != null && v < 0 ? 'Сумма не может быть отрицательной'
+        : v != null && l.profit != null && +l.profit > v ? 'Сумма меньше дохода агентства — сначала поправьте доход' : '';
+      if (why) { toast(why, 'bad'); valueIn.value = l.value ?? ''; return; }
+      save({ value: v, currency: cur });
+    });
+    const profitIn = input(l.profit ?? '', { type: 'number', placeholder: '0', attrs: { min: 0, step: 10, inputmode: 'decimal' } });
+    profitIn.addEventListener('change', () => {
+      const p = num(profitIn);
+      const why = p != null && p < 0 ? 'Доход агентства не может быть отрицательным'
+        : p != null && !(+l.value > 0) ? 'Сначала укажите сумму'
+        : p != null && p > +l.value ? 'Доход агентства не может быть больше суммы' : '';
+      if (why) { toast(why, 'bad'); profitIn.value = l.profit ?? ''; return; }
+      save({ profit: p });
+    });
+    const soldIn = input(ymd(l.closed_at || Date.now()), { type: 'date', attrs: { max: today } });
+    soldIn.addEventListener('change', () => {
+      if (!soldIn.value || soldIn.value > today) { toast('Дата продажи не может быть в будущем', 'bad'); soldIn.value = ymd(l.closed_at || Date.now()); return; }
+      save({ closed_at: saleIso(soldIn.value) });
+    });
+    const fu = input(l.follow_up_at ? toLocalInput(l.follow_up_at) : '', { type: 'datetime-local' });
+    fu.addEventListener('change', () => save({ follow_up_at: fu.value ? new Date(fu.value).toISOString() : null }));
+    mount(work, h('div.section-t', 'Работа с заявкой'),
+      h('div.grid2',
+        field('Статус', statusSel),
+        field('Ответственный', select([['', '— не назначен —'], ...ctx.team().map((u) => [u.id, u.full_name || u.email])], l.assigned_to || '', (v) => save({ assigned_to: v || null }).then(refreshTl))),
+        field((won ? 'Сумма продажи, ' : 'Сумма предложения, ') + cur, valueIn, won ? 'Сколько заплатил клиент' : 'Сколько стоит тур, который предложили'),
+        field('Доход агентства, ' + cur, profitIn, 'Комиссия с продажи. Пусто — отчёты считают по марже'),
+        won ? field('Дата продажи', soldIn, 'По ней продажа попадает в выручку периода') : field('Перезвонить', fu, 'Появится в «Перезвонить сегодня»')),
+      l.status === 'lost' ? h('div', { style: { marginTop: '12px' } }, field('Причина отказа', select(LOST_REASONS, l.lost_reason || '', (v) => save({ lost_reason: v })))) : null,
+      h('div', { style: { marginTop: '12px' } }, field('Теги', tagsInput(l.tags, (t) => save({ tags: t })))));
+  }
   async function save(patch) {
     try { const u = await ctx.api.updateLead(l.id, patch); Object.assign(l, u || patch); toast('Сохранено', '', { icon: 'check', ms: 1400 }); }
     catch (e) { ctx.err(e); }
@@ -362,7 +431,7 @@ export async function openLead(ctx, id, after) {
       actions: [{ label: 'Отмена' }, { label: 'Открыть WhatsApp', kind: 'primary', onClick: () => {
         window.open(waLink(l.phone, ta.value), '_blank', 'noopener');
         log('whatsapp', ta.value ? 'Сообщение: ' + ta.value.slice(0, 140) : 'Открыт чат WhatsApp');
-        if (l.status === 'new') changeStatus(ctx, l, 'contacted').then(refreshTl);
+        if (l.status === 'new') changeStatus(ctx, l, 'contacted').then(() => { paintHead(); paintWork(); refreshTl(); });
       } }],
     });
   }

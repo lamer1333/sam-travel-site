@@ -263,6 +263,13 @@ begin
     insert into public.lead_activity (lead_id, actor, kind, body, meta)
     values (new.id, auth.uid(), 'assign', null, jsonb_build_object('to', new.assigned_to));
   end if;
+  -- The site takes no payments, so a promo code is "used" when the manager registers
+  -- the sale (and un-used if the sale is reopened). This is what max_uses counts.
+  if new.coupon_code is not null and (new.status = 'won') is distinct from (old.status = 'won') then
+    update public.coupons
+       set used_count = greatest(0, used_count + case when new.status = 'won' then 1 else -1 end)
+     where upper(code) = upper(new.coupon_code);
+  end if;
   return null;
 end; $$;
 
