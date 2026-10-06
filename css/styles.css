@@ -762,9 +762,14 @@
   .field input, .field textarea { font: inherit; font-size: 16px; padding: 12px 14px; border-radius: 10px; border: 1.5px solid var(--line-ink); background: var(--paper); color: var(--ink); transition: border-color 160ms ease, box-shadow 160ms ease; }
   .field input:focus, .field textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px rgba(99,167,242,0.22); }
   .field small { color: var(--ink-2); font-size: 0.8rem; }
-  .form__ok { display: none; align-items: center; gap: 10px; color: #1c7c3e; font-weight: 600; }
-  .form.is-sent .form__ok { display: flex; }
+  .form__ok { display: none; gap: 10px; justify-items: start; }
+  .form.is-sent .form__ok { display: grid; }
+  .form__ok-h { display: flex; align-items: center; gap: 10px; margin: 0; color: #1c7c3e; font-weight: 600; font-size: 1.05rem; }
+  .form__ok-t { margin: 0; color: var(--ink-2); font-size: 0.92rem; line-height: 1.5; }
+  .form__wa { margin-top: 6px; max-width: 100%; padding-block: 10px; line-height: 1.25; }
+  @media (max-width: 480px) { .form__wa { width: 100%; justify-content: center; padding-inline: 14px; } }
   .form.is-sent .btn, .form.is-sent .flow { display: none; }
+  .form.is-sent .form__wa { display: inline-flex; }   /* the one button that appears after sending */
   @media (max-width: 860px) { .contact { grid-template-columns: minmax(0, 1fr); } }
 
   /* ---------- Contacts: quiet corporate panel ---------- */

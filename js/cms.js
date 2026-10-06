@@ -404,6 +404,6 @@
     }, function () {});
   }
 
-  window.SAM_CMS = { submitLead: submitLead, data: function () { return data; }, reload: load };
+  window.SAM_CMS = { submitLead: submitLead, lastTour: function () { return state.lastTour; }, data: function () { return data; }, reload: load };
   load();
 })();

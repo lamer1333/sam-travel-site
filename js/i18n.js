@@ -60,7 +60,7 @@ window.SAM_I18N = {
     "Come by, or just write.": "Заходите — или просто напишите.", "Office": "Офис", "Komitas 51, Yerevan": "Комитас 51, Ереван", "Phone": "Телефон", "Phone number": "Номер телефона", "E-mail": "Эл. почта",
     "We're here to help you": "Мы здесь, чтобы помочь", "Tell us where and when — a manager replies within the hour on working days.": "Скажите, куда и когда — менеджер ответит в течение часа в рабочие дни.",
     "Name": "Имя", "Phone or WhatsApp": "Телефон или WhatsApp", "We reply on the number you give, within the hour on working days.": "Ответим на указанный номер в течение часа в рабочие дни.",
-    "Where and when?": "Куда и когда?", "Have a promo code?": "Есть промокод?", "aria-label::Promo code": "Промокод", "Send request": "Отправить заявку", "Sent — a manager will write to you shortly.": "Отправлено — менеджер скоро вам напишет.",
+    "Where and when?": "Куда и когда?", "Have a promo code?": "Есть промокод?", "aria-label::Promo code": "Промокод", "Send request": "Отправить заявку", "Request received": "Заявка принята", "A manager will write to you shortly. Want it faster? Continue in WhatsApp — your message is already written.": "Менеджер скоро вам напишет. Хотите быстрее? Продолжите в WhatsApp — сообщение уже набрано.", "Continue in WhatsApp": "Продолжить в WhatsApp",
     "Travel agency in Yerevan. Beach, city and group trips — arranged by a manager, confirmed in one message.": "Турагентство в Ереване. Пляжные, городские и групповые поездки — собирает менеджер, подтверждается одним сообщением.",
     "Explore": "Разделы", "Company": "Компания", "Corporate clients": "Корпоративным клиентам", "Client": "Клиенту", "Privacy": "Конфиденциальность",
     "© 2026 SAM TRAVEL · Licence No. 23-1057-2023 · Yerevan": "© 2026 SAM TRAVEL · Лицензия № 23-1057-2023 · Ереван",
@@ -162,7 +162,7 @@ window.SAM_I18N = {
     "aria-label::Checklist": "Чек-лист",
     "aria-label::Fewer": "Меньше",
     "aria-label::More": "Больше",
-    "__js": { "sending": "Отправляем…", "soon": " — следующая страница, делаем в следующем раунде", "lang": " версия", "to": "на " }
+    "__js": { "wa_hi": "Здравствуйте! Я только что оставил(а) заявку на сайте SAM TRAVEL.", "wa_name": "Имя", "wa_phone": "Телефон", "wa_tour": "Тур", "wa_coupon": "Промокод", "sending": "Отправляем…", "soon": " — следующая страница, делаем в следующем раунде", "lang": " версия", "to": "на " }
   },
   hy: {
     "Tours": "Տուրեր", "Hot tours": "Թեժ տուրեր", "Services": "Ծառայություններ", "About": "Մեր մասին", "Reviews": "Կարծիքներ", "Blog": "Բլոգ", "Contacts": "Կապ",
@@ -224,7 +224,7 @@ window.SAM_I18N = {
     "Come by, or just write.": "Այցելեք, կամ պարզապես գրեք։", "Office": "Գրասենյակ", "Komitas 51, Yerevan": "Կոմիտաս 51, Երևան", "Phone": "Հեռախոս", "Phone number": "Հեռախոսահամար", "E-mail": "Էլ. փոստ",
     "We're here to help you": "Մենք այստեղ ենք՝ ձեզ օգնելու", "Tell us where and when — a manager replies within the hour on working days.": "Ասեք՝ ուր և երբ, և մենեջերը կպատասխանի մեկ ժամվա ընթացքում աշխատանքային օրերին։",
     "Name": "Անուն", "Phone or WhatsApp": "Հեռախոս կամ WhatsApp", "We reply on the number you give, within the hour on working days.": "Կպատասխանենք ձեր նշած համարին մեկ ժամվա ընթացքում աշխատանքային օրերին։",
-    "Where and when?": "Ո՞ւր և ե՞րբ", "Have a promo code?": "Ունե՞ք պրոմոկոդ", "aria-label::Promo code": "Պրոմոկոդ", "Send request": "Ուղարկել հայտը", "Sent — a manager will write to you shortly.": "Ուղարկված է. մենեջերը շուտով կգրի ձեզ։",
+    "Where and when?": "Ո՞ւր և ե՞րբ", "Have a promo code?": "Ունե՞ք պրոմոկոդ", "aria-label::Promo code": "Պրոմոկոդ", "Send request": "Ուղարկել հայտը", "Request received": "Հայտն ընդունված է", "A manager will write to you shortly. Want it faster? Continue in WhatsApp — your message is already written.": "Մենեջերը շուտով կգրի ձեզ։ Ուզո՞ւմ եք ավելի արագ։ Շարունակեք WhatsApp-ում՝ հաղորդագրությունն արդեն գրված է։", "Continue in WhatsApp": "Շարունակել WhatsApp-ում",
     "Travel agency in Yerevan. Beach, city and group trips — arranged by a manager, confirmed in one message.": "Զբոսաշրջային գործակալություն Երևանում։ Ծովային, քաղաքային և խմբային ուղևորություններ՝ կազմակերպում է մենեջերը, հաստատվում է մեկ հաղորդագրությամբ։",
     "Explore": "Բաժիններ", "Company": "Ընկերություն", "Corporate clients": "Կորպորատիվ հաճախորդներին", "Client": "Հաճախորդին", "Privacy": "Գաղտնիություն",
     "© 2026 SAM TRAVEL · Licence No. 23-1057-2023 · Yerevan": "© 2026 SAM TRAVEL · Լիցենզիա № 23-1057-2023 · Երևան",
@@ -326,7 +326,7 @@ window.SAM_I18N = {
     "aria-label::Checklist": "Ստուգաթերթ",
     "aria-label::Fewer": "Պակաս",
     "aria-label::More": "Ավելի",
-    "__js": { "sending": "Ուղարկվում է…", "soon": "՝ հաջորդ էջն է, կնախագծենք հաջորդ փուլում", "lang": " տարբերակ", "to": "դեպի " }
+    "__js": { "wa_hi": "Բարև ձեզ։ Հենց նոր հայտ եմ թողել SAM TRAVEL-ի կայքում։", "wa_sep": "՝ ", "wa_name": "Անուն", "wa_phone": "Հեռախոս", "wa_tour": "Տուր", "wa_coupon": "Պրոմոկոդ", "sending": "Ուղարկվում է…", "soon": "՝ հաջորդ էջն է, կնախագծենք հաջորդ փուլում", "lang": " տարբերակ", "to": "դեպի " }
   }
 };
 

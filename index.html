@@ -65,7 +65,7 @@
 }
 </script>
 
-<link rel="stylesheet" href="css/styles.css?v=20261006b">
+<link rel="stylesheet" href="css/styles.css?v=20261006c">
 </head>
 <body>
 <svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
@@ -487,7 +487,11 @@
           <!-- honeypot: invisible to people, bots fill it and the request is dropped -->
           <div class="hp" aria-hidden="true"><label for="f-web">Website</label><input id="f-web" name="website" type="text" tabindex="-1" autocomplete="off"></div>
           <button class="flow flow--lg" type="submit"><svg class="flow__arr flow__arr--in" aria-hidden="true"><use href="#i-arrow"/></svg><span class="flow__text">Send request</span><span class="flow__circle" aria-hidden="true"></span><svg class="flow__arr flow__arr--out" aria-hidden="true"><use href="#i-arrow"/></svg></button>
-          <p class="form__ok"><svg width="20" height="20"><use href="#i-check"/></svg>Sent — a manager will write to you shortly.</p>
+          <div class="form__ok" role="status">
+            <p class="form__ok-h"><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Request received</p>
+            <p class="form__ok-t">A manager will write to you shortly. Want it faster? Continue in WhatsApp — your message is already written.</p>
+            <a class="btn btn--wa form__wa" id="lead-wa" href="https://wa.me/37455957585" target="_blank" rel="noopener" data-track-label="after_form"><svg width="20" height="20" aria-hidden="true"><use href="#i-wa"/></svg>Continue in WhatsApp</a>
+          </div>
         </form>
       </div>
     </div>
@@ -991,11 +995,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/supabase-config.js"></script>
-<script src="js/i18n.js?v=20261006b"></script>
+<script src="js/i18n.js?v=20261006c"></script>
 <script src="js/pages.js"></script>
-<script src="js/track.js"></script>
-<script src="js/app.js?v=20261006b"></script>
-<script src="js/cms.js"></script>
+<script src="js/track.js?v=20261006c"></script>
+<script src="js/app.js?v=20261006c"></script>
+<script src="js/cms.js?v=20261006c"></script>
 <script src="js/shader.js"></script>
 <script defer src="js/analytics.js"></script>
 </body>
