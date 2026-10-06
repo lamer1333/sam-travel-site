@@ -139,6 +139,7 @@ js/admin/ui.js, charts.js        компоненты и графики (без 
 js/admin/views/*.js              разделы
 supabase/migrations/001_schema.sql   миграция №1: профили, роли, согласия, промокоды, RLS
 supabase/migrations/002_admin.sql    миграция №2: таблицы, RLS, функции, начальные данные
+supabase/migrations/010_guards.sql   права на профили, правила продажи, история денежных правок, счётчик промокодов
 supabase/test/_db.mjs, run.mjs       обвязка тестов: Postgres в памяти, все миграции дважды
 supabase/test/*.test.mjs             проверки прав и функций на настоящем Postgres
 ```

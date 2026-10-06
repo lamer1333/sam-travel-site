@@ -72,7 +72,12 @@ await expectErr('ann', `select set_birth_date($1)`, [tomorrow], 'смена да
 await expectErr('ann', `select set_birth_date(null)`, [], 'смена даты: пусто отклонено');
 await expectErr('ann', `update profiles set birth_date = null where id = $1`, [U.ann], 'дату нельзя очистить прямым запросом');
 await expectErr('ann', `update profiles set birth_date = $2 where id = $1`, [U.ann, d16minus], 'прямой запрос тоже проверяет возраст');
-await expectErr('mgr', `update profiles set birth_date = $2 where id = $1`, [U.ann, d30], 'менеджер не меняет чужую дату рождения');
+// менеджеру чужую строку закрывает политика (0 строк), владельцу — сторож даты
+try {
+  const r = await as('mgr', `update profiles set birth_date = $2 where id = $1`, [U.ann, d30]);
+  check(r.affectedRows === 0, 'менеджер не меняет чужую дату рождения (0 строк)', 'строк: ' + r.affectedRows);
+} catch (e) { ok('менеджер не меняет чужую дату рождения → ' + e.message.slice(0, 40)); }
+await expectErr('owner', `update profiles set birth_date = $2 where id = $1`, [U.ann, d30], 'владелец не меняет чужую дату рождения');
 check((await one(`select birth_date::text b from profiles where id = $1`, [U.ann])).b === d25, 'после отклонённых попыток дата прежняя');
 
 // ---------------------------------------------------------------- кто видит дату рождения

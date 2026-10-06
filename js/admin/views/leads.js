@@ -185,7 +185,7 @@ function exportCsv(rows) {
 }
 
 // ---------- status change with the questions each status needs ----------
-const LOST_REASONS = ['Дорого', 'Выбрали другое агентство', 'Перенесли поездку', 'Не отвечает', 'Не подошли даты', 'Нет мест / визы', 'Другое'];
+const LOST_REASONS = ['Дорого', 'Выбрали другое агентство', 'Перенесли поездку', 'Не отвечает', 'Не подошли даты', 'Нет мест / визы', 'Возврат', 'Другое'];
 export async function changeStatus(ctx, l, st) {
   let patch = { status: st };
   if (st === 'won') {
@@ -203,7 +203,6 @@ export async function changeStatus(ctx, l, st) {
     const upd = await ctx.api.updateLead(l.id, patch);
     Object.assign(l, upd || patch);
     toast(l.name + ': ' + STATUS_NAME[st], '', { icon: 'check' });
-    if (ctx.api.missingProfit && patch.profit != null) toast('Доход агентства не сохранён: база не обновлена. Накатите миграции из supabase/migrations/.', 'bad');
     return true;
   } catch (e) { ctx.err(e); return false; }
 }
@@ -286,7 +285,6 @@ export function createLead(ctx, after, { sale = false } = {}) {
         const i = list.findIndex((x) => x.id === l.id);   // the live channel may have delivered it first
         if (i >= 0) Object.assign(list[i], l); else list.unshift(l);
         toast(sold ? 'Продажа записана: ' + fmt.money(l.value) : 'Заявка создана', '', { icon: 'check' });
-        if (ctx.api.missingProfit && row.profit != null) toast('Доход агентства не сохранён: база не обновлена. Накатите миграции из supabase/migrations/.', 'bad');
         after && after(); openLead(ctx, l.id, after);
       } catch (e) { ctx.err(e); return false; }
     } }],
@@ -294,7 +292,14 @@ export function createLead(ctx, after, { sale = false } = {}) {
 }
 
 // ---------- the lead card ----------
-const ACT_ICON = { note: 'edit', status: 'refresh', assign: 'users', call: 'phone', whatsapp: 'wa', email: 'mail', system: 'zap' };
+// What the server found when the lead came in with a promo code (details.coupon_valid).
+// Leads entered by hand carry no verdict, so nothing is shown for them.
+const COUPON_VALID = { yes: ['действует', 'var(--ok)'], expired: ['не действует: срок вышел, выключен или исчерпан', 'var(--warn)'], no: ['такого кода нет', 'var(--bad)'] };
+function couponMark(v) {
+  const m = COUPON_VALID[v];
+  return m ? h('small', { style: { marginLeft: '8px', color: m[1], fontWeight: 600 } }, m[0]) : null;
+}
+const ACT_ICON = { note: 'edit', status: 'refresh', assign: 'users', call: 'phone', whatsapp: 'wa', email: 'mail', system: 'zap', money: 'tag' };
 export async function openLead(ctx, id, after) {
   const leads = await ctx.leads();
   const l = leads.find((x) => x.id === id);
@@ -336,7 +341,7 @@ export async function openLead(ctx, id, after) {
           det.people ? [h('dt', 'Путешественников'), h('dd', String(det.people))] : null,
           det.from ? [h('dt', 'Даты'), h('dd', fmt.date(det.from) + (det.to ? ' — ' + fmt.date(det.to) : ''))] : null,
           det.meals && det.meals.length ? [h('dt', 'Питание'), h('dd', det.meals.join(', '))] : null,
-          l.coupon_code ? [h('dt', 'Промокод'), h('dd', h('span.tag', l.coupon_code))] : null,
+          l.coupon_code ? [h('dt', 'Промокод'), h('dd', h('span.tag', l.coupon_code), couponMark(det.coupon_valid))] : null,
           [h('dt', 'Язык сайта'), h('dd', (l.lang || '—').toUpperCase() + (l.device ? ' · ' + l.device : ''))],
           [h('dt', 'Реклама'), h('dd', l.utm_source ? [l.utm_source, l.utm_medium, l.utm_campaign, l.utm_content].filter(Boolean).join(' / ') : (l.referrer ? 'Переход с ' + l.referrer : 'Прямой заход / офлайн'))]));
       if (dups.length) add(b, h('div.section-t', 'Прошлые обращения с этого номера'),
@@ -401,7 +406,10 @@ export async function openLead(ctx, id, after) {
       h('div', { style: { marginTop: '12px' } }, field('Теги', tagsInput(l.tags, (t) => save({ tags: t })))));
   }
   async function save(patch) {
-    try { const u = await ctx.api.updateLead(l.id, patch); Object.assign(l, u || patch); toast('Сохранено', '', { icon: 'check', ms: 1400 }); }
+    try {
+      const u = await ctx.api.updateLead(l.id, patch); Object.assign(l, u || patch); toast('Сохранено', '', { icon: 'check', ms: 1400 });
+      if ('value' in patch || 'profit' in patch || 'closed_at' in patch) refreshTl();   // the database logs money edits of a closed lead
+    }
     catch (e) { ctx.err(e); }
   }
   async function log(kind, body, meta) {
@@ -441,6 +449,11 @@ function actText(ctx, a) {
   if (a.kind === 'status') return h('span', 'Статус: ', a.meta && a.meta.from ? h('span.muted', (STATUS_NAME[a.meta.from] || a.meta.from) + ' → ') : null, h('b', STATUS_NAME[a.body] || a.body));
   if (a.kind === 'assign') return h('span', 'Ответственный: ', h('b', a.meta && a.meta.to ? ctx.staffName(a.meta.to) : 'снят'));
   if (a.kind === 'note') return h('span', 'Заметка');
+  if (a.kind === 'money') {   // written by the database when a closed lead's money is edited
+    const m = a.meta || {}, was = (x, f) => f(x.from) + ' → ' + f(x.to);
+    return h('span', [m.value && 'Сумма: ' + was(m.value, (v) => fmt.money(v)), m.profit && 'Доход агентства: ' + was(m.profit, (v) => fmt.money(v)),
+      m.closed_at && 'Дата продажи: ' + was(m.closed_at, (v) => fmt.date(v))].filter(Boolean).join(' · ') || 'Правка суммы');
+  }
   return h('span', a.body || a.kind);
 }
 function toLocalInput(d) { const x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 16); }
