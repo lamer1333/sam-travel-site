@@ -1183,6 +1183,18 @@
   .ifield input { background: none; border: 0; outline: none; font: inherit; font-size: 16px; font-weight: 500; color: #0B0D12; width: 100%; min-width: 0; }
   .ifield input::placeholder { color: #9AA3AF; font-weight: 400; }
   .ifield.is-bad { box-shadow: inset 0 0 0 2px #C3402F; }
+  /* date of birth: a date input has no placeholder, so the caption sits above the value */
+  .ifield__stack { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+  .ifield__stack small { font-size: 0.7rem; line-height: 1.1; color: var(--ink-2); margin-top: 2px; }
+  .ifield--date input { min-height: 26px; padding: 0; -webkit-appearance: none; appearance: none; text-align: left; }
+  .ifield--date input::-webkit-date-and-time-value { text-align: left; }
+  /* four fields instead of three: tighten the sign-up form so it still sits inside the card */
+  .aform--signup .astep[data-step="1"] .ifield { min-height: 48px; margin: 5px 0; }
+  .aform--signup .astep[data-step="1"] .atitle { margin-bottom: 8px; }
+  .aform--signup .astep[data-step="1"] .asep { margin: 10px 0 2px; }
+  .aform--signup .astep[data-step="1"] .aoauth { min-height: 44px; }
+  .ifield input[data-field="code"] { letter-spacing: 0.3em; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .ifield input[data-field="code"]::placeholder { letter-spacing: 0; }
 
   .aerr { min-height: 18px; margin: 4px 0 2px; font-size: 0.82rem; color: #C3402F; text-align: center; }
   .abtn { width: 100%; max-width: 340px; margin-top: 6px; }

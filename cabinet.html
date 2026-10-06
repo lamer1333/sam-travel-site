@@ -59,6 +59,27 @@
   .modal .consent{display:flex;gap:9px;align-items:flex-start;font-size:13px;margin-bottom:20px}
   .modal .primary{width:100%;padding:12px;border:0;border-radius:11px;background:var(--brand);
     color:#04121f;font:inherit;font-weight:700;cursor:pointer}
+  .modal .mfield{display:block;margin-bottom:16px;font-size:13px;color:var(--ink-dim)}
+  .date-input{display:block;width:100%;margin-top:6px;padding:11px 12px;border:1px solid var(--line);border-radius:11px;
+    background:rgba(255,255,255,.05);color:var(--ink);font:inherit;font-size:16px;color-scheme:dark}
+  .date-input:focus{outline:2px solid var(--brand);outline-offset:1px}
+  .modal .msg{margin:0 0 14px}
+  .modal .primary[disabled]{opacity:.6;cursor:default}
+  /* profile: date of birth */
+  .profile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 18px;margin-bottom:28px}
+  .profile__row{display:flex;align-items:center;justify-content:space-between;gap:10px 14px;flex-wrap:wrap}
+  .profile__row dt{font-size:12px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.06em}
+  .profile__row dd{margin:2px 0 0;font-size:15px}
+  .profile dl{margin:0}
+  .profile__edit{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .profile__edit[hidden]{display:none}
+  .profile__edit .date-input{width:auto;margin:0;flex:1 1 170px}
+  .profile .msg{margin:10px 0 0}
+  .status--received{background:rgba(91,163,242,.18);color:var(--brand)}
+  .status--in_touch,.status--offer{background:rgba(255,193,7,.16);color:#ffce54}
+  .status--done{background:rgba(84,209,140,.16);color:var(--ok)}
+  .status--closed{background:rgba(255,255,255,.1);color:var(--ink-dim)}
+  [hidden]{display:none !important}
   .top-right{display:flex;align-items:center;gap:10px}
   .lang{display:inline-flex;gap:2px;background:rgba(255,255,255,.06);border-radius:999px;padding:3px}
   .lang button{border:0;background:transparent;color:var(--ink-dim);font:inherit;font-size:12px;font-weight:600;
@@ -81,32 +102,56 @@
       </div>
     </header>
 
-    <div class="hello">
-      <h1><span data-i18n="hi">Hi</span>, <span id="greet">…</span></h1>
-      <span id="role-badge" class="badge" hidden></span>
-    </div>
-    <p class="lead" data-i18n="lead">Your trips and requests are below.</p>
+    <!-- hidden until the profile is loaded and the first-login screen (if any) is passed -->
+    <main id="cabinet" hidden>
+      <div class="hello">
+        <h1><span data-i18n="hi">Hi</span>, <span id="greet">…</span></h1>
+        <span id="role-badge" class="badge" hidden></span>
+      </div>
+      <p class="lead" data-i18n="lead">Your details and travel requests are below.</p>
 
-    <h2 data-i18n="bookingsH">Bookings</h2>
-    <div id="bookings"></div>
-    <p id="bookings-empty" class="empty" hidden data-i18n="empty">No bookings yet. Send a request from the site and it will show up here.</p>
+      <h2 data-i18n="profileH">Profile</h2>
+      <section class="profile">
+        <div class="profile__row">
+          <dl><dt data-i18n="birthLabel">Date of birth</dt><dd id="birth-value">—</dd></dl>
+          <button id="birth-change" class="logout" type="button" data-i18n="change">Change</button>
+        </div>
+        <form id="birth-form" class="profile__edit" hidden novalidate>
+          <input id="birth-input" class="date-input" type="date" autocomplete="bday" aria-labelledby="birth-value">
+          <button class="logout" type="submit" data-i18n="save">Save</button>
+          <button id="birth-cancel" class="logout" type="button" data-i18n="cancel">Cancel</button>
+        </form>
+        <p id="birth-msg" class="msg" data-kind="err" role="alert" hidden></p>
+      </section>
+
+      <h2 data-i18n="requestsH">My requests</h2>
+      <div id="requests"></div>
+      <p id="requests-empty" class="empty" hidden data-i18n="empty">No requests yet. Send one from the site while signed in and it will show up here with its status.</p>
+    </main>
+    <p id="cabinet-error" class="msg" data-kind="err" role="alert" hidden></p>
   </div>
 
-  <!-- First-login consent (Google / Mail.ru users have no checkbox at sign-up) -->
-  <div id="onboard" class="modal" hidden>
-    <div class="modal__card">
-      <h3 data-i18n="onbTitle">One quick thing</h3>
-      <p data-i18n="onbText">Would you like to hear about deals and discounts?</p>
+  <!-- First login: Google / Mail.ru users have not been asked for the date of birth or
+       the mailing consent. The cabinet stays closed until this is answered. -->
+  <div id="onboard" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="onboard-title">
+    <form class="modal__card" id="onboard-form" novalidate>
+      <h3 id="onboard-title" data-i18n="onbTitle">One quick thing</h3>
+      <p data-i18n="onbText">We need your date of birth to open your account.</p>
+      <label class="mfield" id="onboard-birth-field">
+        <span data-i18n="birthLabel">Date of birth</span>
+        <input id="onboard-birth" class="date-input" type="date" autocomplete="bday">
+      </label>
       <label class="consent">
         <input id="onboard-consent" type="checkbox">
         <span data-i18n="onbConsent">Yes, send me deals, discounts and coupons by email. I can unsubscribe anytime.</span>
       </label>
-      <button id="onboard-save" class="primary" data-i18n="onbContinue">Continue</button>
-    </div>
+      <p id="onboard-msg" class="msg" data-kind="err" role="alert" hidden></p>
+      <button id="onboard-save" class="primary" type="submit" data-i18n="onbContinue">Continue</button>
+    </form>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/supabase-config.js"></script>
-  <script src="js/auth.js"></script>
+  <script src="js/auth.js?v=20261006b"></script>
 </body>
 </html>

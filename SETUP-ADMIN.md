@@ -135,10 +135,13 @@ css/admin.css                    стили панели (светлая/тём�
 js/admin/main.js                 оболочка: вход, роли, роутинг, ⌘K, живые уведомления
 js/admin/api.js                  Supabase-реализация данных
 js/admin/demo.js, demo-seed.js   демо-режим (тот же интерфейс, данные в браузере)
+js/admin/metrics.js              формулы отчётов для демо-режима — зеркало 030_stats.sql, сверяется тестом
 js/admin/ui.js, charts.js        компоненты и графики (без библиотек)
 js/admin/views/*.js              разделы
 supabase/migrations/001_schema.sql   миграция №1: профили, роли, согласия, промокоды, RLS
 supabase/migrations/002_admin.sql    миграция №2: таблицы, RLS, функции, начальные данные
+supabase/migrations/010_guards.sql   права на профили, правила продажи, история денежных правок, счётчик промокодов
+supabase/migrations/030_stats.sql    цифры панели считает база: stats_sales, stats_traffic, stats_coupons, канал заявки, рабочие часы
 supabase/test/_db.mjs, run.mjs       обвязка тестов: Postgres в памяти, все миграции дважды
 supabase/test/*.test.mjs             проверки прав и функций на настоящем Postgres
 ```

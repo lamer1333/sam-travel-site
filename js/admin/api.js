@@ -5,6 +5,9 @@
 // Views only ever talk to this interface.
 // ---------------------------------------------------------------------------
 
+export const LEADS_WINDOW_DAYS = 90;   // closed leads older than this come by search and pages
+const PAGE = 500;
+const OPEN = ['new', 'contacted', 'quoted'];
 const READONLY = ['created_at', 'updated_at', 'updated_by', 'phone_digits'];
 const clean = (row) => { const r = { ...row }; READONLY.forEach((k) => delete r[k]); if (!r.id) delete r.id; return r; };
 function must({ data, error }) { if (error) throw error; return data; }
@@ -19,41 +22,58 @@ export class LiveApi {
   async whoami() { return must(await this.sb.rpc('whoami')); }
 
   // ---- leads ----
-  async leads({ since } = {}) {
-    let q = this.sb.from('leads').select('*').order('created_at', { ascending: false }).limit(3000);
-    if (since) q = q.gte('created_at', since);
-    return must(await q);
+  // PostgREST gives at most `max rows` (1000 by default) per request, so nothing here asks
+  // for "everything" in one go: a list is read page by page until the server's own count.
+  async pages(make) {
+    const out = [];
+    for (;;) {
+      const { data, error, count } = await make().order('created_at', { ascending: false }).order('id').range(out.length, out.length + PAGE - 1);
+      if (error) throw error;
+      out.push(...data);
+      if (!data.length || count == null || out.length >= count) return out;
+    }
   }
+  /** What the panel keeps in memory: every open lead + the ones closed (or created) in the last `days`. */
+  async leads({ days = LEADS_WINDOW_DAYS } = {}) {
+    const since = JSON.stringify(new Date(Date.now() - days * 86400e3).toISOString());
+    const sel = () => this.sb.from('leads').select('*', { count: 'exact' });
+    const [open, closed] = await Promise.all([
+      this.pages(() => sel().in('status', OPEN)),
+      this.pages(() => sel().in('status', ['won', 'lost', 'spam']).or(`closed_at.gte.${since},created_at.gte.${since}`)),
+    ]);
+    return open.concat(closed).sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+  }
+  /** Everything else: one page of a search over all leads, newest first → { rows, total }. */
+  async findLeads({ q, phone, source, manager, tour, spam, mine, noProfit, since, offset = 0, limit = PAGE } = {}) {
+    let r = this.sb.from('leads').select('*', { count: 'exact' });
+    if (!spam) r = r.neq('status', 'spam');
+    if (source) r = r.eq('source', source);
+    if (manager) r = manager === 'none' ? r.is('assigned_to', null) : r.eq('assigned_to', manager);
+    if (mine) r = r.eq('assigned_to', mine);
+    if (tour) r = r.eq('tour', tour);
+    if (since) r = r.gte('created_at', since);
+    if (noProfit) r = r.eq('status', 'won').or('profit.is.null,value.is.null,value.lte.0');
+    if (phone) r = r.like('phone_digits', '%' + String(phone).replace(/\D/g, '') + '%');
+    if (q) {
+      const like = JSON.stringify('%' + q + '%'), digits = q.replace(/\D/g, '');
+      const any = [`name.ilike.${like}`, `message.ilike.${like}`];
+      if (/^[\p{L}\p{N}_-]+$/u.test(q)) any.push(`tags.cs.{${q}}`);   // a tag is one word
+      if (digits.length >= 3) any.push(`phone_digits.like.%${digits}%`);
+      r = r.or(any.join(','));
+    }
+    const { data, error, count } = await r.order('created_at', { ascending: false }).order('id').range(offset, offset + limit - 1);
+    if (error) throw error;
+    return { rows: data, total: count == null ? offset + data.length : count };
+  }
+  async lead(id) { return must(await this.sb.from('leads').select('*').eq('id', id).maybeSingle()); }
   async leadActivity(id) { return must(await this.sb.from('lead_activity').select('*').eq('lead_id', id).order('created_at')); }
-  async updateLead(id, patch) {
-    const run = (p) => this.sb.from('leads').update(clean(p)).eq('id', id).select().single();
-    let r = await run(patch);
-    // leads.profit arrived in a later 002_admin.sql: on a database that has not been migrated yet,
-    // save everything else instead of losing the sale, and say what is missing.
-    if (r.error && 'profit' in patch && /profit/.test(r.error.message || '')) {
-      const { profit, ...rest } = patch;
-      if (!Object.keys(rest).length) throw new Error('Could not find the function leads.profit');
-      r = await run(rest);
-      if (!r.error) this.missingProfit = true;
-    }
-    let row = must(r);
-    // The database stamps closed_at itself when a lead is closed. A sale registered a day
-    // late carries its own date, so set it again once the row is already closed.
-    if (patch.closed_at && row && Math.abs(new Date(row.closed_at) - new Date(patch.closed_at)) > 60e3) {
-      row = must(await run({ closed_at: patch.closed_at }));
-    }
-    return row;
-  }
+  // The rules of a sale (amount, income, sale date, currency, lost reason) live in the
+  // leads_guard trigger, 010_guards.sql: one request, and the database answers with the row
+  // as it really is — or with an error errText() below translates.
+  async updateLead(id, patch) { return must(await this.sb.from('leads').update(clean(patch)).eq('id', id).select().single()); }
   async updateLeads(ids, patch) { must(await this.sb.from('leads').update(clean(patch)).in('id', ids)); }
   async createLead(row) {
-    const run = (p) => this.sb.from('leads').insert(clean(p)).select().single();
-    let r = await run(row);
-    if (r.error && 'profit' in row && /profit/.test(r.error.message || '')) {
-      const { profit, ...rest } = row;
-      r = await run(rest);
-      if (!r.error) this.missingProfit = true;
-    }
-    const l = must(r);
+    const l = must(await this.sb.from('leads').insert(clean(row)).select().single());
     await this.addActivity(l.id, 'system', 'Добавлена вручную').catch(() => {});
     return l;
   }
@@ -76,6 +96,8 @@ export class LiveApi {
   async users() { return must(await this.sb.rpc('users_list')); }
   async setRole(id, role) { must(await this.sb.rpc('set_role', { p_user: id, p_role: role })); }
   async audience() { return must(await this.sb.rpc('audience_list')); }
+  /** month 1–12; clients with consent and a confirmed address — owner and marketer only */
+  async birthdays(month) { return must(await this.sb.rpc('birthdays', { p_month: month })); }
 
   // ---- generic content tables ----
   async list(table, order = 'sort') {
@@ -97,7 +119,10 @@ export class LiveApi {
   async saveSetting(key, value) { must(await this.sb.from('site_settings').upsert({ key, value })); }
 
   // ---- analytics / audit ----
+  // Every number of the reports is counted by the database (030_stats.sql); the panel only shows it.
   async stats(from, to) { return must(await this.sb.rpc('stats_traffic', { p_from: from.toISOString(), p_to: to.toISOString() })); }
+  async sales(from, to) { return must(await this.sb.rpc('stats_sales', { p_from: from.toISOString(), p_to: to.toISOString() })); }
+  async couponStats() { return must(await this.sb.rpc('stats_coupons')); }
   /** письма о заявках: { last_sent_at, pending, failed_7d, last_error, last_error_at } — только владельцу */
   async notifyStatus() { return must(await this.sb.rpc('notify_status')); }
   async audit(limit = 300) { return must(await this.sb.from('audit_log').select('*').order('at', { ascending: false }).limit(limit)); }
@@ -119,6 +144,15 @@ export function errText(e) {
   const m = (e && (e.message || e.error_description)) || String(e);
   if (/invalid login credentials/i.test(m)) return 'Неверный email или пароль';
   if (/forbidden|permission denied|row-level security/i.test(m)) return 'Недостаточно прав для этого действия';
+  if (/bad_month/.test(m)) return 'Месяц — число от 1 до 12';
+  if (/sale_needs_value/.test(m)) return 'У продажи должна быть сумма больше нуля';
+  if (/profit_out_of_range/.test(m)) return 'Доход агентства — от нуля до суммы продажи; сначала укажите сумму';
+  if (/value_negative/.test(m)) return 'Сумма не может быть отрицательной';
+  if (/sale_date_in_future/.test(m)) return 'Дата продажи не может быть в будущем';
+  if (/lost_reason_required/.test(m)) return 'Укажите причину отказа';
+  if (/last_owner/.test(m)) return 'Это последний владелец — сначала назначьте другого';
+  if (/role_change_forbidden/.test(m)) return 'Роль меняет только владелец в разделе «Клиенты и команда»';
+  if (/profile_field_forbidden/.test(m)) return 'Это поле профиля менять нельзя';
   if (/cannot_change_own_role/.test(m)) return 'Свою роль менять нельзя — попросите другого владельца';
   if (/duplicate key.*utm_campaign/i.test(m)) return 'Кампания с таким utm_campaign уже есть';
   if (/duplicate key.*code/i.test(m)) return 'Такой промокод уже существует';

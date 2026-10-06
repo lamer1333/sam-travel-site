@@ -4,14 +4,32 @@
     {
       "name": "sam-static",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8946"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8946"
+      ],
       "port": 8946
     },
     {
       "name": "sam-static-alt",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8948"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8948"
+      ],
       "port": 8948
+    },
+    {
+      "name": "sam-static-main",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8951"
+      ],
+      "port": 8951
     }
   ]
 }

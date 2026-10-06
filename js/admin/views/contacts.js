@@ -7,7 +7,7 @@ const SAMPLE = { licence: '23-1057-2023', insurance: 'TRV-2026-0412' };
 export default async function contactsView(root, ctx) {
   const s = await ctx.settings();
   const c = { phone: '', whatsapp: '', email: '', address: {}, instagram: '', facebook: '', telegram: '', ...(s.contacts || {}) };
-  const co = { legal_name: '', licence: '', insurance: '', currency: 'USD', margin_pct: 12, ...(s.company || {}) };
+  const co = { legal_name: '', licence: '', insurance: '', currency: 'USD', margin_pct: 10, ...(s.company || {}) };
   const hr = { days: [1, 2, 3, 4, 5, 6], from: '10:00', to: '19:00', sla_min: 60, ...(s.hours || {}) };
   const save = async (key, val, msg) => { try { await ctx.api.saveSetting(key, val); ctx.cache.settings[key] = val; toast(msg || 'Сохранено — сайт обновится при следующем открытии'); } catch (e) { ctx.err(e); } };
   const bad = (el, ok) => { el.classList.toggle('is-bad', !ok); return ok; };
@@ -40,7 +40,7 @@ export default async function contactsView(root, ctx) {
       field('Номер лицензии туроператора', lic), field('Номер страхового полиса (финансовая гарантия)', ins),
       h('div.grid2',
         field('Валюта панели', select(Array.from(new Set(['USD', 'EUR', 'AMD', 'RUB', co.currency])), co.currency, (v) => { co.currency = v; }), 'В ней менеджеры вводят продажи и считаются отчёты. Уже введённые суммы не пересчитываются'),
-        field('Маржа агентства, %', input(co.margin_pct, { type: 'number', attrs: { min: 1, max: 100 }, oninput: (v) => { co.margin_pct = Math.max(1, Math.min(100, Number(v) || 12)); } }), 'Средняя комиссия с тура — для честного ROMI рекламы')),
+        field('Маржа агентства, %', input(co.margin_pct, { type: 'number', attrs: { min: 1, max: 100 }, oninput: (v) => { co.margin_pct = Math.max(1, Math.min(100, Number(v) || 10)); } }), 'Средняя комиссия с тура — для честного ROMI рекламы')),
       h('div.btns', h('button.btn.btn--primary', { onclick: () => save('company', co).then(() => setCurrency(co.currency)) }, 'Сохранить реквизиты')))));
 
   const days = [[1, 'Пн'], [2, 'Вт'], [3, 'Ср'], [4, 'Чт'], [5, 'Пт'], [6, 'Сб'], [7, 'Вс']];

@@ -5,14 +5,14 @@ import { db, U, as, ok, bad, expectErr } from './_db.mjs';
 const ps = (await as('anon', `select public_site() s`)).rows[0].s;
 ps.tours.length === 5 ? ok('public_site: 5 published tours') : bad('tours ' + ps.tours.length);
 ps.settings.contacts.phone ? ok('public_site: settings present') : bad('settings');
-const lid = (await as('anon', `select submit_lead($1) id`, [JSON.stringify({ name: 'Anna', phone: '+374 91 000-111', message: 'Dubai in Nov', utm_source: 'instagram', utm_campaign: 'nov_dubai', sid: 'abc', tour: 'dubai' })])).rows[0].id;
+const lid = (await as('anon', `select submit_lead($1) id`, [JSON.stringify({ name: 'Anna', phone: '+374 91 000-111', message: 'Dubai in Nov', utm_source: 'instagram', utm_campaign: 'nov_dubai', sid: 'abc12345', tour: 'dubai' })])).rows[0].id;
 lid ? ok('anon submit_lead') : bad('submit_lead');
 const dup = (await as('anon', `select submit_lead($1) id`, [JSON.stringify({ name: 'Anna', phone: '37491000111' })])).rows[0].id;
 dup === lid ? ok('duplicate within 3 min de-duplicated') : bad('dedupe');
 const hp = (await as('anon', `select submit_lead($1) id`, [JSON.stringify({ name: 'Bot', phone: '12345678', website: 'x' })])).rows[0].id;
 hp === null ? ok('honeypot swallowed') : bad('honeypot');
 await expectErr('anon', `select submit_lead($1)`, [JSON.stringify({ name: 'X', phone: '12' })], 'bad phone rejected');
-await as('anon', `select track($1)`, [JSON.stringify([{ sid: 'abc', name: 'page_view', utm_source: 'instagram', utm_campaign: 'nov_dubai', device: 'mobile', lang: 'ru' }, { sid: 'abc', name: 'wa_click' }, { sid: 'abc', name: 'evil' }])]);
+await as('anon', `select track($1)`, [JSON.stringify([{ sid: 'abc12345', name: 'page_view', utm_source: 'instagram', utm_campaign: 'nov_dubai', device: 'mobile', lang: 'ru' }, { sid: 'abc12345', name: 'wa_click' }, { sid: 'abc12345', name: 'evil' }])]);
 const evn = (await db.query(`select count(*)::int n from events`)).rows[0].n;
 evn === 3 ? ok('track: 2 accepted + lead_submit, bogus name dropped') : bad('events ' + evn);
 for (const w of ['anon', 'cli', 'mkt']) {

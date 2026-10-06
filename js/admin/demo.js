@@ -7,6 +7,7 @@
 // lead → sale attribution in the reports is internally consistent.
 // ---------------------------------------------------------------------------
 import { TOURS } from './demo-seed.js';
+import { channelOf, cohortStats, marginOf, salesStats, couponStats, inWorkingSet } from './metrics.js';
 
 const STORE_KEY = 'sam-admin-demo-v1';
 const DAY = 86400e3, MIN = 60e3;
@@ -17,13 +18,57 @@ const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xx
 const iso = (t) => new Date(t).toISOString();
 const yv = (t) => new Date(new Date(t).getTime() + 4 * 3600e3);   // Asia/Yerevan, UTC+4 all year
 
+// ------------------------------------------------------------------ rules of a sale
+// The same rules as the database keeps in supabase/migrations/010_guards.sql (leads_guard):
+// a difference between the two is a bug. `old` is null for a new lead; returns the row to
+// store or throws the error code errText() in api.js translates.
+const MANUAL = ['phone', 'walk_in', 'instagram', 'manual'], CLOSED = ['won', 'lost', 'spam'];
+const fail = (code) => { throw new Error(code); };
+const num = (x) => (x == null || x === '' ? null : Number(x));
+const sameTime = (a, b) => (a ? new Date(a).getTime() : null) === (b ? new Date(b).getTime() : null);
+export function guardLead(old, row, currency, now = Date.now()) {
+  const n = { ...row }, ins = !old;
+  if (!ins) n.updated_at = iso(now);
+  // typed in by a manager = the client is already being talked to
+  if (MANUAL.includes(n.source)) {
+    if (n.status === 'new') n.status = 'contacted';
+    if (ins || !n.first_response_at) n.first_response_at = n.created_at;
+  }
+  const statusCh = ins || n.status !== old.status;
+  const valueCh = ins || num(n.value) !== num(old.value);
+  const profitCh = ins || num(n.profit) !== num(old.profit);
+  if (!ins && !n.first_response_at && old.status === 'new' && n.status !== 'new') n.first_response_at = iso(now);
+  // closed_at = the day of the sale / refusal: the date that was sent, else now
+  if (!CLOSED.includes(n.status)) n.closed_at = null;
+  else {
+    if (statusCh) n.closed_at = n.closed_at && (ins || !sameTime(n.closed_at, old.closed_at)) ? n.closed_at : iso(now);
+    else if (!n.closed_at) n.closed_at = old.closed_at;
+    if (ins || !sameTime(n.closed_at, old.closed_at)) {
+      const t = new Date(n.closed_at).getTime();
+      if (t > now + 5 * MIN) fail('sale_date_in_future');
+      if (t > now) n.closed_at = iso(now);
+    }
+  }
+  const v = num(n.value), p = num(n.profit);
+  if (n.status === 'won' && (statusCh || valueCh) && !(v > 0)) fail('sale_needs_value');
+  if (valueCh || profitCh || (statusCh && n.status === 'won')) {
+    if (v != null && v < 0) fail('value_negative');
+    if (p != null && (p < 0 || v == null || p > v)) fail('profit_out_of_range');
+  }
+  n.currency = ins || valueCh ? currency : old.currency;
+  if (n.status === 'lost' && (statusCh || (n.lost_reason || null) !== (old.lost_reason || null)) && !String(n.lost_reason || '').trim()) fail('lost_reason_required');
+  return n;
+}
+/** used_count of a promo code = sold leads with it, always recounted (leads_coupon_recount) */
+const couponUsed = (leads, code) => leads.filter((l) => l.status === 'won' && l.coupon_code && l.coupon_code.toUpperCase() === String(code).toUpperCase()).length;
+
 // ------------------------------------------------------------------ generate
 function generate() {
   const R = rng(20260929);
   const pick = (arr) => arr[Math.floor(R() * arr.length)];
   const wpick = (pairs) => { const tot = pairs.reduce((a, p) => a + p[1], 0); let x = R() * tot; for (const p of pairs) { x -= p[1]; if (x <= 0) return p[0]; } return pairs[pairs.length - 1][0]; };
   const now = Date.now();
-  const u = (id, email, full_name, role, lang, extra = {}) => ({ id, email, full_name, role, lang, phone: null, marketing_consent: false, created_at: iso(now - 400 * DAY), last_sign_in_at: iso(now - R() * 3 * DAY), provider: 'email', bookings: 0, ...extra });
+  const u = (id, email, full_name, role, lang, extra = {}) => ({ id, email, full_name, role, lang, phone: null, marketing_consent: false, created_at: iso(now - 400 * DAY), last_sign_in_at: iso(now - R() * 3 * DAY), provider: 'email', email_confirmed: true, birth_date: null, ...extra });
   const OWNER = uuid(), M1 = uuid(), M2 = uuid(), MK = uuid();
   const users = [
     u(OWNER, 'owner@samtravel.am', 'Самвел', 'admin', 'ru'),
@@ -142,6 +187,8 @@ function generate() {
     else status = wpick([['won', 1.5], ['lost', 3.6], ['quoted', 0.3], ['contacted', 0.2], ['spam', 0.25]]);
     const q = v.utm_campaign === 'winter_mail' || source === 'walk_in' ? 1.6 : v.utm_medium === 'cpc' ? 1.1 : 1;
     if (status === 'lost' && R() < 0.12 * q) status = 'won';
+    const manual = MANUAL.includes(source);
+    if (manual && status === 'new') status = 'contacted';
     const yh = yv(ts).getUTCHours(), inHours = yh >= 10 && yh < 19;
     const resp = status === 'new' ? null : Math.max(1, Math.round((inHours ? 8 : 60) * Math.exp(R() * 2.4)));
     const nm = name();
@@ -158,7 +205,7 @@ function generate() {
       value, profit: status === 'won' && R() < 0.75 ? Math.round(value * (0.08 + R() * 0.08) / 5) * 5 : null, currency: 'USD', assigned_to: status === 'new' && R() < 0.7 ? null : pick(managers),
       tags: R() < 0.15 ? [pick(['семья', 'vip', 'повторный', 'группа', 'медовый месяц'])] : [],
       follow_up_at: (status === 'quoted' || status === 'contacted') && R() < 0.6 ? iso(now + (R() * 4 - 1.5) * DAY) : null,
-      first_response_at: resp ? iso(ts + resp * MIN) : null,
+      first_response_at: manual ? iso(ts) : resp ? iso(ts + resp * MIN) : null,
       closed_at: ['won', 'lost', 'spam'].includes(status) ? iso(Math.min(now, ts + (1 + R() * 6) * DAY)) : null, user_id: null,
     };
   }
@@ -173,7 +220,9 @@ function generate() {
     { code: 'VIP-8K2Q', description: 'Персональный код постоянному клиенту', discount_pct: null, discount_amt: 150, valid_from: iso(now - 5 * DAY), valid_until: iso(now + 90 * DAY), max_uses: 1, used_count: 0, active: true },
     { code: 'SUMMER10', description: 'Лето 2026', discount_pct: 10, discount_amt: null, valid_from: iso(now - 150 * DAY), valid_until: iso(now - 60 * DAY), max_uses: 300, used_count: 118, active: false },
   ].map((c) => ({ id: uuid(), created_at: c.valid_from, ...c }));
-  coupons[0].used_count = leads.filter((l) => l.coupon_code === 'AUTUMN7').length;
+  coupons.forEach((c) => { c.used_count = couponUsed(leads, c.code); });
+  // leads that came through the site form carry the server's verdict on their promo code
+  leads.forEach((l) => { if (l.coupon_code && ['form', 'plan', 'tour', 'promo'].includes(l.source)) l.details = { ...l.details, coupon_valid: couponState(coupons, l.coupon_code) }; });
 
   const reviews = [
     { author: 'Гаяне и Тигран', trip: 'Шарм-эль-Шейх · окт 2025', rating: 5, source: 'google', published: true, featured: true, body: { ru: 'Анна подобрала отель у рифа ровно под наш бюджет и была на связи всю неделю — даже когда задержали обратный рейс. Поедем снова только через SAM TRAVEL.', en: 'Anna found a reef hotel right in our budget and stayed in touch all week — even when the return flight was delayed.' } },
@@ -211,6 +260,15 @@ function generate() {
     ['Առաջին պատասխան', 'hy', 'Բարև, {name}։ {manager}-ն է, SAM TRAVEL-ից։ Ստացանք ձեր հայտը{tour}։ Կճշտե՞ք ամսաթվերը և քանի հոգի եք։'],
   ].map(([title, lang, body], i) => ({ id: uuid(), title, lang, body, sort: i, created_at: iso(now - 50 * DAY) }));
   const clients = users.filter((x) => x.role === 'client');
+  // Stage 4 (ТЗ §4.9): date of birth, e-mail confirmation, and which requests came from a
+  // signed-in client. A separate generator, so the rest of the demo data stays as it was.
+  const R4 = rng(4040);
+  users.forEach((x) => {
+    x.birth_date = iso(now - (18 + R4() * 50) * 365.25 * DAY).slice(0, 10);
+    // social logins are confirmed by the provider; a few e-mail sign-ups never opened the letter
+    x.email_confirmed = x.role !== 'client' || x.provider !== 'email' || R4() > 0.12;
+  });
+  leads.forEach((l) => { if (['form', 'plan', 'tour', 'promo'].includes(l.source) && R4() < 0.3) l.user_id = clients[Math.floor(R4() * clients.length)].id; });
   const audit = [];
   const aud = (d, actor, table_name, action, before, after) => audit.push({ id: audit.length + 1, at: iso(now - d * DAY), actor, table_name, row_id: (after || before).id || (after || before).key, action, before, after });
   aud(0.2, MK, 'promos', 'update', { ...promos[0], active: false }, promos[0]);
@@ -223,23 +281,32 @@ function generate() {
   aud(12, OWNER, 'team', 'update', { ...team[0], i18n: { ...team[0].i18n, en: { name: 'Anna G.', role: 'Beach · 8 years' } } }, team[0]);
   audit.reverse();
 
-  return { v: 3, generated: now, me: OWNER, role: 'admin', users, campaigns, promos, visits, leads, activity: {}, coupons, reviews, team, tours, settings, reels, wa_templates, audit };
+  return { v: 5, generated: now, me: OWNER, role: 'admin', users, campaigns, promos, visits, leads, activity: {}, coupons, reviews, team, tours, settings, reels, wa_templates, audit };
 }
 
-// ------------------------------------------------------------------ stats (same shape as stats_traffic)
-export function computeStats(visits, leads, from, to) {
+// ------------------------------------------------------------------ promo code in a lead (same as coupon_state() in SQL)
+// yes — usable now; expired — exists but is not usable (past its date, off, used up, not started); no — no such code
+export function couponState(coupons, code) {
+  const now = Date.now(), want = String(code || '').trim().toUpperCase();
+  const found = (coupons || []).filter((c) => String(c.code).toUpperCase() === want);
+  if (!found.length) return 'no';
+  const usable = (c) => c.active && new Date(c.valid_from) <= now && (!c.valid_until || new Date(c.valid_until) > now) && (c.max_uses == null || (c.used_count || 0) < c.max_uses);
+  return found.some(usable) ? 'yes' : 'expired';
+}
+
+// ------------------------------------------------------------------ stats (same shape and formulas as stats_traffic, 030_stats.sql)
+export function computeStats(visits, leads, from, to, settings) {
   const f = from.getTime(), t = to.getTime();
   const vs = visits.filter((v) => v.ts >= f && v.ts < t);
-  const ls = leads.filter((l) => { const x = new Date(l.created_at).getTime(); return x >= f && x < t && l.status !== 'spam'; });
+  const co = cohortStats(leads, from, to, settings), ls = co.leads;   // leads that came in the period, money «по заявкам периода»
   const day = (x) => yv(x).toISOString().slice(0, 10);
-  const srcOfV = (v) => v.utm_source || v.ref_host || 'direct';
-  const srcOfL = (l) => l.utm_source || (l.referrer ? l.referrer.replace(/^https?:\/\/(www\.)?([^/]+).*$/, '$2') : 'direct');
+  const srcOfV = (v) => channelOf(null, v.utm_source, v.ref_host);   // one rule for visits and leads
   const inc = (o, k, n = 1) => { o[k] = (o[k] || 0) + n; };
   const daily = {};
   for (let d = new Date(day(f) + 'T00:00:00Z'); d.toISOString().slice(0, 10) <= day(t - 1000); d = new Date(d.getTime() + DAY)) daily[d.toISOString().slice(0, 10)] = { d: d.toISOString().slice(0, 10), visits: 0, contacts: 0, leads: 0 };
   const sources = {}, camps = {}, devices = {}, langs = {}, sections = {}, ctas = {}, tours = {}, heat = {}, lheat = {}, promos = {};
-  const S = (k) => sources[k] || (sources[k] = { src: k, visits: 0, leads: 0, won: 0, revenue: 0 });
-  const C = (k) => camps[k] || (camps[k] = { campaign: k, visits: 0, contacts: 0, leads: 0, won: 0, revenue: 0, profit: 0, revenue_est: 0 });
+  const S = (k) => sources[k] || (sources[k] = { src: k, visits: 0, leads: 0, won: 0, revenue: 0, profit_total: 0, estimated: false });
+  const C = (k) => camps[k] || (camps[k] = { campaign: k, visits: 0, contacts: 0, leads: 0, won: 0, revenue: 0, profit: 0, revenue_est: 0, profit_total: 0, estimated: false });
   const T = (k) => tours[k] || (tours[k] = { tour: k, opens: 0, leads: 0 });
   let engaged = 0, intent = 0, contact = 0;
   for (const v of vs) {
@@ -263,20 +330,21 @@ export function computeStats(visits, leads, from, to) {
   }
   for (const l of ls) {
     const dd = daily[day(l.created_at)]; if (dd) dd.leads++;
-    const s = S(srcOfL(l)); s.leads++; if (l.status === 'won') { s.won++; s.revenue += +l.value || 0; }
-    if (l.utm_campaign) { const c = C(l.utm_campaign); c.leads++; if (l.status === 'won') { c.won++; c.revenue += +l.value || 0; if (l.profit != null) c.profit = (c.profit || 0) + +l.profit; else c.revenue_est = (c.revenue_est || 0) + (+l.value || 0); } }
     if (l.tour) T(l.tour).leads++;
     const y = yv(l.created_at); inc(lheat, (y.getUTCDay() || 7) + ':' + y.getUTCHours());
     if (['form', 'plan'].includes(l.source)) contact++;
   }
+  Object.entries(co.sources).forEach(([k, x]) => Object.assign(S(k), { leads: x.leads, won: x.won, revenue: x.revenue, profit_total: x.profit_total, estimated: x.estimated }));
+  Object.entries(co.campaigns).forEach(([k, x]) => Object.assign(C(k), x));
   const cells = (o, key) => Object.entries(o).map(([k, n]) => { const [dow, h] = k.split(':').map(Number); return { dow, h, [key]: n }; });
   return {
+    margin_pct: marginOf(settings), raw_from: null,   // the demo keeps every visit, nothing is rolled up
     daily: Object.values(daily),
-    sources: Object.values(sources).sort((a, b) => b.visits - a.visits),
+    sources: Object.values(sources).sort((a, b) => b.visits - a.visits || b.leads - a.leads),
     campaigns: Object.values(camps), devices, langs, sections, ctas,
     tours: Object.values(tours).sort((a, b) => b.opens - a.opens),
     heat: cells(heat, 'visits'), lead_heat: cells(lheat, 'leads'), promos: Object.values(promos),
-    funnel: { visits: vs.length, engaged, intent, contact: Math.min(contact, intent + ls.length), leads: ls.length, won: ls.filter((l) => l.status === 'won').length },
+    funnel: { visits: vs.length, visits_detailed: vs.length, engaged, intent, contact: Math.min(contact, intent + ls.length), leads: ls.length, won: co.won },
   };
 }
 
@@ -333,7 +401,23 @@ export class DemoApi {
   async signOut() {}
   async whoami() { const m = this.me; return this.wait({ id: m.id, email: m.email, full_name: m.full_name, role: this.st.role, lang: m.lang }, 60); }
 
-  async leads() { this.guard('leads'); return this.wait(this.st.leads, 180); }
+  // The same loading rule as LiveApi: open leads + closed (or created) in the last `days`
+  // stay in memory, the rest come by search and pages.
+  async leads({ days = 90 } = {}) { this.guard('leads'); const since = Date.now() - days * DAY; return this.wait(this.st.leads.filter((l) => inWorkingSet(l, since)), 180); }
+  async findLeads({ q, phone, source, manager, tour, spam, mine, noProfit, since, offset = 0, limit = 500 } = {}) {
+    this.guard('leads');
+    const text = String(q || '').toLowerCase(), qd = text.replace(/\D/g, ''), pd = String(phone || '').replace(/\D/g, '');
+    const digits = (l) => String(l.phone || '').replace(/\D/g, '');
+    const all = this.st.leads.filter((l) => (spam || l.status !== 'spam')
+      && (!source || l.source === source) && (!manager || (manager === 'none' ? !l.assigned_to : l.assigned_to === manager))
+      && (!mine || l.assigned_to === mine) && (!tour || l.tour === tour) && (!since || l.created_at >= since)
+      && (!noProfit || (l.status === 'won' && (l.profit == null || !(+l.value > 0))))
+      && (!pd || digits(l).includes(pd))
+      && (!text || (l.name || '').toLowerCase().includes(text) || (l.message || '').toLowerCase().includes(text) || (qd.length >= 3 && digits(l).includes(qd)) || (l.tags || []).includes(text)))
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    return this.wait({ rows: all.slice(offset, offset + limit), total: all.length }, 140);
+  }
+  async lead(id) { this.guard('leads'); return this.wait(this.st.leads.find((l) => l.id === id) || null, 60); }
   async leadActivity(id) {
     this.guard('leads');
     const l = this.st.leads.find((x) => x.id === id);
@@ -352,34 +436,50 @@ export class DemoApi {
   logAct(lead_id, kind, body, meta = {}) {
     (this.st.activity[lead_id] = this.st.activity[lead_id] || []).push({ id: uuid(), lead_id, created_at: iso(Date.now()), actor: this.st.me, kind, body, meta });
   }
+  get currency() { return (this.st.settings.company || {}).currency || 'USD'; }
+  recount(...codes) {
+    codes.filter(Boolean).forEach((code) => {
+      const c = this.st.coupons.find((x) => x.code.toUpperCase() === code.toUpperCase());
+      if (c) c.used_count = couponUsed(this.st.leads, code);
+    });
+  }
   async updateLead(id, patch) {
     this.guard('leads');
     const l = this.st.leads.find((x) => x.id === id);
     await this.leadActivity(id);
-    if (patch.status && patch.status !== l.status) {
-      this.logAct(id, 'status', patch.status, { from: l.status, to: patch.status });
-      if (l.status === 'new' && !l.first_response_at) l.first_response_at = iso(Date.now());
-      const closed = (s) => ['won', 'lost', 'spam'].includes(s);
-      if (!closed(patch.status)) l.closed_at = null;
-      else if (!closed(l.status)) l.closed_at = iso(Date.now());
-      // no online payment: a promo code counts as used when the sale is registered
-      if (l.coupon_code && (patch.status === 'won') !== (l.status === 'won')) {
-        const c = this.st.coupons.find((x) => x.code.toUpperCase() === l.coupon_code.toUpperCase());
-        if (c) c.used_count = Math.max(0, (c.used_count || 0) + (patch.status === 'won' ? 1 : -1));
-      }
+    const old = { ...l }, next = guardLead(old, { ...l, ...patch }, this.currency);
+    if (next.status !== old.status) this.logAct(id, 'status', next.status, { from: old.status, to: next.status });
+    if ((next.assigned_to || null) !== (old.assigned_to || null)) this.logAct(id, 'assign', null, { to: next.assigned_to });
+    // the lead was already closed and stays closed: every money edit leaves «было → стало»
+    if (CLOSED.includes(old.status) && CLOSED.includes(next.status)) {
+      const m = {};
+      if (num(next.value) !== num(old.value)) m.value = { from: num(old.value), to: num(next.value) };
+      if (num(next.profit) !== num(old.profit)) m.profit = { from: num(old.profit), to: num(next.profit) };
+      if (next.status === old.status && !sameTime(next.closed_at, old.closed_at)) m.closed_at = { from: old.closed_at, to: next.closed_at };
+      if (Object.keys(m).length) this.logAct(id, 'money', null, m);
     }
-    if ('assigned_to' in patch && patch.assigned_to !== l.assigned_to) this.logAct(id, 'assign', null, { to: patch.assigned_to });
-    Object.assign(l, patch, { updated_at: iso(Date.now()) });
+    Object.assign(l, next);
+    this.recount(old.coupon_code, next.coupon_code);
     this.persist(); return this.wait(l, 60);
   }
   async updateLeads(ids, patch) { for (const id of ids) await this.updateLead(id, patch); }
   async createLead(row) {
     this.guard('leads');
-    const l = { id: uuid(), created_at: iso(Date.now()), updated_at: iso(Date.now()), status: 'new', tags: [], details: {}, currency: 'USD', ...row };
+    const l = guardLead(null, { id: uuid(), created_at: iso(Date.now()), updated_at: iso(Date.now()), status: 'new', tags: [], details: {}, ...row }, this.currency);
     this.st.leads.unshift(l); this.st.activity[l.id] = [{ id: uuid(), lead_id: l.id, created_at: l.created_at, actor: this.st.me, kind: 'system', body: 'Добавлена вручную', meta: {} }];
+    this.recount(l.coupon_code);
     this.persist(); return this.wait(l, 60);
   }
-  async deleteLead(id) { this.guard('write_owner'); this.st.leads = this.st.leads.filter((l) => l.id !== id); this.persist(); }
+  async deleteLead(id) {
+    this.guard('write_owner');
+    const cur = this.st.leads.find((l) => l.id === id);
+    if (!cur) return;
+    this.st.leads = this.st.leads.filter((l) => l.id !== id);
+    delete this.st.activity[id];
+    this.audit_('leads', 'delete', cur, null);   // a deleted lead leaves a line in the audit log
+    this.recount(cur.coupon_code);
+    this.persist();
+  }
   async addActivity(lead_id, kind, body, meta) {
     this.guard('leads'); await this.leadActivity(lead_id);
     this.logAct(lead_id, kind, body, meta);
@@ -394,7 +494,7 @@ export class DemoApi {
     const t = setInterval(() => {
       if (!ROLE_OK.leads.includes(this.st.role) || i >= names.length) return;
       const tour = ['dubai', 'sharm', 'maldives', 'phuket'][i];
-      const l = { id: uuid(), created_at: iso(Date.now()), updated_at: iso(Date.now()), name: names[i++], phone: '+374 9' + (1 + i) + ' 555 01' + i, message: 'Заявка с сайта: ' + tour + ', даты гибкие', source: 'form', tour, lang: 'ru', device: 'mobile', status: 'new', tags: [], details: {}, currency: 'USD', utm_source: 'instagram', utm_medium: 'paid_social', utm_campaign: 'sharm_oct', assigned_to: null };
+      const l = { id: uuid(), created_at: iso(Date.now()), updated_at: iso(Date.now()), name: names[i++], phone: '+374 9' + (1 + i) + ' 555 01' + i, message: 'Заявка с сайта: ' + tour + ', даты гибкие', source: 'form', tour, lang: 'ru', device: 'mobile', status: 'new', tags: [], details: {}, currency: this.currency, utm_source: 'instagram', utm_medium: 'paid_social', utm_campaign: 'sharm_oct', assigned_to: null };
       this.st.leads.unshift(l); this.persist(); cb(l);
     }, 75000);
     // a lead sent from the site opened with ?cms=demo in another tab lands here
@@ -408,21 +508,39 @@ export class DemoApi {
     return () => { clearInterval(t); window.removeEventListener('storage', onStorage); };
   }
 
+  // «заявок» — без спама, «покупок» — проданные с суммой: как users_list / audience_list в 040_clients.sql
+  counts_(id) {
+    const mine = this.st.leads.filter((l) => l.user_id === id);
+    return { requests: mine.filter((l) => l.status !== 'spam').length, purchases: mine.filter((l) => l.status === 'won' && l.value > 0).length };
+  }
   async users() {
     this.guard('users');
     const rows = this.st.role === 'admin' ? this.st.users : this.st.users.filter((u) => u.role !== 'client');
-    return this.wait(rows, 120);
+    // the date of birth goes to the owner and the marketer only; a manager gets null
+    const seesBirth = ROLE_OK.audience.includes(this.st.role);
+    return this.wait(rows.map((u) => ({ ...u, birth_date: seesBirth ? u.birth_date : null, ...this.counts_(u.id) })), 120);
   }
   async setRole(id, role) {
     this.guard('write_owner');
     if (id === this.st.me) throw new Error('cannot_change_own_role');
     const u = this.st.users.find((x) => x.id === id);
+    if (u.role === 'admin' && role !== 'admin' && !this.st.users.some((x) => x.role === 'admin' && x.id !== id)) throw new Error('last_owner');
     this.st.audit.unshift({ id: Date.now(), at: iso(Date.now()), actor: this.st.me, table_name: 'profiles', row_id: id, action: 'update', before: { id, role: u.role, full_name: u.full_name }, after: { id, role, full_name: u.full_name } });
     u.role = role; this.persist();
   }
   async audience() {
     this.guard('audience');
-    return this.wait(this.st.users.filter((u) => u.marketing_consent).map(({ id, email, full_name, lang, consent_at, consent_source, created_at, bookings }) => ({ id, email, full_name, lang, consent_at, consent_source, created_at, bookings })));
+    // only confirmed addresses reach the mailing list
+    return this.wait(this.st.users.filter((u) => u.marketing_consent && u.email_confirmed).map(({ id, email, full_name, lang, consent_at, consent_source, created_at, birth_date }) => ({ id, email, full_name, lang, consent_at, consent_source, created_at, birth_date, ...this.counts_(id) })));
+  }
+  /** birthdays(month): clients with consent and a confirmed address, born in that month (1–12) */
+  async birthdays(month) {
+    this.guard('audience');
+    const m = Number(month);
+    if (!(m >= 1 && m <= 12)) throw new Error('bad_month');
+    return this.wait(this.st.users.filter((u) => u.role === 'client' && u.marketing_consent && u.email_confirmed && u.birth_date && Number(u.birth_date.slice(5, 7)) === m)
+      .sort((a, b) => a.birth_date.slice(8).localeCompare(b.birth_date.slice(8)) || (a.full_name || '').localeCompare(b.full_name || ''))
+      .map(({ id, full_name, email, birth_date, lang }) => ({ id, full_name, email, birth_date, lang })));
   }
 
   async list(table) {
@@ -438,6 +556,7 @@ export class DemoApi {
     if (TABLE_WRITE[table]) this.guard(TABLE_WRITE[table]);
     const list = this.st[table];
     if (table === 'campaigns' && list.some((x) => x.utm_campaign === row.utm_campaign && x.id !== row.id)) throw new Error('duplicate key utm_campaign');
+    if (table === 'campaigns') row = { ...row, currency: this.campaignCurrency(row) };
     if (table === 'coupons' && list.some((x) => x.code.toUpperCase() === String(row.code).toUpperCase() && x.id !== row.id)) throw new Error('duplicate key code');
     if (table === 'tours' && list.some((x) => x.slug === row.slug && x.id !== row.id)) throw new Error('duplicate key slug');
     const now = iso(Date.now());
@@ -445,10 +564,12 @@ export class DemoApi {
       const cur = list.find((x) => x.id === row.id);
       const before = JSON.parse(JSON.stringify(cur));
       Object.assign(cur, row, { updated_at: now, updated_by: this.st.me });
+      if (table === 'coupons') cur.used_count = couponUsed(this.st.leads, cur.code);   // never typed in
       this.audit_(table, 'update', before, cur); this.persist(); return this.wait(cur, 80);
     }
     const n = { ...row, id: uuid(), created_at: now, updated_at: now, updated_by: this.st.me };
     if ('sort' in (list[0] || {}) && n.sort == null) n.sort = list.length;
+    if (table === 'coupons') n.used_count = couponUsed(this.st.leads, n.code);
     list.push(n); this.audit_(table, 'insert', null, n); this.persist(); return this.wait(n, 80);
   }
   async remove(table, id) {
@@ -466,7 +587,19 @@ export class DemoApi {
     this.st.settings[key] = value; this.persist();
   }
 
-  async stats(from, to) { this.guard('stats'); return this.wait(computeStats(this.st.visits, this.st.leads, from, to), 220); }
+  // the spend is counted in the currency of the day it was typed in (campaigns_currency, 030_stats.sql)
+  campaignCurrency(row) {
+    const cur = row.id && this.st.campaigns.find((x) => x.id === row.id);
+    return !cur || Number(cur.spend) !== Number(row.spend) ? this.currency : cur.currency;
+  }
+  // The reports: the same formulas as the database, see metrics.js
+  async stats(from, to) { this.guard('stats'); return this.wait(computeStats(this.st.visits, this.st.leads, from, to, this.st.settings), 220); }
+  async sales(from, to) {
+    this.guard('stats');
+    const f = from.getTime(), t = to.getTime();
+    return this.wait(salesStats({ leads: this.st.leads, users: this.st.users, settings: this.st.settings, from, to, visits: this.st.visits.filter((v) => v.ts >= f && v.ts < t).length }), 200);
+  }
+  async couponStats() { this.guard('stats'); return this.wait(couponStats(this.st.coupons, this.st.leads), 100); }
   async audit() { this.guard('audit'); return this.wait(this.st.audit, 100); }
   // Те же правила, что в 050_notify.sql: письмо — о каждой заявке с сайта, о ручных — нет;
   // читает только владелец. Почты в демо нет, поэтому письмо «доставлено» в момент заявки.
