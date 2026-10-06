@@ -26,7 +26,7 @@ export default async function dashboard(root, ctx) {
     kpi({ label: 'Выручка · по дате продажи', value: fmt.money(k.revenue, cur), cur: k.revenue, prev: pk.revenue, spark: days.map((d) => d.revenue), hint: 'Сумма продаж. ' + BY_SALE }),
     kpi({ label: (k.estimated ? 'Доход агентства ≈' : 'Доход агентства') + ' · по дате продажи', value: k.sales ? fmt.money(k.profit, cur) : '—', cur: k.profit, prev: pk.profit, spark: days.map((d) => d.profit),
       hint: !k.sales ? 'Появится после первой продажи: менеджер указывает комиссию при закрытии заявки'
-        : k.estimated ? `Комиссия указана в ${k.sales - k.sales_estimated} из ${k.sales} продаж; ` + (s.margin_pct != null ? `остальные оценены по марже ${s.margin_pct}%` : 'маржа не задана, поэтому остальные в доход не вошли — укажите её в «Контакты и реквизиты»')
+        : k.estimated ? `Комиссия указана в ${k.sales - k.sales_estimated} из ${k.sales} продаж; ` + `остальные оценены по марже ${s.margin_pct}%`
         : 'Сумма комиссий, которые менеджеры указали в продажах' }),
     kpi({ label: 'Заявки', value: fmt.num(k.leads), cur: k.leads, prev: pk.leads, spark: days.map((d) => d.leads), hint: 'Все обращения, кроме спама, по дате обращения' }),
     kpi({ label: 'Конверсия в продажу', value: fmt.pct(k.conversion, 0), cur: k.conversion, prev: pk.conversion, hint: 'Продажи ÷ (продажи + отказы), закрытые в периоде' }),

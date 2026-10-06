@@ -264,13 +264,17 @@ for (const [label, f, t] of WINDOWS) {
   }
 }
 
-// ================================================================ маржа не задана → оценка = 0, флаг остаётся
+// ================================================================ маржа не задана → оценка по 10 %, флаг остаётся
 {
   await db.query(`update site_settings set value = value - 'margin_pct' where key = 'company'`);
   const P = [iso(now - 30 * DAY), iso(now)];
   const s = (await as('owner', `select public.stats_sales($1, $2) s`, P)).rows[0].s;
-  const entered = await val(`select coalesce(sum(profit), 0) from leads where status = 'won' and value > 0 and closed_at >= $1 and closed_at < $2`, P);
-  check(s.margin_pct === null && near(s.kpi.profit, entered) && s.kpi.estimated === true, 'без маржи доход = только введённые комиссии, пометка «оценка» остаётся (никаких 12 % по умолчанию)', s.kpi.profit);
+  const want = await val(`select coalesce(sum(coalesce(profit, value * 10 / 100)), 0) from leads where status = 'won' and value > 0 and closed_at >= $1 and closed_at < $2`, P);
+  const leadRows2 = (await as('mgr', `select * from leads`)).rows, noMargin = { ...settings, company: { ...settings.company, margin_pct: undefined } };
+  const js = M.salesStats({ leads: leadRows2, users, settings: noMargin, from: now - 30 * DAY, to: now });
+  const tr = (await as('mkt', `select public.stats_traffic($1, $2) s`, P)).rows[0].s;
+  check(s.margin_pct === 10 && tr.margin_pct === 10 && near(s.kpi.profit, want) && near(js.kpi.profit, want) && s.kpi.estimated === true,
+    'маржа не задана → продажи без дохода оцениваются по 10 %, пометка «оценка» остаётся; в демо-формулах так же', [s.margin_pct, s.kpi.profit, want, js.kpi.profit]);
   await db.query(`update site_settings set value = value || '{"margin_pct": 12}' where key = 'company'`);
 }
 

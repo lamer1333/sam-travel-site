@@ -63,7 +63,7 @@ export default async function overview(root, ctx) {
       { key: 'cr', label: 'Конверсия', align: 'r', sort: (r) => r.cr || 0, render: (r) => crCell(r.cr, f.visits ? f.leads / f.visits : 0) },
       { key: 'won', label: 'Продажи', align: 'r', sort: true },
       { key: 'revenue', label: 'Выручка · по заявкам периода', align: 'r', sort: true, render: (r) => r.revenue ? fmt.money(r.revenue) : '—' },
-      { key: 'profit_total', label: 'Доход', align: 'r', sort: true, render: (r) => r.won ? h('span', { title: r.estimated ? 'Часть дохода оценена по марже' + (s.margin_pct != null ? ' ' + s.margin_pct + '%' : ' (маржа не задана)') : 'Комиссии, указанные менеджерами' }, (r.estimated ? '≈ ' : '') + fmt.money(r.profit_total)) : '—' },
+      { key: 'profit_total', label: 'Доход', align: 'r', sort: true, render: (r) => r.won ? h('span', { title: r.estimated ? 'Часть дохода оценена по марже ' + s.margin_pct + '%' : 'Комиссии, указанные менеджерами' }, (r.estimated ? '≈ ' : '') + fmt.money(r.profit_total)) : '—' },
     ] })));
 
   // engagement: sections reach

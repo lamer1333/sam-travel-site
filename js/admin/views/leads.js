@@ -6,7 +6,7 @@
 import { h, $, $$, add, mount, clear, icon, fmt, toast, modal, drawer, confirmDlg, field, input, textarea, select, seg, tagsInput, table, csv, copyText, debounce, pageHead, plural, currency } from '../ui.js';
 import { STATUS, STATUS_NAME, SOURCE_NAME } from '../main.js';
 import { slaBadge, isOverdue, waLink, fillTemplate, loadTours, tourName, inWorkingHours, ymd, saleIso, isManual, srcName } from './common.js';
-import { leadCsvColumns, responseMinutes, inWorkingSet } from '../metrics.js';
+import { leadCsvColumns, responseMinutes, inWorkingSet, marginOf } from '../metrics.js';
 import { LEADS_WINDOW_DAYS } from '../api.js';
 
 const COLS = ['new', 'contacted', 'quoted', 'won', 'lost'];
@@ -264,7 +264,7 @@ export async function changeStatus(ctx, l, st) {
 // managers often register a sale the next morning.
 function saleFields(ctx, l = {}) {
   const cur = currency(), today = ymd(Date.now());
-  const marginPct = Number((((ctx.cache.settings || {}).company) || {}).margin_pct) || null;
+  const marginPct = marginOf(ctx.cache.settings);   // the same margin the reports estimate with
   const v = input(l.value || '', { type: 'number', placeholder: '1500', attrs: { min: 1, step: 10, inputmode: 'decimal' } });
   const p = input(l.profit ?? '', { type: 'number', placeholder: marginPct ? 'по марже ' + marginPct + '%' : '0', attrs: { min: 0, step: 10, inputmode: 'decimal' } });
   const d = input(today, { type: 'date', attrs: { max: today } });

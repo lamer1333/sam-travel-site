@@ -68,8 +68,9 @@ export const waitMinutes = (l, hours, now = Date.now()) => workMinutes(l.created
 // ------------------------------------------------------------------ money
 /** Продажа = заявка в won с суммой (§5) */
 export const isSale = (l) => l.status === 'won' && num(l.value) > 0;
-export const marginOf = (settings) => { const m = ((settings || {}).company || {}).margin_pct; return m != null && /^\d+(\.\d+)?$/.test(String(m)) ? Number(m) : null; };
-/** income of one sale: what the manager entered, else value × margin (0 when no margin is set) */
+export const DEFAULT_MARGIN = 10;   // % — when the owner has not set one, same as company_margin() in SQL
+export const marginOf = (settings) => { const m = ((settings || {}).company || {}).margin_pct; return m != null && /^\d+(\.\d+)?$/.test(String(m)) ? Number(m) : DEFAULT_MARGIN; };
+/** income of one sale: what the manager entered, else value × margin */
 export const gainOf = (l, margin) => (num(l.profit) != null ? num(l.profit) : margin != null ? num(l.value) * margin / 100 : 0);
 
 // ------------------------------------------------------------------ which leads the panel keeps in memory

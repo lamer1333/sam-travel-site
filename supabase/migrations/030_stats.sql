@@ -123,12 +123,13 @@ $$;
 -- ============================================================================
 -- money helpers
 -- ============================================================================
--- the margin from «Контакты и реквизиты», or null when the owner has not set one —
--- then a sale without an entered income adds nothing to the estimate (no made-up 12 %)
+-- The margin from «Контакты и реквизиты»; 10 % when the owner has not set one (решение
+-- заказчика, 06.10.2026). It is used only for sales without an entered income, and the
+-- reports mark every such number as an estimate.
 create or replace function public.company_margin()
 returns numeric language sql stable security definer set search_path = public as $$
-  select case when (value ->> 'margin_pct') ~ '^\d+(\.\d+)?$' then (value ->> 'margin_pct')::numeric end
-  from public.site_settings where key = 'company';
+  select coalesce((select case when (value ->> 'margin_pct') ~ '^\d+(\.\d+)?$' then (value ->> 'margin_pct')::numeric end
+                   from public.site_settings where key = 'company'), 10);
 $$;
 
 -- §4.6: spend and revenue must be in one currency. The server writes the currency of a
