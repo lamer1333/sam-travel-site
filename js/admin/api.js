@@ -25,35 +25,13 @@ export class LiveApi {
     return must(await q);
   }
   async leadActivity(id) { return must(await this.sb.from('lead_activity').select('*').eq('lead_id', id).order('created_at')); }
-  async updateLead(id, patch) {
-    const run = (p) => this.sb.from('leads').update(clean(p)).eq('id', id).select().single();
-    let r = await run(patch);
-    // leads.profit arrived in a later 002_admin.sql: on a database that has not been migrated yet,
-    // save everything else instead of losing the sale, and say what is missing.
-    if (r.error && 'profit' in patch && /profit/.test(r.error.message || '')) {
-      const { profit, ...rest } = patch;
-      if (!Object.keys(rest).length) throw new Error('Could not find the function leads.profit');
-      r = await run(rest);
-      if (!r.error) this.missingProfit = true;
-    }
-    let row = must(r);
-    // The database stamps closed_at itself when a lead is closed. A sale registered a day
-    // late carries its own date, so set it again once the row is already closed.
-    if (patch.closed_at && row && Math.abs(new Date(row.closed_at) - new Date(patch.closed_at)) > 60e3) {
-      row = must(await run({ closed_at: patch.closed_at }));
-    }
-    return row;
-  }
+  // The rules of a sale (amount, income, sale date, currency, lost reason) live in the
+  // leads_guard trigger, 010_guards.sql: one request, and the database answers with the row
+  // as it really is — or with an error errText() below translates.
+  async updateLead(id, patch) { return must(await this.sb.from('leads').update(clean(patch)).eq('id', id).select().single()); }
   async updateLeads(ids, patch) { must(await this.sb.from('leads').update(clean(patch)).in('id', ids)); }
   async createLead(row) {
-    const run = (p) => this.sb.from('leads').insert(clean(p)).select().single();
-    let r = await run(row);
-    if (r.error && 'profit' in row && /profit/.test(r.error.message || '')) {
-      const { profit, ...rest } = row;
-      r = await run(rest);
-      if (!r.error) this.missingProfit = true;
-    }
-    const l = must(r);
+    const l = must(await this.sb.from('leads').insert(clean(row)).select().single());
     await this.addActivity(l.id, 'system', 'Добавлена вручную').catch(() => {});
     return l;
   }
@@ -117,6 +95,14 @@ export function errText(e) {
   const m = (e && (e.message || e.error_description)) || String(e);
   if (/invalid login credentials/i.test(m)) return 'Неверный email или пароль';
   if (/forbidden|permission denied|row-level security/i.test(m)) return 'Недостаточно прав для этого действия';
+  if (/sale_needs_value/.test(m)) return 'У продажи должна быть сумма больше нуля';
+  if (/profit_out_of_range/.test(m)) return 'Доход агентства — от нуля до суммы продажи; сначала укажите сумму';
+  if (/value_negative/.test(m)) return 'Сумма не может быть отрицательной';
+  if (/sale_date_in_future/.test(m)) return 'Дата продажи не может быть в будущем';
+  if (/lost_reason_required/.test(m)) return 'Укажите причину отказа';
+  if (/last_owner/.test(m)) return 'Это последний владелец — сначала назначьте другого';
+  if (/role_change_forbidden/.test(m)) return 'Роль меняет только владелец в разделе «Клиенты и команда»';
+  if (/profile_field_forbidden/.test(m)) return 'Это поле профиля менять нельзя';
   if (/cannot_change_own_role/.test(m)) return 'Свою роль менять нельзя — попросите другого владельца';
   if (/duplicate key.*utm_campaign/i.test(m)) return 'Кампания с таким utm_campaign уже есть';
   if (/duplicate key.*code/i.test(m)) return 'Такой промокод уже существует';
