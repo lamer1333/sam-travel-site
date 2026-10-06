@@ -292,6 +292,13 @@ export function createLead(ctx, after, { sale = false } = {}) {
 }
 
 // ---------- the lead card ----------
+// What the server found when the lead came in with a promo code (details.coupon_valid).
+// Leads entered by hand carry no verdict, so nothing is shown for them.
+const COUPON_VALID = { yes: ['действует', 'var(--ok)'], expired: ['не действует: срок вышел, выключен или исчерпан', 'var(--warn)'], no: ['такого кода нет', 'var(--bad)'] };
+function couponMark(v) {
+  const m = COUPON_VALID[v];
+  return m ? h('small', { style: { marginLeft: '8px', color: m[1], fontWeight: 600 } }, m[0]) : null;
+}
 const ACT_ICON = { note: 'edit', status: 'refresh', assign: 'users', call: 'phone', whatsapp: 'wa', email: 'mail', system: 'zap', money: 'tag' };
 export async function openLead(ctx, id, after) {
   const leads = await ctx.leads();
@@ -334,7 +341,7 @@ export async function openLead(ctx, id, after) {
           det.people ? [h('dt', 'Путешественников'), h('dd', String(det.people))] : null,
           det.from ? [h('dt', 'Даты'), h('dd', fmt.date(det.from) + (det.to ? ' — ' + fmt.date(det.to) : ''))] : null,
           det.meals && det.meals.length ? [h('dt', 'Питание'), h('dd', det.meals.join(', '))] : null,
-          l.coupon_code ? [h('dt', 'Промокод'), h('dd', h('span.tag', l.coupon_code))] : null,
+          l.coupon_code ? [h('dt', 'Промокод'), h('dd', h('span.tag', l.coupon_code), couponMark(det.coupon_valid))] : null,
           [h('dt', 'Язык сайта'), h('dd', (l.lang || '—').toUpperCase() + (l.device ? ' · ' + l.device : ''))],
           [h('dt', 'Реклама'), h('dd', l.utm_source ? [l.utm_source, l.utm_medium, l.utm_campaign, l.utm_content].filter(Boolean).join(' / ') : (l.referrer ? 'Переход с ' + l.referrer : 'Прямой заход / офлайн'))]));
       if (dups.length) add(b, h('div.section-t', 'Прошлые обращения с этого номера'),

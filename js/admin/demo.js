@@ -220,6 +220,8 @@ function generate() {
     { code: 'SUMMER10', description: 'Лето 2026', discount_pct: 10, discount_amt: null, valid_from: iso(now - 150 * DAY), valid_until: iso(now - 60 * DAY), max_uses: 300, used_count: 118, active: false },
   ].map((c) => ({ id: uuid(), created_at: c.valid_from, ...c }));
   coupons.forEach((c) => { c.used_count = couponUsed(leads, c.code); });
+  // leads that came through the site form carry the server's verdict on their promo code
+  leads.forEach((l) => { if (l.coupon_code && ['form', 'plan', 'tour', 'promo'].includes(l.source)) l.details = { ...l.details, coupon_valid: couponState(coupons, l.coupon_code) }; });
 
   const reviews = [
     { author: 'Гаяне и Тигран', trip: 'Шарм-эль-Шейх · окт 2025', rating: 5, source: 'google', published: true, featured: true, body: { ru: 'Анна подобрала отель у рифа ровно под наш бюджет и была на связи всю неделю — даже когда задержали обратный рейс. Поедем снова только через SAM TRAVEL.', en: 'Anna found a reef hotel right in our budget and stayed in touch all week — even when the return flight was delayed.' } },
@@ -270,6 +272,16 @@ function generate() {
   audit.reverse();
 
   return { v: 4, generated: now, me: OWNER, role: 'admin', users, campaigns, promos, visits, leads, activity: {}, coupons, reviews, team, tours, settings, reels, wa_templates, audit };
+}
+
+// ------------------------------------------------------------------ promo code in a lead (same as coupon_state() in SQL)
+// yes — usable now; expired — exists but is not usable (past its date, off, used up, not started); no — no such code
+export function couponState(coupons, code) {
+  const now = Date.now(), want = String(code || '').trim().toUpperCase();
+  const found = (coupons || []).filter((c) => String(c.code).toUpperCase() === want);
+  if (!found.length) return 'no';
+  const usable = (c) => c.active && new Date(c.valid_from) <= now && (!c.valid_until || new Date(c.valid_until) > now) && (c.max_uses == null || (c.used_count || 0) < c.max_uses);
+  return found.some(usable) ? 'yes' : 'expired';
 }
 
 // ------------------------------------------------------------------ stats (same shape as stats_traffic)
