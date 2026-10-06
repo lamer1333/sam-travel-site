@@ -2,7 +2,7 @@
 // SAM TRAVEL panels — shell: sign-in, roles, two workspaces (owner / marketing),
 // hash router, period picker, command palette, live lead notifications.
 // ---------------------------------------------------------------------------
-import { h, $, $$, mount, clear, icon, toast, fmt, initials, input, field, debounce, setCurrency, modal, confirmDlg, copyText } from './ui.js';
+import { h, $, $$, mount, clear, icon, toast, fmt, initials, input, field, debounce, setCurrency } from './ui.js';
 import { LiveApi, errText } from './api.js';
 import { DemoApi } from './demo.js';
 
@@ -101,14 +101,6 @@ async function boot() {
   ctx.api = new LiveApi(window.sb);
   const s = await ctx.api.session().catch(() => null);
   if (!s) { mount(app, loginView()); return; }
-  enter();
-}
-
-/** signed in with the password: ask for the code if this account has two-factor on, then open the panel */
-async function enter() {
-  let need = false;
-  try { need = await ctx.api.mfaNeedsCode(); } catch (e) { mount(app, loginView(errText(e))); return; }
-  if (need) { mount(app, codeView()); return; }
   start();
 }
 
@@ -136,7 +128,7 @@ function loginView(msg) {
   const btn = h('button.btn.btn--primary', { type: 'submit' }, 'Войти');
   const form = h('form', { onsubmit: async (e) => {
     e.preventDefault(); err.textContent = ''; btn.disabled = true;
-    try { await ctx.api.signIn(email.value.trim(), pass.value); await enter(); }
+    try { await ctx.api.signIn(email.value.trim(), pass.value); start(); }
     catch (x) { err.textContent = errText(x); } finally { btn.disabled = false; }
   } }, field('Email', email), field('Пароль', pass), err, btn);
   return h('div.login', h('div.login__card',
@@ -146,67 +138,6 @@ function loginView(msg) {
     form,
     h('div.login__demo', 'Нет доступа или хочется посмотреть? ', h('a', { href: 'admin.html?demo' }, 'Открыть демо-панель'), ' — данные сгенерированы, ничего не сохраняется на сервере.')));
 }
-/** 6 digits, numeric keyboard on phones, picked up by password managers and iOS autofill */
-function codeInput() {
-  return input('', { placeholder: '000000', attrs: { inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 7, pattern: '[0-9 ]*', required: true, style: 'font-size:20px;letter-spacing:.3em;text-align:center;font-variant-numeric:tabular-nums' } });
-}
-function codeView() {
-  const code = codeInput();
-  const err = h('p', { style: { color: 'var(--bad)', margin: 0, minHeight: '1em', fontSize: '13px' } });
-  const btn = h('button.btn.btn--primary', { type: 'submit' }, 'Подтвердить');
-  const form = h('form', { onsubmit: async (e) => {
-    e.preventDefault(); err.textContent = ''; btn.disabled = true;
-    try { await ctx.api.mfaVerify(null, code.value); start(); }
-    catch (x) { err.textContent = errText(x); code.value = ''; code.focus(); } finally { btn.disabled = false; }
-  } }, field('Код из приложения', code), err, btn);
-  setTimeout(() => code.focus(), 50);
-  return h('div.login', h('div.login__card',
-    h('div.login__brand', h('img', { src: 'sam-logo.png', alt: '' }), h('b', 'SAM TRAVEL')),
-    h('h1', 'Код подтверждения'),
-    h('p', 'Для этого аккаунта включён двухфакторный вход. Откройте приложение с кодами на телефоне и введите 6 цифр для SAM TRAVEL.'),
-    form,
-    h('div.login__demo', 'Нет телефона под рукой? ', h('a', { href: '#', onclick: async (e) => { e.preventDefault(); await ctx.api.signOut(); location.reload(); } }, 'Выйти'), '. Если телефон потерян — владелец или разработчик снимет защиту в Supabase → Authentication → Users.')));
-}
-
-// ---------- two-factor settings (sidebar → «Защита входа») ----------
-async function securityDialog() {
-  let st;
-  try { st = await ctx.api.mfaStatus(); } catch (e) { ctx.err(e); return; }
-  if (!st.available) {
-    modal({ title: 'Защита входа', sub: 'В демо-панели входа нет, поэтому и защищать нечего. В настоящей панели здесь включается код из приложения на телефоне.', actions: [{ label: 'Понятно', kind: 'primary' }] });
-    return;
-  }
-  if (st.enabled) {
-    modal({ title: 'Двухфакторный вход включён', sub: 'При каждом входе панель спрашивает пароль и код из приложения на телефоне. Одного пароля недостаточно — даже если его узнает посторонний.',
-      actions: [{ label: 'Выключить', onClick: async () => {
-        if (!(await confirmDlg('Выключить двухфакторный вход?', { ok: 'Выключить', sub: 'Для входа снова будет достаточно пароля.' }))) return false;
-        try { await ctx.api.mfaDisable(st.factorId); toast('Двухфакторный вход выключен'); } catch (e) { ctx.err(e); return false; }
-      } }, { label: 'Готово', kind: 'primary' }] });
-    return;
-  }
-  modal({ title: 'Защита входа', sub: 'Сейчас для входа достаточно пароля. Можно добавить второй шаг — код из приложения на телефоне (Google Authenticator, Microsoft Authenticator, 1Password и подобные). Это по желанию.',
-    actions: [{ label: 'Не сейчас' }, { label: 'Включить', kind: 'primary', onClick: () => { setTimeout(enrollDialog, 0); } }] });
-}
-async function enrollDialog() {
-  let en;
-  try { en = await ctx.api.mfaEnroll(); } catch (e) { ctx.err(e); return; }
-  const code = codeInput();
-  const err = h('p', { style: { color: 'var(--bad)', margin: 0, minHeight: '1em', fontSize: '13px' } });
-  const body = h('div', { style: { display: 'grid', gap: '12px', justifyItems: 'center' } },
-    h('img', { src: en.qr, alt: 'QR-код для приложения с кодами', width: 180, height: 180, style: { background: '#fff', padding: '8px', borderRadius: '12px' } }),
-    h('div', { style: { textAlign: 'center', fontSize: '12.5px' } }, h('span.muted', 'Не сканируется? Введите ключ вручную: '),
-      h('button.btn.btn--ghost.btn--sm', { type: 'button', style: { fontFamily: 'ui-monospace, monospace' }, onclick: () => copyText(en.secret, 'Ключ скопирован') }, en.secret)),
-    h('div', { style: { width: '100%' } }, field('Код из приложения', code, 'Приложение покажет 6 цифр — введите их, чтобы проверить, что всё настроено'), err));
-  setTimeout(() => code.focus(), 50);
-  modal({ title: 'Отсканируйте код', sub: 'Откройте приложение с кодами на телефоне, нажмите «+» и наведите камеру на картинку.', body,
-    actions: [{ label: 'Отмена' }, { label: 'Включить', kind: 'primary', onClick: async () => {
-      err.textContent = '';
-      if (!/^\s*\d{3}\s?\d{3}\s*$/.test(code.value)) { err.textContent = 'Введите 6 цифр из приложения'; code.focus(); return false; }
-      try { await ctx.api.mfaVerify(en.factorId, code.value); toast('Двухфакторный вход включён', '', { icon: 'check' }); }
-      catch (e) { err.textContent = errText(e); code.value = ''; code.focus(); return false; }
-    } }] });
-}
-
 function noAccess() {
   return h('div.login', h('div.login__card',
     h('h1', 'Нет доступа'),
@@ -269,7 +200,6 @@ function paintSide() {
     })),
     h('div.side__foot',
       h('div.me', h('span.avatar', initials(ctx.me.full_name || ctx.me.email)), h('div', { style: { minWidth: 0 } }, h('b', ctx.me.full_name || ctx.me.email), h('small', ROLE_NAMES[role]))),
-      h('button.btn.btn--ghost.btn--sm', { style: { justifyContent: 'flex-start' }, onclick: () => { toggleSide(els.side, false); securityDialog(); } }, icon('shield'), 'Защита входа'),
       h('button.btn.btn--ghost.btn--sm', { style: { justifyContent: 'flex-start' }, onclick: async () => { await ctx.api.signOut(); location.href = DEMO ? 'admin.html' : 'admin.html'; } }, icon('logout'), DEMO ? 'Выйти из демо' : 'Выйти')));
   markCurrent();
 }

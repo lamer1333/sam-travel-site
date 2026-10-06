@@ -21,33 +21,6 @@ export class LiveApi {
   async signOut() { await this.sb.auth.signOut(); }
   async whoami() { return must(await this.sb.rpc('whoami')); }
 
-  // ---- two-factor sign-in (optional, each person switches it on for themselves) ----
-  // The database enforces it (migration 060): once a factor is verified, a session
-  // without the code carries no team role. These calls only drive Supabase Auth.
-  /** true when this account has two-factor on and the current session has not entered the code yet */
-  async mfaNeedsCode() {
-    const a = must(await this.sb.auth.mfa.getAuthenticatorAssuranceLevel());
-    return a.nextLevel === 'aal2' && a.currentLevel !== 'aal2';
-  }
-  async mfaStatus() {
-    const f = (must(await this.sb.auth.mfa.listFactors()).totp || []).find((x) => x.status === 'verified');
-    return { available: true, enabled: !!f, factorId: f ? f.id : null };
-  }
-  /** start switching it on: returns the QR picture and the secret to type by hand */
-  async mfaEnroll() {
-    // a setup that was opened and abandoned leaves an unverified factor behind — clear it first
-    const all = must(await this.sb.auth.mfa.listFactors()).all || [];
-    for (const f of all) if (f.factor_type === 'totp' && f.status !== 'verified') await this.sb.auth.mfa.unenroll({ factorId: f.id });
-    const d = must(await this.sb.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'SAM TRAVEL ' + Date.now().toString(36) }));
-    return { factorId: d.id, qr: d.totp.qr_code, secret: d.totp.secret };
-  }
-  /** the 6-digit code: finishes switching on, and is also what the sign-in screen sends */
-  async mfaVerify(factorId, code) {
-    if (!factorId) factorId = (await this.mfaStatus()).factorId;
-    must(await this.sb.auth.mfa.challengeAndVerify({ factorId, code: String(code).replace(/\D/g, '') }));
-  }
-  async mfaDisable(factorId) { must(await this.sb.auth.mfa.unenroll({ factorId })); }
-
   // ---- leads ----
   // PostgREST gives at most `max rows` (1000 by default) per request, so nothing here asks
   // for "everything" in one go: a list is read page by page until the server's own count.
@@ -186,8 +159,6 @@ export function errText(e) {
   if (/duplicate key.*slug/i.test(m)) return 'Тур с таким адресом (slug) уже есть';
   if (/violates check constraint.*url/i.test(m)) return 'Нужна ссылка вида https://www.instagram.com/reel/…';
   if (/Could not find the function|does not exist/i.test(m)) return 'База не обновлена: накатите миграции из supabase/migrations/';
-  if (/invalid totp|invalid.*code|mfa.*verification.*failed|challenge.*expired/i.test(m)) return 'Код не подошёл. Проверьте время на телефоне и введите свежий код';
-  if (/aal2|insufficient_aal/i.test(m)) return 'Сначала введите код из приложения — выйдите и войдите заново';
   if (/Failed to fetch|NetworkError/i.test(m)) return 'Нет связи с сервером';
   return m;
 }

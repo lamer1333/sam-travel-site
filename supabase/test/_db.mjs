@@ -1,6 +1,5 @@
 // Общая обвязка тестов базы: настоящий Postgres в памяти (PGlite, в том же процессе).
-// Подменяет то из Supabase, чего касается SQL: auth.users, auth.uid(), auth.jwt(),
-// auth.mfa_factors, storage, realtime.
+// Подменяет то из Supabase, чего касается SQL: auth.users, auth.uid(), storage, realtime.
 // Накатывает все файлы supabase/migrations/ по порядку номеров, весь набор дважды —
 // так каждый прогон проверяет, что миграции безопасны при повторном запуске.
 //
@@ -30,8 +29,6 @@ create role anon nologin; create role authenticated nologin;
 create schema auth;
 create table auth.users (id uuid primary key default gen_random_uuid(), email text, raw_user_meta_data jsonb default '{}', raw_app_meta_data jsonb default '{}', last_sign_in_at timestamptz, email_confirmed_at timestamptz default now());
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.uid', true),'')::uuid $$;
-create function auth.jwt() returns jsonb language sql stable as $$ select jsonb_build_object('aal', coalesce(nullif(current_setting('request.aal', true),''), 'aal1')) $$;
-create table auth.mfa_factors (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users (id) on delete cascade, status text not null default 'unverified');
 create schema storage;
 create table storage.buckets(id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
 create table storage.objects(id uuid default gen_random_uuid(), bucket_id text, name text);
