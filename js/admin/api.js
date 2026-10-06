@@ -98,6 +98,8 @@ export class LiveApi {
 
   // ---- analytics / audit ----
   async stats(from, to) { return must(await this.sb.rpc('stats_traffic', { p_from: from.toISOString(), p_to: to.toISOString() })); }
+  /** письма о заявках: { last_sent_at, pending, failed_7d, last_error, last_error_at } — только владельцу */
+  async notifyStatus() { return must(await this.sb.rpc('notify_status')); }
   async audit(limit = 300) { return must(await this.sb.from('audit_log').select('*').order('at', { ascending: false }).limit(limit)); }
 
   // ---- files ----

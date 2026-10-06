@@ -233,7 +233,7 @@
   var P = window.SAM_PAGES || { CUI: {}, CDATA: {}, PDEST: {}, PUI: {} };
   var WA = '37455957585';
   /* the number comes from the panel (Contacts); js/cms.js calls this */
-  window.SAM_SET_WA = function (n) { if (n && n !== WA) { WA = n; pWhatsapp(); cWhatsapp(); } };
+  window.SAM_SET_WA = function (n) { if (n && n !== WA) { WA = n; pWhatsapp(); cWhatsapp(); leadWa(); } };
   var curPage = null;
 
   function openPage(id) {
@@ -494,10 +494,12 @@
       message: f.elements.message.value.trim(), website: f.elements.website ? f.elements.website.value : '',
       coupon_code: f.elements.coupon ? f.elements.coupon.value.trim() : '', lang: cur
     };
-    function sent() { f.classList.add('is-sent'); }
+    leadSent = { name: data.name, phone: data.phone, message: data.message, coupon: data.coupon_code, tour: (window.SAM_CMS && window.SAM_CMS.lastTour && window.SAM_CMS.lastTour()) || '' };
+    function sent() { leadWa(); f.classList.add('is-sent'); }
+    /* no database: the request itself has to travel in the message, so it carries the phone and promo code too */
     function viaWhatsApp() {
-      var text = data.name + '\n' + data.phone + (data.message ? '\n' + data.message : '') + (data.coupon_code ? '\n' + data.coupon_code : '');
-      window.open('https://wa.me/' + WA + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
+      leadSent.full = true;
+      window.open('https://wa.me/' + WA + '?text=' + encodeURIComponent(leadWaText()), '_blank', 'noopener');
       sent();
     }
     if (!window.SAM_CMS || !window.SAM_CMS.submitLead) { setTimeout(viaWhatsApp, 300); return; }
@@ -505,6 +507,24 @@
       btn.disabled = false; label.textContent = was; viaWhatsApp();
     });
   });
+  /* After "Request received": the "Continue in WhatsApp" button opens a chat with the request
+     already written in the page language. js/track.js records the click as wa_click / after_form. */
+  var leadSent = null;
+  function tourTitle(key) {
+    if (!key) return '';
+    var t = (window.SAM_CMS_TOURS && window.SAM_CMS_TOURS(key, cur)) || ((window.SAM_TOURS_I18N || {})[cur] || {})[key] || tours[key];
+    return (t && t.title) || key;
+  }
+  function leadWaText() {
+    var j = J(), d = leadSent, tour = tourTitle(d.tour), sep = j.wa_sep || ': ';
+    return [j.wa_hi || 'Hello! I have just sent a request on the SAM TRAVEL website.',
+      (j.wa_name || 'Name') + sep + d.name,
+      d.full ? (j.wa_phone || 'Phone') + sep + d.phone : '',
+      tour ? (j.wa_tour || 'Tour') + sep + tour : '',
+      d.message,
+      d.full && d.coupon ? (j.wa_coupon || 'Promo code') + sep + d.coupon : ''].filter(Boolean).join('\n');
+  }
+  function leadWa() { if (leadSent) $('#lead-wa').href = 'https://wa.me/' + WA + '?text=' + encodeURIComponent(leadWaText()); }
   $('#lead').addEventListener('focusin', function once() {
     if (window.SAM_TRACK) window.SAM_TRACK('form_start');
     $('#lead').removeEventListener('focusin', once);
@@ -536,7 +556,7 @@
     $$('.lang button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.lang === cur)); });
     $$('[data-lang-cur]').forEach(function (e) { e.textContent = cur.toUpperCase(); });
     paintCounts();
-    renderPrices(); renderChecklist(); paintAuth();
+    renderPrices(); renderChecklist(); paintAuth(); leadWa();
     try { localStorage.setItem('sam-lang', cur); } catch (err) {}
     document.dispatchEvent(new CustomEvent('sam:lang', { detail: cur }));
   }

@@ -6,8 +6,9 @@ import { median, minutesBetween, inRange, isManual } from './common.js';
 import { isFilled, LANGS } from '../ui.js';
 
 export default async function healthView(root, ctx) {
-  const [s, tours, reviews, team, reels, tpl, users, leads] = await Promise.all([
+  const [s, tours, reviews, team, reels, tpl, users, leads, mail] = await Promise.all([
     ctx.settings(true), ctx.api.list('tours'), ctx.api.list('reviews'), ctx.api.list('team'), ctx.api.list('reels'), ctx.api.list('wa_templates'), ctx.users(true), ctx.leads(),
+    ctx.api.notifyStatus().catch(() => null),   // null = база без миграции 050_notify
   ]);
   const co = s.company || {}, seo = s.seo || {}, an = s.analytics || {}, sla = (s.hours || {}).sla_min || 60;
   const pubT = tours.filter((t) => t.published), pubR = reviews.filter((r) => r.published), pubTeam = team.filter((m) => m.published);
@@ -31,6 +32,7 @@ export default async function healthView(root, ctx) {
     [2, resp != null && resp <= sla, `Медианный ответ не дольше ${sla} мин`, resp != null ? 'За 30 дней: ' + fmt.dur(resp) + '.' : 'Пока нет заявок с ответом.', 'dashboard', 'warn'],
     [2, !waiting.length, 'Никто не ждёт ответа дольше обещанного', waiting.length ? waiting.length + ' заявок ждут дольше ' + sla + ' мин.' : '', 'leads', 'bad'],
     [2, !users.some((u) => u.email === 'demo@samtravel.am'), 'Удалён тестовый пользователь', 'demo@samtravel.am создавался для проверки входа — удалите в Supabase → Authentication.', 'people', 'bad'],
+    [2, !mail || !mail.failed_7d, 'Письма о заявках доходят на почту', mail && mail.failed_7d ? `За 7 дней не доставлено: ${mail.failed_7d}. Проверьте адрес в «Контактах» и почтовый сервис.` : '', 'contacts', 'bad'],
     [1, owners.length >= 2, 'Второй человек с правами владельца', 'Если единственный владелец потеряет доступ, назначить роли будет некому.', 'people', 'warn'],
     [1, ['ru', 'hy', 'en'].every((l) => tpl.some((t) => t.lang === l)), 'Шаблоны ответов на всех языках', 'Есть языки: ' + Array.from(new Set(tpl.map((t) => t.lang))).join(', ').toUpperCase(), 'templates', 'warn'],
     [1, !/@(gmail|mail|yandex|yahoo)\./i.test((s.contacts || {}).email || ''), 'Почта на своём домене', 'info@samtravel.am выглядит солиднее, чем gmail, и реже попадает в спам.', 'contacts', 'warn'],
@@ -48,7 +50,21 @@ export default async function healthView(root, ctx) {
         h('div.muted', oks.length + ' из ' + C.length + ' пунктов в порядке'))),
     h('section.card.c8', h('div.card__h', h('div', h('h3', 'Что исправить'), h('p', 'Сначала красное — это видят клиенты'))),
       fails.length ? fails.map((c) => row(c, ctx)) : h('div.empty', h('b', 'Всё готово'), 'Ни одного замечания')),
+    mailCard(mail, (s.contacts || {}).email),
     oks.length ? h('section.card.c12', h('div.card__h', h('div', h('h3', 'В порядке'))), oks.map((c) => row(c, ctx))) : null));
+}
+// Письмо о каждой заявке с сайта уходит на почту агентства (функция lead-mail, журнал notify_log).
+function mailCard(m, to) {
+  const line = (level, title, detail) => h('div.check', h('span.check__ic.check__ic--' + level, icon(level === 'ok' ? 'check' : level === 'bad' ? 'alert' : 'clock')),
+    h('div.check__b', h('b', title), detail ? h('small', detail) : null));
+  return h('section.card.c12', h('div.card__h', h('div', h('h3', 'Письма о заявках'), h('p', 'О каждой заявке с сайта приходит письмо' + (to ? ' на ' + to : '') + '. Заявки, внесённые вручную, писем не шлют.'))),
+    !m ? line('warn', 'Нет данных', 'База не обновлена: накатите миграции из supabase/migrations/.')
+      : [
+        m.last_sent_at ? line('ok', 'Последнее письмо доставлено ' + fmt.dt(m.last_sent_at), fmt.ago(m.last_sent_at))
+          : line('warn', 'Доставленных писем пока нет', 'Появится после первой заявки с сайта.'),
+        m.pending ? line('warn', 'Ждут отправки: ' + m.pending, 'Неудачные повторяются раз в 5 минут, до 5 попыток.') : null,
+        m.failed_7d ? line('bad', 'Не доставлено за 7 дней: ' + m.failed_7d, m.last_error ? 'Последняя ошибка (' + fmt.dt(m.last_error_at) + '): ' + m.last_error : '') : null,
+      ]);
 }
 function row([, ok, title, detail, route, level], ctx) {
   return h('div.check', h('span.check__ic.check__ic--' + (ok ? 'ok' : level), icon(ok ? 'check' : level === 'bad' ? 'alert' : 'clock')),

@@ -468,6 +468,13 @@ export class DemoApi {
 
   async stats(from, to) { this.guard('stats'); return this.wait(computeStats(this.st.visits, this.st.leads, from, to), 220); }
   async audit() { this.guard('audit'); return this.wait(this.st.audit, 100); }
+  // Те же правила, что в 050_notify.sql: письмо — о каждой заявке с сайта, о ручных — нет;
+  // читает только владелец. Почты в демо нет, поэтому письмо «доставлено» в момент заявки.
+  async notifyStatus() {
+    this.guard('audit');
+    const sent = this.st.leads.filter((l) => !['manual', 'phone', 'walk_in', 'instagram'].includes(l.source) && l.status !== 'spam').map((l) => l.created_at).sort();
+    return this.wait({ last_sent_at: sent.length ? sent[sent.length - 1] : null, pending: 0, failed_7d: 0, last_error: null, last_error_at: null }, 60);
+  }
   async upload(file) {
     return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
   }

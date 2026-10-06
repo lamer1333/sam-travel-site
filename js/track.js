@@ -78,7 +78,9 @@
   document.addEventListener('click', function (e) {
     var a = e.target.closest && e.target.closest('a[href]'); if (!a) return;
     var href = a.getAttribute('href') || '';
-    var where = a.closest('[id]'); where = where ? where.id : '';
+    /* data-track-label names a link that must not be mixed with ordinary clicks
+       (the WhatsApp button shown after the lead form: label after_form) */
+    var where = a.getAttribute('data-track-label'); if (!where) { where = a.closest('[id]'); where = where ? where.id : ''; }
     if (/wa\.me\//.test(href)) track('wa_click', { label: where });
     else if (/^tel:/.test(href)) track('tel_click', { label: where });
     else if (/^mailto:/.test(href)) track('mail_click', { label: where });
