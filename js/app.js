@@ -534,6 +534,7 @@
       });
     });
     $$('.lang button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.lang === cur)); });
+    $$('[data-lang-cur]').forEach(function (e) { e.textContent = cur.toUpperCase(); });
     paintCounts();
     renderPrices(); renderChecklist(); paintAuth();
     try { localStorage.setItem('sam-lang', cur); } catch (err) {}
@@ -544,6 +545,15 @@
     if (window.SAM_TRACK && b.dataset.lang !== cur) window.SAM_TRACK('lang_switch', { label: b.dataset.lang });
     applyLang(b.dataset.lang);
   }); });
+  /* compact switcher in the bar (burger widths): the ring opens the pill, any choice,
+     outside tap or Escape closes it */
+  var langc = $('.langc'), langcBtn = $('.langc__btn');
+  function langcOpen(on) { langc.classList.toggle('is-open', on); langcBtn.setAttribute('aria-expanded', String(on)); }
+  if (langc) {
+    langcBtn.addEventListener('click', function () { langcOpen(!langc.classList.contains('is-open')); });
+    document.addEventListener('click', function (e) { if (!langcBtn.contains(e.target)) langcOpen(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') langcOpen(false); });
+  }
   /* ?lang=ru / ?lang=hy in the URL wins over the saved choice — shared links and
      search-engine hreflang crawls must render the language they ask for. */
   var saved = 'en';

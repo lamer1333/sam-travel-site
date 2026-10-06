@@ -358,7 +358,18 @@
      collides at 1300, so the burger takes over below 1320 in every language. */
   @media (max-width: 1320px) {
     .topbar__nav, .topbar .lang--top { display: none; }
+    .topbar .langc { display: block; }
   }
+  /* compact switcher for the burger widths: one ring showing the current language, the
+     three-way pill drops beneath it. Four 44px targets plus the logo only clear a 375px
+     bar with the tighter gap. */
+  .langc { display: none; position: relative; }
+  .langc__btn { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.02em; }
+  .topbar .langc__pop { display: none; position: absolute; top: calc(100% + 8px); right: 0; background: #14171D; box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 12px 32px rgba(0,0,0,0.45); }
+  .topbar .langc.is-open .langc__pop { display: inline-flex; }
+  @media (max-width: 420px) { .topbar__inner { gap: 8px; } .topbar__right { gap: 6px; } }
+  /* under 375 the fourth target no longer fits; WhatsApp stays on the floating button */
+  @media (max-width: 374px) { .topbar .topbar__icon--wa { display: none; } }
 
   /* ---------- full-screen menu ---------- */
   .menu { --menu-type: clamp(2rem, 4.6vw, 3rem); position: fixed; inset: 0; z-index: 950; color: #fff; visibility: hidden; transition: visibility 0s linear 620ms; }
@@ -807,6 +818,11 @@
   .lang { display: inline-flex; gap: 2px; background: rgba(255,255,255,0.08); border-radius: 999px; padding: 3px; }
   .lang button { padding: 4px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; color: rgba(255,255,255,0.6); }
   .lang button[aria-pressed="true"] { background: #fff; color: #0B0D12; }
+  /* below 1320 the bar's pill is hidden, so the menu carries the switcher; the buttons
+     grow to a legal tap target there */
+  .lang--menu { margin-left: auto; }
+  .lang--menu, .langc__pop { padding: 4px; }
+  .lang--menu button, .langc__pop button { min-width: 44px; min-height: 36px; padding: 6px 12px; font-size: 0.86rem; }
 
   /* ---------- floating WhatsApp (mobile) ---------- */
   .fab { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 800; width: 56px; height: 56px; border-radius: 999px; background: #25D366; color: #06230f; display: none; place-items: center; box-shadow: 0 10px 30px -10px rgba(37,211,102,0.7); transition: transform 160ms var(--ease-out); }
