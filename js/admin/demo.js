@@ -26,7 +26,7 @@ function generate() {
   const u = (id, email, full_name, role, lang, extra = {}) => ({ id, email, full_name, role, lang, phone: null, marketing_consent: false, created_at: iso(now - 400 * DAY), last_sign_in_at: iso(now - R() * 3 * DAY), provider: 'email', bookings: 0, ...extra });
   const OWNER = uuid(), M1 = uuid(), M2 = uuid(), MK = uuid();
   const users = [
-    u(OWNER, 'owner@samtravel.am', 'Арам Мкртчян', 'admin', 'ru'),
+    u(OWNER, 'owner@samtravel.am', 'Самвел', 'admin', 'ru'),
     u(M1, 'anna@samtravel.am', 'Анна Гаспарян', 'manager', 'ru'),
     u(M2, 'davit@samtravel.am', 'Давит Арутюнян', 'manager', 'hy'),
     u(MK, 'lilit@samtravel.am', 'Лилит Саргсян', 'marketer', 'ru'),
@@ -156,7 +156,7 @@ function generate() {
       utm_source: v.utm_source || null, utm_medium: v.utm_medium || null, utm_campaign: v.utm_campaign || null, utm_content: v.utm_content || null, utm_term: null,
       coupon_code: v.utm_campaign === 'sharm_oct' && R() < 0.4 ? 'AUTUMN7' : R() < 0.05 ? 'WELCOME5' : null,
       status, lost_reason: status === 'lost' ? pick(['Дорого', 'Выбрали другое агентство', 'Перенесли поездку', 'Не отвечает', 'Не подошли даты']) : null,
-      value, currency: 'USD', assigned_to: status === 'new' && R() < 0.7 ? null : pick(managers),
+      value, profit: status === 'won' && R() < 0.75 ? Math.round(value * (0.08 + R() * 0.08) / 5) * 5 : null, currency: 'USD', assigned_to: status === 'new' && R() < 0.7 ? null : pick(managers),
       tags: R() < 0.15 ? [pick(['семья', 'vip', 'повторный', 'группа', 'медовый месяц'])] : [],
       follow_up_at: (status === 'quoted' || status === 'contacted') && R() < 0.6 ? iso(now + (R() * 4 - 1.5) * DAY) : null,
       first_response_at: resp ? iso(ts + resp * MIN) : null,
@@ -230,7 +230,7 @@ function generate() {
   aud(12, OWNER, 'team', 'update', { ...team[0], i18n: { ...team[0].i18n, en: { name: 'Anna G.', role: 'Beach · 8 years' } } }, team[0]);
   audit.reverse();
 
-  return { v: 1, generated: now, me: OWNER, role: 'admin', users, campaigns, promos, visits, leads, activity: {}, coupons, reviews, team, tours, settings, reels, wa_templates, bookings, audit };
+  return { v: 2, generated: now, me: OWNER, role: 'admin', users, campaigns, promos, visits, leads, activity: {}, coupons, reviews, team, tours, settings, reels, wa_templates, bookings, audit };
 }
 
 // ------------------------------------------------------------------ stats (same shape as stats_traffic)
@@ -246,7 +246,7 @@ export function computeStats(visits, leads, from, to) {
   for (let d = new Date(day(f) + 'T00:00:00Z'); d.toISOString().slice(0, 10) <= day(t - 1000); d = new Date(d.getTime() + DAY)) daily[d.toISOString().slice(0, 10)] = { d: d.toISOString().slice(0, 10), visits: 0, contacts: 0, leads: 0 };
   const sources = {}, camps = {}, devices = {}, langs = {}, sections = {}, ctas = {}, tours = {}, heat = {}, lheat = {}, promos = {};
   const S = (k) => sources[k] || (sources[k] = { src: k, visits: 0, leads: 0, won: 0, revenue: 0 });
-  const C = (k) => camps[k] || (camps[k] = { campaign: k, visits: 0, contacts: 0, leads: 0, won: 0, revenue: 0 });
+  const C = (k) => camps[k] || (camps[k] = { campaign: k, visits: 0, contacts: 0, leads: 0, won: 0, revenue: 0, profit: 0, revenue_est: 0 });
   const T = (k) => tours[k] || (tours[k] = { tour: k, opens: 0, leads: 0 });
   let engaged = 0, intent = 0, contact = 0;
   for (const v of vs) {
@@ -271,7 +271,7 @@ export function computeStats(visits, leads, from, to) {
   for (const l of ls) {
     const dd = daily[day(l.created_at)]; if (dd) dd.leads++;
     const s = S(srcOfL(l)); s.leads++; if (l.status === 'won') { s.won++; s.revenue += +l.value || 0; }
-    if (l.utm_campaign) { const c = C(l.utm_campaign); c.leads++; if (l.status === 'won') { c.won++; c.revenue += +l.value || 0; } }
+    if (l.utm_campaign) { const c = C(l.utm_campaign); c.leads++; if (l.status === 'won') { c.won++; c.revenue += +l.value || 0; if (l.profit != null) c.profit = (c.profit || 0) + +l.profit; else c.revenue_est = (c.revenue_est || 0) + (+l.value || 0); } }
     if (l.tour) T(l.tour).leads++;
     const y = yv(l.created_at); inc(lheat, (y.getUTCDay() || 7) + ':' + y.getUTCHours());
     if (['form', 'plan'].includes(l.source)) contact++;

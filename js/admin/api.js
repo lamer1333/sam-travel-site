@@ -25,7 +25,19 @@ export class LiveApi {
     return must(await q);
   }
   async leadActivity(id) { return must(await this.sb.from('lead_activity').select('*').eq('lead_id', id).order('created_at')); }
-  async updateLead(id, patch) { return must(await this.sb.from('leads').update(clean(patch)).eq('id', id).select().single()); }
+  async updateLead(id, patch) {
+    const run = (p) => this.sb.from('leads').update(clean(p)).eq('id', id).select().single();
+    let r = await run(patch);
+    // leads.profit arrived in a later admin.sql: on a database that has not been re-run yet,
+    // save everything else instead of losing the sale, and say what is missing.
+    if (r.error && 'profit' in patch && /profit/.test(r.error.message || '')) {
+      const { profit, ...rest } = patch;
+      if (!Object.keys(rest).length) throw new Error('Could not find the function leads.profit');
+      r = await run(rest);
+      if (!r.error) this.missingProfit = true;
+    }
+    return must(r);
+  }
   async updateLeads(ids, patch) { must(await this.sb.from('leads').update(clean(patch)).in('id', ids)); }
   async createLead(row) { return must(await this.sb.from('leads').insert(clean(row)).select().single()); }
   async deleteLead(id) { must(await this.sb.from('leads').delete().eq('id', id)); }

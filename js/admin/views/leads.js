@@ -166,7 +166,7 @@ function exportCsv(rows) {
     ['Дата', (l) => fmt.dt(l.created_at)], ['Имя', (l) => l.name], ['Телефон', (l) => l.phone], ['Email', (l) => l.email],
     ['Статус', (l) => STATUS_NAME[l.status]], ['Направление', (l) => tourName(ctx, l.tour)], ['Сообщение', (l) => l.message],
     ['Источник', (l) => SOURCE_NAME[l.source] || l.source], ['utm_source', (l) => l.utm_source], ['utm_campaign', (l) => l.utm_campaign],
-    ['Менеджер', (l) => l.assigned_to ? ctx.staffName(l.assigned_to) : ''], ['Сумма', (l) => l.value], ['Причина отказа', (l) => l.lost_reason],
+    ['Менеджер', (l) => l.assigned_to ? ctx.staffName(l.assigned_to) : ''], ['Сумма', (l) => l.value], ['Доход агентства', (l) => l.profit], ['Причина отказа', (l) => l.lost_reason],
     ['Первый ответ, мин', (l) => l.first_response_at ? Math.round(minutesBetween(l.created_at, l.first_response_at)) : ''], ['Промокод', (l) => l.coupon_code], ['Теги', (l) => (l.tags || []).join(' ')],
   ]);
 }
@@ -176,9 +176,9 @@ const LOST_REASONS = ['Дорого', 'Выбрали другое агентс�
 export async function changeStatus(ctx, l, st) {
   let patch = { status: st };
   if (st === 'won') {
-    const v = await ask('Сумма продажи', 'Для выручки и среднего чека в отчётах. Можно оставить пустым.', input(l.value || '', { type: 'number', placeholder: '1500', attrs: { min: 0, step: 10 } }));
-    if (v === null) return false;
-    if (v !== '') patch.value = Number(v);
+    const r = await askSale(ctx, l);
+    if (r === null) return false;
+    Object.assign(patch, r);
   }
   if (st === 'lost') {
     const v = await ask('Причина отказа', 'Помогает понять, где теряются клиенты.', select(LOST_REASONS, l.lost_reason || LOST_REASONS[0]));
@@ -190,8 +190,34 @@ export async function changeStatus(ctx, l, st) {
     const upd = await ctx.api.updateLead(l.id, patch);
     Object.assign(l, upd || patch);
     toast(l.name + ': ' + STATUS_NAME[st], '', { icon: 'check' });
+    if (ctx.api.missingProfit && patch.profit != null) toast('Доход агентства не сохранён: база не обновлена. Выполните supabase/admin.sql в SQL Editor.', 'bad');
     return true;
   } catch (e) { ctx.err(e); return false; }
+}
+// A sale without an amount would silently drop out of revenue, the average check and ROMI,
+// so the amount is required. The agency's own income is optional: until it is entered the
+// reports estimate it from the margin and say so.
+async function askSale(ctx, l) {
+  const cur = l.currency || 'USD';
+  const settings = await ctx.settings().catch(() => ({}));
+  const marginPct = Number((settings.company || {}).margin_pct) || null;
+  const v = input(l.value || '', { type: 'number', placeholder: '1500', attrs: { min: 1, step: 10 } });
+  const p = input(l.profit ?? '', { type: 'number', placeholder: marginPct ? 'по марже ' + marginPct + '%' : '0', attrs: { min: 0, step: 10 } });
+  const est = h('span');
+  const hint = () => { est.textContent = p.value !== '' || !marginPct || !(+v.value > 0) ? '' : ' Сейчас в отчётах: ≈ ' + fmt.money(+v.value * marginPct / 100, cur) + '.'; };
+  v.addEventListener('input', hint); p.addEventListener('input', hint); hint();
+  return new Promise((res) => {
+    let done = false;
+    modal({ title: 'Продажа', sub: 'Сайт ничего не продаёт сам — выручка и прибыль в отчётах складываются только из того, что вы укажете здесь.',
+      body: h('div', field('Сумма продажи, ' + cur, v, 'Сколько заплатил клиент за тур'),
+        h('div', { style: { marginTop: '12px' } }, field('Доход агентства, ' + cur, p, h('span', 'Ваша комиссия с этой продажи. Можно заполнить позже в карточке заявки.', est)))),
+      onClose: () => { if (!done) res(null); },
+      actions: [{ label: 'Отмена', onClick: () => { done = true; res(null); } }, { label: 'Сохранить', kind: 'primary', onClick: () => {
+        if (!(+v.value > 0)) { toast('Укажите сумму продажи — без неё продажа не попадёт в выручку', 'bad'); v.focus(); return false; }
+        if (p.value !== '' && +p.value > +v.value) { toast('Доход агентства не может быть больше суммы продажи', 'bad'); p.focus(); return false; }
+        done = true; res({ value: Number(v.value), profit: p.value === '' ? null : Number(p.value) });
+      } }] });
+  });
 }
 function ask(title, sub, ctrl) {
   return new Promise((res) => {
@@ -258,6 +284,8 @@ export async function openLead(ctx, id, after) {
       const statusSel = select(STATUS, l.status, async (v) => { const ok = await changeStatus(ctx, l, v); if (!ok) statusSel.value = l.status; else refreshTl(); });
       const valueIn = input(l.value || '', { type: 'number', placeholder: '0', attrs: { min: 0, step: 10 } });
       valueIn.addEventListener('change', () => save({ value: valueIn.value === '' ? null : Number(valueIn.value) }));
+      const profitIn = input(l.profit ?? '', { type: 'number', placeholder: '0', attrs: { min: 0, step: 10 } });
+      profitIn.addEventListener('change', () => save({ profit: profitIn.value === '' ? null : Number(profitIn.value) }));
       const fu = input(l.follow_up_at ? toLocalInput(l.follow_up_at) : '', { type: 'datetime-local' });
       fu.addEventListener('change', () => save({ follow_up_at: fu.value ? new Date(fu.value).toISOString() : null }));
       add(b, h('div.section-t', 'Работа с заявкой'),
@@ -265,6 +293,7 @@ export async function openLead(ctx, id, after) {
           field('Статус', statusSel),
           field('Ответственный', select([['', '— не назначен —'], ...ctx.team().map((u) => [u.id, u.full_name || u.email])], l.assigned_to || '', (v) => save({ assigned_to: v || null }).then(refreshTl))),
           field('Сумма сделки, ' + (l.currency || 'USD'), valueIn),
+          field('Доход агентства, ' + (l.currency || 'USD'), profitIn, 'Комиссия с продажи. Пусто — отчёты считают по марже'),
           field('Перезвонить', fu, 'Появится в «Перезвонить сегодня»')),
         l.status === 'lost' ? h('div', { style: { marginTop: '12px' } }, field('Причина отказа', select(LOST_REASONS, l.lost_reason || '', (v) => save({ lost_reason: v })))) : null,
         h('div', { style: { marginTop: '12px' } }, field('Теги', tagsInput(l.tags, (t) => save({ tags: t })))));

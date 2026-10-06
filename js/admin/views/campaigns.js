@@ -52,11 +52,13 @@ export default async function campaignsView(root, ctx, params) {
   if (orphan.length) root.append(h('div.note.note--warn', { style: { marginBottom: '14px' } }, icon('alert'),
     h('span', 'Есть трафик с метками, для которых нет кампании: ', orphan.map((o, i) => [i ? ', ' : '', h('b', o.campaign), ' (' + o.visits + ' пос.)']), '. Создайте кампанию с таким utm_campaign, чтобы учесть расход.')));
 
-  root.append(h('div.row', { style: { marginBottom: '12px' } }, h('span.muted', { style: { fontSize: '12.5px', marginRight: 'auto' } }, 'ROMI считается от прибыли агентства: выручка × маржа ' + marginPct + '%' + (ctx.can('owner') ? ' (меняется в «Контакты и реквизиты»)' : ' (задаёт владелец)') + '.'), h('label.switch', h('input', { type: 'checkbox', onchange: (e) => { showArchived = e.target.checked; paint(); } }), h('i'), h('span', 'Показать архив'))), tableBox);
+  root.append(h('div.row', { style: { marginBottom: '12px' } }, h('span.muted', { style: { fontSize: '12.5px', marginRight: 'auto' } }, 'ROMI считается от дохода агентства: комиссия, которую менеджер указал в продаже; где не указал — выручка × маржа ' + marginPct + '%' + (ctx.can('owner') ? ' (меняется в «Контакты и реквизиты»)' : ' (задаёт владелец)') + '.'), h('label.switch', h('input', { type: 'checkbox', onchange: (e) => { showArchived = e.target.checked; paint(); } }), h('i'), h('span', 'Показать архив'))), tableBox);
 
   function metrics(c) {
     const s = byC[c.utm_campaign] || { visits: 0, contacts: 0, leads: 0, won: 0, revenue: 0 };
-    return { ...c, ...s, cpl: s.leads ? c.spend / s.leads : null, cpa: s.won ? c.spend / s.won : null, romi: c.spend ? (s.revenue * margin - c.spend) / c.spend : null, cr: s.visits ? s.leads / s.visits : null };
+    // entered commissions are used as they are; sales without one are estimated by the margin
+    const profit = s.revenue_est == null ? s.revenue * margin : (+s.profit || 0) + (+s.revenue_est || 0) * margin;
+    return { ...c, ...s, cpl: s.leads ? c.spend / s.leads : null, cpa: s.won ? c.spend / s.won : null, profit, romi: c.spend ? (profit - c.spend) / c.spend : null, cr: s.visits ? s.leads / s.visits : null };
   }
   function paint() {
     const data = rows.filter((c) => showArchived || !c.archived).map(metrics);
@@ -73,7 +75,7 @@ export default async function campaignsView(root, ctx, params) {
         { key: 'won', label: 'Продажи', align: 'r', sort: true },
         { key: 'revenue', label: 'Выручка', align: 'r', sort: true, render: (r) => r.revenue ? fmt.money(r.revenue) : '—' },
         { key: 'cpl', label: 'Цена заявки', align: 'r', sort: (r) => r.cpl ?? 1e9, render: (r) => fmt.money(r.cpl) },
-        { key: 'romi', label: 'ROMI', align: 'r', sort: (r) => r.romi ?? -1e9, render: (r) => r.romi == null ? '—' : h('b', { style: { color: r.romi >= 0 ? 'var(--ok)' : 'var(--bad)' }, title: '(выручка × маржа ' + marginPct + '% − расход) ÷ расход' }, (r.romi > 0 ? '+' : '') + fmt.pct(r.romi, 0)) },
+        { key: 'romi', label: 'ROMI', align: 'r', sort: (r) => r.romi ?? -1e9, render: (r) => r.romi == null ? '—' : h('b', { style: { color: r.romi >= 0 ? 'var(--ok)' : 'var(--bad)' }, title: '(доход агентства − расход) ÷ расход. Доход: ' + fmt.money(r.profit) }, (r.romi > 0 ? '+' : '') + fmt.pct(r.romi, 0)) },
         { key: 'link', label: '', render: (r) => h('button.btn.btn--ghost.btn--sm', { title: 'Скопировать ссылку', onclick: () => copyText(buildUrl(r), 'Ссылка скопирована') }, icon('link')) },
       ],
       foot: () => h('tr', h('td', 'Итого'), h('td'), h('td.r.num', fmt.money(tot.spend)), h('td.r.num', fmt.num(tot.visits)), h('td.r.num', fmt.num(tot.leads)), h('td.r.num', fmt.pct(tot.visits ? tot.leads / tot.visits : null, 1)),

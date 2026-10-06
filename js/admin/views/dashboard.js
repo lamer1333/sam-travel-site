@@ -17,6 +17,13 @@ export default async function dashboard(root, ctx) {
   const cClosed = closedIn(rg.from, rg.to), pClosed = closedIn(rg.prevFrom, rg.prevTo);
   const won = (xs) => xs.filter((l) => l.status === 'won');
   const rev = (xs) => sum(won(xs), (l) => l.value);
+  // Agency income: what managers entered on the sale; where they have not, value × margin.
+  const marginPct = Number((settings.company || {}).margin_pct) || null;
+  const hasProfit = (l) => l.profit != null && l.profit !== '';
+  const profitOf = (l) => hasProfit(l) ? +l.profit : marginPct ? (+l.value || 0) * marginPct / 100 : 0;
+  const profit = (xs) => sum(won(xs), profitOf);
+  const estimated = (xs) => won(xs).filter((l) => !hasProfit(l) && +l.value > 0).length;
+  const noAmount = (xs) => won(xs).filter((l) => !(+l.value > 0));
   const conv = (xs) => xs.length ? won(xs).length / xs.length : null;
   const avg = (xs) => won(xs).length ? rev(xs) / won(xs).length : null;
   const resp = (xs) => median(xs.filter((l) => l.first_response_at).map((l) => minutesBetween(l.created_at, l.first_response_at)));
@@ -34,12 +41,23 @@ export default async function dashboard(root, ctx) {
 
   root.append(h('div.kpis',
     kpi({ label: 'Выручка', value: fmt.money(rev(cClosed), cur), cur: rev(cClosed), prev: rev(pClosed), spark: perDay(won(cClosed), 'closed_at', (l) => +l.value || 0), hint: 'Сумма закрытых продаж за период' }),
+    kpi({ label: estimated(cClosed) ? 'Доход агентства ≈' : 'Доход агентства', value: won(cClosed).length ? fmt.money(profit(cClosed), cur) : '—', cur: profit(cClosed), prev: profit(pClosed), spark: perDay(won(cClosed), 'closed_at', profitOf),
+      hint: !won(cClosed).length ? 'Появится после первой продажи: менеджер указывает комиссию при закрытии заявки'
+        : estimated(cClosed) ? `Комиссия указана в ${won(cClosed).length - estimated(cClosed)} из ${won(cClosed).length} продаж; остальные оценены по марже ${marginPct || '—'}%`
+        : 'Сумма комиссий, которые менеджеры указали в продажах' }),
     kpi({ label: 'Заявки', value: fmt.num(inCur.length), cur: inCur.length, prev: inPrev.length, spark: perDay(inCur), hint: 'Все обращения, кроме спама' }),
     kpi({ label: 'Конверсия в продажу', value: fmt.pct(conv(cClosed), 0), cur: conv(cClosed), prev: conv(pClosed), hint: 'Продажи ÷ закрытые заявки (продажа + отказ)' }),
     kpi({ label: 'Средний чек', value: fmt.money(avg(cClosed), cur), cur: avg(cClosed), prev: avg(pClosed) }),
     kpi({ label: 'Первый ответ (медиана)', value: fmt.dur(resp(inCur)), cur: resp(inCur), prev: resp(inPrev), goodUp: false, hint: `В пределах ${sla} мин: ${fmt.pct(within(inCur), 0)} заявок` }),
     kpi({ label: 'Посещения → заявка', value: visits ? fmt.pct(inCur.length / visits, 1) : '—', cur: visits ? inCur.length / visits : null, prev: pVisits ? inPrev.length / pVisits : null, hint: visits ? fmt.num(visits) + ' посещений сайта' : 'Аналитика сайта ещё не накопилась' }),
   ));
+
+  // Money in this panel is typed in by people, not measured — say so when it is missing.
+  const blank = noAmount(cClosed);
+  if (blank.length) root.append(h('div.note.note--warn', { style: { marginBottom: '14px', cursor: 'pointer' }, onclick: () => ctx.go('leads/' + blank[0].id) }, icon('alert'),
+    h('span', `${blank.length} ${plural(blank.length, 'продажа', 'продажи', 'продаж')} за период без суммы — в выручку и средний чек ${plural(blank.length, 'она не попала', 'они не попали', 'они не попали')}. Откройте заявку и впишите сумму.`)));
+  else if (!real.some((l) => l.status === 'won')) root.append(h('div.note', { style: { marginBottom: '14px' } }, icon('spark'),
+    h('span', 'Продаж пока нет, поэтому выручка, средний чек и доход пустые. Сайт сам ничего не продаёт: эти цифры появятся, когда менеджер переведёт заявку в «Продажа» и укажет сумму. Звонки и визиты в офис добавляются кнопкой «Заявка».')));
 
   const grid = h('div.dash');
   root.append(grid);
@@ -75,7 +93,7 @@ export default async function dashboard(root, ctx) {
     h('div.kpis', { style: { marginTop: '16px', marginBottom: 0, gridTemplateColumns: 'repeat(3, 1fr)' } },
       miniStat('В работе', fmt.num(open.length)),
       miniStat('В предложениях', fmt.money(sum(open.filter((l) => l.status === 'quoted'), (l) => l.value), cur)),
-      miniStat('Прогноз', fmt.money(sum(open.filter((l) => l.status === 'quoted'), (l) => l.value) * (conv(cClosed) || 0.3), cur), 'Сумма предложений × текущая конверсия'))));
+      miniStat('Прогноз', conv(cClosed) ? fmt.money(sum(open.filter((l) => l.status === 'quoted'), (l) => l.value) * conv(cClosed), cur) : '—', conv(cClosed) ? 'Сумма предложений × конверсия за период' : 'Нужна хотя бы одна продажа за период, чтобы посчитать конверсию'))));
 
   // lost reasons
   const reasons = {};
@@ -96,7 +114,7 @@ export default async function dashboard(root, ctx) {
   const team = ctx.team();
   const rows = team.map((u) => {
     const mine = inCur.filter((l) => l.assigned_to === u.id), mc = cClosed.filter((l) => l.assigned_to === u.id);
-    return { id: u.id, name: u.full_name || u.email, leads: mine.length, won: won(mc).length, revenue: rev(mc), conv: conv(mc), resp: resp(mine) };
+    return { id: u.id, name: u.full_name || u.email, leads: mine.length, won: won(mc).length, revenue: rev(mc), profit: profit(mc), conv: conv(mc), resp: resp(mine) };
   }).filter((r) => r.leads || r.won);
   grid.append(h('section.card.c6.card--flush', h('div.card__pad', { style: { paddingBottom: 0 } }, h('div.card__h', h('div', h('h3', 'Менеджеры'), h('p', 'Кто сколько взял, продал и как быстро отвечает')))),
     table({ rows, initialSort: ['revenue', -1], empty: 'Заявки ещё не распределены', columns: [
@@ -105,6 +123,7 @@ export default async function dashboard(root, ctx) {
       { key: 'won', label: 'Продажи', align: 'r', sort: true },
       { key: 'conv', label: 'Конв.', align: 'r', sort: (r) => r.conv || 0, render: (r) => fmt.pct(r.conv, 0) },
       { key: 'revenue', label: 'Выручка', align: 'r', sort: true, render: (r) => fmt.money(r.revenue, cur) },
+      { key: 'profit', label: 'Доход', align: 'r', sort: true, render: (r) => fmt.money(r.profit, cur) },
       { key: 'resp', label: 'Ответ', align: 'r', sort: (r) => r.resp || 1e9, render: (r) => h('span', { style: { color: r.resp > sla ? 'var(--bad)' : '' } }, fmt.dur(r.resp)) },
     ] })));
 

@@ -216,6 +216,10 @@ create table if not exists public.leads (
   closed_at         timestamptz,
   user_id           uuid references public.profiles (id) on delete set null
 );
+-- What the agency itself earned on the sale (commission), entered by the manager when the
+-- deal is closed. `value` is the tour price the client paid; null = not entered yet, and
+-- the reports then estimate it as value × company.margin_pct and mark it as an estimate.
+alter table public.leads add column if not exists profit numeric(12,2);
 create index if not exists leads_created_idx  on public.leads (created_at desc);
 create index if not exists leads_status_idx   on public.leads (status);
 create index if not exists leads_phone_idx    on public.leads (phone_digits);
@@ -617,12 +621,16 @@ begin
       ) x), '[]'::jsonb),
     'campaigns', coalesce((select jsonb_agg(x) from (
         select c.k as campaign, coalesce(v.visits, 0) as visits, coalesce(v.contacts, 0) as contacts,
-               coalesce(l.leads, 0) as leads, coalesce(l.won, 0) as won, coalesce(l.revenue, 0) as revenue
+               coalesce(l.leads, 0) as leads, coalesce(l.won, 0) as won, coalesce(l.revenue, 0) as revenue,
+               coalesce(l.profit, 0) as profit, coalesce(l.revenue_est, 0) as revenue_est
         from (select utm_campaign k from ev where utm_campaign is not null union select utm_campaign from ld where utm_campaign is not null) c
         left join (select utm_campaign k, count(*) filter (where name = 'page_view') visits,
                           count(*) filter (where name in ('wa_click', 'tel_click')) contacts from ev group by 1) v using (k)
         left join (select utm_campaign k, count(*) leads, count(*) filter (where status = 'won') won,
-                          sum(value) filter (where status = 'won') revenue from ld group by 1) l using (k)
+                          sum(value) filter (where status = 'won') revenue,
+                          sum(profit) filter (where status = 'won') profit,                      -- entered by managers
+                          sum(value) filter (where status = 'won' and profit is null) revenue_est -- still to be estimated by margin
+                   from ld group by 1) l using (k)
       ) x), '[]'::jsonb),
     'devices', coalesce((select jsonb_object_agg(k, n) from (select coalesce(device, '?') k, count(*) n from ev where name = 'page_view' group by 1) x), '{}'::jsonb),
     'langs',   coalesce((select jsonb_object_agg(k, n) from (select coalesce(lang, '?') k, count(*) n from ev where name = 'page_view' group by 1) x), '{}'::jsonb),
