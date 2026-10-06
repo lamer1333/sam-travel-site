@@ -1,5 +1,6 @@
 // Marketing overview: traffic, funnel, channels, engagement, timing.
-// Lead numbers come aggregated from stats_traffic — no phone numbers here.
+// Everything comes aggregated from stats_traffic() — no phone numbers here. Money in this
+// workspace is «по заявкам периода»: what the leads that CAME in the period have brought.
 import { h, icon, fmt, table, csv, plural } from '../ui.js';
 import { kpi, timeChart, barList, funnel, heatmap, heatPeak, stackBar } from '../charts.js';
 import { srcName, SECTION_NAME, CTA_NAME, DEVICE_NAME, LANG_NAME, loadTours, tourName, sum } from './common.js';
@@ -8,6 +9,9 @@ export default async function overview(root, ctx) {
   const rg = ctx.range();
   const [s, p, campaigns] = await Promise.all([ctx.api.stats(rg.from, rg.to), ctx.api.stats(rg.prevFrom, rg.prevTo), ctx.api.list('campaigns').catch(() => []), loadTours(ctx)]);
   const f = s.funnel, pf = p.funnel;
+  // days older than 13 months keep only daily totals: the steps that need single visits
+  // (engagement, sections, hours) are counted over the days that still have them
+  const fv = s.raw_from ? f.visits_detailed : f.visits, pfv = p.raw_from ? pf.visits_detailed : pf.visits;
   const spend = sum(campaigns.filter((c) => overlaps(c, rg)), (c) => c.spend * share(c, rg));
   const paidLeads = sum(s.campaigns.filter((c) => campaigns.some((k) => k.utm_campaign === c.campaign)), (c) => c.leads);
   const contacts = (s.ctas.wa_click || 0) + (s.ctas.tel_click || 0), pContacts = (p.ctas.wa_click || 0) + (p.ctas.tel_click || 0);
@@ -18,12 +22,15 @@ export default async function overview(root, ctx) {
 
   root.append(h('div.kpis',
     kpi({ label: 'Посещения', value: fmt.num(f.visits), cur: f.visits, prev: pf.visits, spark: s.daily.map((d) => d.visits) }),
-    kpi({ label: 'Вовлечённость', value: fmt.pct(f.visits ? f.engaged / f.visits : null, 0), cur: f.visits ? f.engaged / f.visits : null, prev: pf.visits ? pf.engaged / pf.visits : null, hint: 'Доля посещений, где листали дальше первого экрана' }),
+    kpi({ label: 'Вовлечённость', value: fmt.pct(fv ? f.engaged / fv : null, 0), cur: fv ? f.engaged / fv : null, prev: pfv ? pf.engaged / pfv : null, hint: 'Доля посещений, где листали дальше первого экрана' }),
     kpi({ label: 'Клики в WhatsApp и звонки', value: fmt.num(contacts), cur: contacts, prev: pContacts, spark: s.daily.map((d) => d.contacts) }),
     kpi({ label: 'Заявки', value: fmt.num(f.leads), cur: f.leads, prev: pf.leads, spark: s.daily.map((d) => d.leads) }),
     kpi({ label: 'Конверсия сайта', value: fmt.pct(f.visits ? (f.leads) / f.visits : null, 1), cur: f.visits ? f.leads / f.visits : null, prev: pf.visits ? pf.leads / pf.visits : null, hint: 'Заявки ÷ посещения' }),
     kpi({ label: 'Цена заявки с рекламы', value: paidLeads ? fmt.money(spend / paidLeads) : '—', hint: `Расход ${fmt.money(spend)} ÷ ${paidLeads} заявок с кампаний (расход делится пропорционально дням периода)` }),
   ));
+
+  if (s.raw_from) root.append(h('div.note', { style: { marginBottom: '14px' } }, icon('spark'),
+    h('span', 'Период захватывает дни старше 13 месяцев: по ним хранятся только итоги по дням. Посещения, контакты, каналы и кампании посчитаны за весь период; воронка, блоки страницы, часы и баннеры — с ' + fmt.date(s.raw_from) + '.')));
 
   const g = h('div.dash'); root.append(g);
   g.append(h('section.card.c8', h('div.card__h', h('div', h('h3', 'Посещения по дням'), h('p', 'Заявки и контакты — в отдельных графиках ниже: у них другой масштаб'))),
@@ -34,19 +41,20 @@ export default async function overview(root, ctx) {
 
   g.append(h('section.card.c4', h('div.card__h', h('div', h('h3', 'Воронка'), h('p', 'Где отваливаются посетители'))),
     funnel([
-      { label: 'Посещения', value: f.visits },
+      { label: 'Посещения', value: fv },
       { label: 'Листали дальше', value: f.engaged, hint: 'Прокрутили за первый экран' },
       { label: 'Проявили интерес', value: f.intent, hint: 'Открыли тур, подбор, чек-лист или начали форму' },
       { label: 'Связались', value: f.contact, hint: 'WhatsApp, звонок, отправка подбора или формы' },
       { label: 'Заявки', value: f.leads },
       { label: 'Продажи', value: f.won },
     ]),
-    tip(f)));
+    h('p.muted', { style: { margin: '10px 0 0', fontSize: '12.5px' } }, 'Продажи — среди заявок периода, когда бы они ни закрылись.'),
+    tip({ ...f, visits: fv })));
 
   // channels
   const rows = s.sources.map((x) => ({ ...x, id: x.src, cr: x.visits ? x.leads / x.visits : null }));
-  g.append(h('section.card.c12.card--flush', h('div.card__pad', { style: { paddingBottom: 0 } }, h('div.card__h', h('div', h('h3', 'Каналы'), h('p', 'Откуда пришли посетители и сколько из них оставили заявку и купили')),
-    h('button.btn.btn--sm', { onclick: () => csv('channels.csv', rows, [['Канал', (r) => srcName(r.src)], ['Посещения', (r) => r.visits], ['Заявки', (r) => r.leads], ['Конверсия', (r) => r.cr ? (r.cr * 100).toFixed(2) + '%' : ''], ['Продажи', (r) => r.won], ['Выручка', (r) => r.revenue]]) }, icon('download'), 'CSV'))),
+  g.append(h('section.card.c12.card--flush', h('div.card__pad', { style: { paddingBottom: 0 } }, h('div.card__h', h('div', h('h3', 'Каналы'), h('p', 'Откуда пришли посетители и сколько из них оставили заявку и купили. Продажи, выручка и доход — по заявкам периода; звонки, визиты и переписки, внесённые менеджером, — отдельные каналы без посещений')),
+    h('button.btn.btn--sm', { onclick: () => csv('channels.csv', rows, [['Канал', (r) => srcName(r.src)], ['Посещения', (r) => r.visits], ['Заявки', (r) => r.leads], ['Конверсия', (r) => r.cr ? (r.cr * 100).toFixed(2) + '%' : ''], ['Продажи', (r) => r.won], ['Выручка (по заявкам периода)', (r) => r.revenue], ['Доход агентства', (r) => r.profit_total], ['Доход — оценка по марже', (r) => (r.estimated ? 'да' : '')]]) }, icon('download'), 'CSV'))),
     table({ rows, initialSort: ['visits', -1], columns: [
       { key: 'src', label: 'Канал', sort: (r) => srcName(r.src), render: (r) => h('div.cell-main', h('b', srcName(r.src)), r.src !== srcName(r.src) ? h('small', r.src) : null) },
       { key: 'visits', label: 'Посещения', align: 'r', sort: true, render: (r) => fmt.num(r.visits) },
@@ -54,13 +62,14 @@ export default async function overview(root, ctx) {
       { key: 'leads', label: 'Заявки', align: 'r', sort: true },
       { key: 'cr', label: 'Конверсия', align: 'r', sort: (r) => r.cr || 0, render: (r) => crCell(r.cr, f.visits ? f.leads / f.visits : 0) },
       { key: 'won', label: 'Продажи', align: 'r', sort: true },
-      { key: 'revenue', label: 'Выручка', align: 'r', sort: true, render: (r) => r.revenue ? fmt.money(r.revenue) : '—' },
+      { key: 'revenue', label: 'Выручка · по заявкам периода', align: 'r', sort: true, render: (r) => r.revenue ? fmt.money(r.revenue) : '—' },
+      { key: 'profit_total', label: 'Доход', align: 'r', sort: true, render: (r) => r.won ? h('span', { title: r.estimated ? 'Часть дохода оценена по марже ' + s.margin_pct + '%' : 'Комиссии, указанные менеджерами' }, (r.estimated ? '≈ ' : '') + fmt.money(r.profit_total)) : '—' },
     ] })));
 
   // engagement: sections reach
   const secs = Object.keys(SECTION_NAME).map((k) => ({ label: SECTION_NAME[k], value: s.sections[k] || 0 }));
   g.append(h('section.card.c6', h('div.card__h', h('div', h('h3', 'До куда дочитывают'), h('p', 'Доля посещений, в которых блок появился на экране'))),
-    barList(secs.map((x) => ({ ...x, note: fmt.pct(x.value / (f.visits || 1), 0) })), { limit: 10 })));
+    barList(secs.map((x) => ({ ...x, note: fmt.pct(x.value / (fv || 1), 0) })), { limit: 10 })));
 
   const ctas = Object.entries(s.ctas).filter(([k]) => !k.startsWith('promo_')).map(([k, v]) => ({ label: CTA_NAME[k] || k, value: v })).sort((a, b) => b.value - a.value);
   g.append(h('section.card.c6', h('div.card__h', h('div', h('h3', 'Действия на сайте'), h('p', 'Что нажимают посетители'))), barList(ctas, { color: 'var(--s3)', limit: 10 })));

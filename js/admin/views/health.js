@@ -2,7 +2,8 @@
 // missing translations, missing IDs and slow answers — and links to the fix.
 import { h, icon, fmt, pageHead, card } from '../ui.js';
 import { ring } from '../charts.js';
-import { median, minutesBetween, inRange, isManual } from './common.js';
+import { median, inRange, isOverdue } from './common.js';
+import { responseMinutes } from '../metrics.js';
 import { isFilled, LANGS } from '../ui.js';
 
 export default async function healthView(root, ctx) {
@@ -14,8 +15,8 @@ export default async function healthView(root, ctx) {
   const F4 = [{ key: 'card_title' }, { key: 'card_text' }, { key: 'title' }, { key: 'text' }];
   const untranslated = pubT.filter((t) => LANGS.some(([l]) => !isFilled(t.i18n[l], F4)));
   const last30 = leads.filter((l) => inRange(l.created_at, new Date(Date.now() - 30 * 86400e3), new Date()) && l.status !== 'spam');
-  const resp = median(last30.filter((l) => l.first_response_at && !isManual(l)).map((l) => minutesBetween(l.created_at, l.first_response_at)));
-  const waiting = leads.filter((l) => l.status === 'new' && minutesBetween(l.created_at, Date.now()) > sla);
+  const resp = median(last30.map((l) => responseMinutes(l, s.hours)));   // working minutes, requests from the site
+  const waiting = leads.filter((l) => isOverdue(l, s.hours));
   const owners = users.filter((u) => u.role === 'admin');
   const C = [
     // [weight, ok, title, detail, route, level if not ok]
