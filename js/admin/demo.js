@@ -398,6 +398,9 @@ export class DemoApi {
 
   async session() { return { user: { id: this.st.me, email: this.me.email } }; }
   async signIn() {}
+  // two-factor sign-in belongs to a real account; the demo has none
+  async mfaNeedsCode() { return false; }
+  async mfaStatus() { return { available: false, enabled: false, factorId: null }; }
   async signOut() {}
   async whoami() { const m = this.me; return this.wait({ id: m.id, email: m.email, full_name: m.full_name, role: this.st.role, lang: m.lang }, 60); }
 
