@@ -7,6 +7,7 @@ const ROLE_HINT = {
   admin: 'Всё: продажи, контент, роли, реквизиты, журнал',
   manager: 'Продажи и клиенты',
   marketer: 'Аналитика, кампании, промо, промокоды, подписчики, туры и отзывы. Без телефонов клиентов',
+  content: 'Только «Контент сайта»: туры, рилсы, отзывы, фото команды. Без продаж, клиентов и аналитики',
   client: 'Только свой личный кабинет',
 };
 export default async function peopleView(root, ctx, params) {
@@ -24,7 +25,7 @@ export default async function peopleView(root, ctx, params) {
     box.append(h('div.kpis', Object.keys(ROLE_HINT).filter((r) => r !== 'client').map((r) => h('div.kpi', h('span.kpi__label', ROLE_NAMES[r]), h('span.kpi__value', String(staff.filter((u) => u.role === r).length)), h('small.muted', ROLE_HINT[r])))));
     if (owner) {
       const q = input('', { placeholder: 'Email зарегистрированного человека', attrs: { type: 'email' } });
-      const role = select([['manager', 'Менеджер'], ['marketer', 'Маркетолог'], ['admin', 'Владелец']], 'manager');
+      const role = select([['manager', 'Менеджер'], ['marketer', 'Маркетолог'], ['content', 'Контент (SMM)'], ['admin', 'Владелец']], 'manager');
       box.append(h('div.card', { style: { marginBottom: '16px' } }, h('div.card__h', h('div', h('h3', 'Добавить в команду'), h('p', 'Человек должен сначала зарегистрироваться на сайте (меню → Войти).'))),
         h('div.row', q, role, h('button.btn.btn--primary', { onclick: async () => {
           const u = users.find((x) => (x.email || '').toLowerCase() === q.value.trim().toLowerCase());
@@ -35,7 +36,7 @@ export default async function peopleView(root, ctx, params) {
     box.append(h('div.card.card--flush', table({ rows: staff, empty: 'В команде никого', columns: [
       { key: 'full_name', label: 'Сотрудник', render: (u) => h('div.row', { style: { flexWrap: 'nowrap' } }, h('span.avatar', initials(u.full_name || u.email)), h('div.cell-main', h('b', u.full_name || '—', u.id === ctx.me.id ? h('span.muted', ' (вы)') : null), h('small', u.email))) },
       { key: 'role', label: 'Роль', render: (u) => owner && u.id !== ctx.me.id
-        ? select([['admin', 'Владелец'], ['manager', 'Менеджер'], ['marketer', 'Маркетолог'], ['client', 'Убрать из команды']], u.role, (v, el) => setRole(u, v).then((ok) => { if (!ok) el.value = u.role; }))
+        ? select([['admin', 'Владелец'], ['manager', 'Менеджер'], ['marketer', 'Маркетолог'], ['content', 'Контент (SMM)'], ['client', 'Убрать из команды']], u.role, (v, el) => setRole(u, v).then((ok) => { if (!ok) el.value = u.role; }))
         : h('span.badge.badge--plain', ROLE_NAMES[u.role]) },
       { key: 'last_sign_in_at', label: 'Был в сети', render: (u) => fmt.ago(u.last_sign_in_at) },
     ] })));

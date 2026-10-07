@@ -13,6 +13,9 @@ import { salesStats, trafficStats, couponStats, refOf, refNorm, refOk, eventChan
 
 const STORE_KEY = 'sam-admin-demo-v1';
 const WA_KEY = 'sam-demo-wa';   // WhatsApp clicks made on the site opened with ?cms=demo (js/track.js)
+// The demo's «bucket»: uploaded photos live here once, rows and the audit log hold only a short
+// address 'demo-media:<id>'. The site opened with ?cms=demo reads the same store (js/cms.js).
+const MEDIA_KEY = 'sam-demo-media', MEDIA_REF = 'demo-media:';
 const DAY = 86400e3, MIN = 60e3;
 const SECTIONS = ['band-prices', 'hot', 'how', 'services', 'about', 'reviews', 'blog', 'contacts'];
 
@@ -105,12 +108,13 @@ function generate() {
   const wpick = (pairs) => { const tot = pairs.reduce((a, p) => a + p[1], 0); let x = R() * tot; for (const p of pairs) { x -= p[1]; if (x <= 0) return p[0]; } return pairs[pairs.length - 1][0]; };
   const now = Date.now();
   const u = (id, email, full_name, role, lang, extra = {}) => ({ id, email, full_name, role, lang, phone: null, marketing_consent: false, created_at: iso(now - 400 * DAY), last_sign_in_at: iso(now - R() * 3 * DAY), provider: 'email', email_confirmed: true, birth_date: null, ...extra });
-  const OWNER = uuid(), M1 = uuid(), M2 = uuid(), MK = uuid();
+  const OWNER = uuid(), M1 = uuid(), M2 = uuid(), MK = uuid(), SMM = uuid();
   const users = [
     u(OWNER, 'owner@samtravel.am', 'Самвел', 'admin', 'ru'),
     u(M1, 'anna@samtravel.am', 'Анна Гаспарян', 'manager', 'ru'),
     u(M2, 'davit@samtravel.am', 'Давит Арутюнян', 'manager', 'hy'),
     u(MK, 'lilit@samtravel.am', 'Лилит Саргсян', 'marketer', 'ru'),
+    u(SMM, 'sona@samtravel.am', 'Сона Мкртчян', 'content', 'ru'),
   ];
   const first = ['Анна', 'Гаяне', 'Тигран', 'Карен', 'Мариам', 'Арман', 'Лусине', 'Нарек', 'Ани', 'Ваге', 'Сона', 'Эдгар', 'Ирина', 'Сергей', 'Ольга', 'Артур', 'Нане', 'Грант', 'Елена', 'Давид', 'Kristine', 'Hayk', 'Mane', 'Alex', 'Лиана', 'Рубен', 'Кристина', 'Мхитар'];
   const last = ['Петросян', 'Саакян', 'Аветисян', 'Геворгян', 'Акопян', 'Карапетян', 'Мартиросян', 'Оганесян', 'Григорян', 'Варданян', 'Смирнова', 'Иванов', 'Sargsyan', 'Hovhannisyan', 'Мелконян', 'Хачатрян'];
@@ -255,7 +259,7 @@ function generate() {
     { i18n: { en: { name: 'Davit Harutyunyan', role: 'Europe & city breaks · 6 years' }, ru: { name: 'Давит Арутюнян', role: 'Европа и города · 6 лет' }, hy: { name: '', role: '' } }, whatsapp: '' },
   ].map((t, i) => ({ id: uuid(), photo_url: null, published: true, sort: i, created_at: iso(now - 90 * DAY), updated_at: iso(now - 20 * DAY), ...t }));
 
-  const tours = TOURS.map((t) => ({ id: uuid(), photo_url: null, hot_until: null, price_from: null, currency: 'USD', created_at: iso(now - 100 * DAY), updated_at: iso(now - 8 * DAY), updated_by: MK, ...t }));
+  const tours = TOURS.map((t) => ({ id: uuid(), photo_url: null, photo_hero_url: null, hot_until: null, price_from: null, currency: 'USD', created_at: iso(now - 100 * DAY), updated_at: iso(now - 8 * DAY), updated_by: MK, ...t }));
   tours.find((t) => t.slug === 'sharm').price_from = 890;
   tours.find((t) => t.slug === 'sharm').hot_until = iso(now + 25 * DAY).slice(0, 10);
   tours.find((t) => t.slug === 'dubai').price_from = 1150;
@@ -289,6 +293,7 @@ function generate() {
   const aud = (d, actor, table_name, action, before, after) => audit.push({ id: audit.length + 1, at: iso(now - d * DAY), actor, table_name, row_id: (after || before).id || (after || before).key, action, before, after });
   aud(0.2, MK, 'promos', 'update', { ...promos[0], active: false }, promos[0]);
   aud(1.1, MK, 'tours', 'update', { ...tours[0], price_from: null }, tours[0]);
+  aud(5.2, SMM, 'tours', 'update', { ...tours[0], price_from: null, tags: ['city'] }, { ...tours[0], price_from: null });
   aud(2.4, OWNER, 'site_settings', 'update', { key: 'hours', value: { ...settings.hours, to: '18:00' } }, { key: 'hours', value: settings.hours });
   aud(3, MK, 'campaigns', 'insert', null, campaigns[1]);
   aud(4.5, OWNER, 'reviews', 'update', { ...reviews[1], published: false }, reviews[1]);
@@ -297,7 +302,7 @@ function generate() {
   aud(12, OWNER, 'team', 'update', { ...team[0], i18n: { ...team[0].i18n, en: { name: 'Anna G.', role: 'Beach · 8 years' } } }, team[0]);
   audit.reverse();
 
-  return { v: 7, generated: now, me: OWNER, role: 'admin', users, campaigns, promos, events, leads, activity: {}, coupons, reviews, team, tours, settings, reels, wa_templates, audit };
+  return { v: 8, generated: now, me: OWNER, role: 'admin', users, campaigns, promos, events, leads, activity: {}, coupons, reviews, team, tours, settings, reels, wa_templates, audit };
 }
 
 // ------------------------------------------------------------------ public snapshot (same shape as public_site)
@@ -306,7 +311,7 @@ export function publicSnapshot(st) {
   return {
     settings: { ...st.settings, company: (({ margin_pct, currency, ...pub }) => pub)(st.settings.company || {}) },
     tours: st.tours.filter((t) => t.published && (!t.hot_until || t.hot_until >= today)).sort((a, b) => a.sort - b.sort)
-      .map(({ slug, photo_url, photo_class, tags, price_from, currency, i18n }) => ({ slug, photo_url, photo_class, tags, price_from, currency, i18n })),
+      .map(({ slug, photo_url, photo_hero_url, photo_class, tags, price_from, currency, i18n }) => ({ slug, photo_url, photo_hero_url: photo_hero_url || null, photo_class, tags, price_from, currency, i18n })),
     reviews: st.reviews.filter((r) => r.published).sort((a, b) => (b.featured - a.featured) || (a.sort - b.sort))
       .map(({ author, trip, rating, body, photo_url, source }) => ({ author, trip, rating, body, photo_url, source })),
     team: st.team.filter((t) => t.published).sort((a, b) => a.sort - b.sort).map(({ i18n, photo_url }) => ({ i18n, photo_url })),
@@ -317,11 +322,19 @@ export function publicSnapshot(st) {
 }
 
 // ------------------------------------------------------------------ the api
+// The role `content` (the SMM specialist) — the same line as 080_content.sql draws: it reads
+// and writes tours, reviews, reels and the team, and nothing else in the panel.
 const ROLE_OK = {
   leads: ['admin', 'manager'], users: ['admin', 'manager', 'marketer'], audience: ['admin', 'marketer'],
   write_marketing: ['admin', 'marketer'], write_owner: ['admin'], audit: ['admin'], stats: ['admin', 'manager', 'marketer'],
+  write_content: ['admin', 'marketer', 'content'], write_team: ['admin', 'content'],
 };
-const TABLE_WRITE = { tours: 'write_marketing', reviews: 'write_marketing', reels: 'write_marketing', promos: 'write_marketing', campaigns: 'write_marketing', coupons: 'write_marketing', team: 'write_owner', wa_templates: 'write_owner' };
+const TABLE_WRITE = { tours: 'write_content', reviews: 'write_content', reels: 'write_content', promos: 'write_marketing', campaigns: 'write_marketing', coupons: 'write_marketing', team: 'write_team', wa_templates: 'write_owner' };
+export const CONTENT_TABLES = ['tours', 'reviews', 'reels', 'team'];
+export const TOUR_TAGS = ['beach', 'city', 'nature', 'family'];   // tours_tags_known
+const REEL_RE = /^https:\/\/(www\.)?instagram\.com\/(reel|p)\/[A-Za-z0-9_-]+\/?/;   // the check on reels.url
+// what «Вернуть эту версию» never touches: see restore_version()
+const RESTORE_KEEPS = ['id', 'created_at', 'updated_at', 'updated_by', 'sort', 'published'];
 
 export class DemoApi {
   constructor() {
@@ -332,15 +345,18 @@ export class DemoApi {
     if (!st || st.v !== fresh.v) st = fresh;
     else st.events = fresh.events;   // site events are regenerated (deterministic), never stored
     this.st = st;
+    this.media = {};
+    try { this.media = JSON.parse(localStorage.getItem(MEDIA_KEY) || '{}') || {}; } catch (e) {}
+    this.removed = [];   // addresses of the photos deleted from the «bucket» — to look at in the console
     this.persist();
   }
   persist() {
     const { events, ...rest } = this.st;
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(rest)); } catch (e) {}
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(rest)); } catch (e) { console.warn('Демо: в хранилище браузера не осталось места — последние правки не сохранятся после перезагрузки', e); }
     this.publish();
   }
-  publish() { try { localStorage.setItem('sam-cms-demo', JSON.stringify(publicSnapshot(this.st))); } catch (e) {} }
-  reset() { localStorage.removeItem(STORE_KEY); localStorage.removeItem('sam-cms-demo'); localStorage.removeItem(WA_KEY); }
+  publish() { try { localStorage.setItem('sam-cms-demo', JSON.stringify(publicSnapshot(this.st))); } catch (e) { console.warn('Демо: сайт ?cms=demo не получил правки — в хранилище браузера не осталось места', e); } }
+  reset() { localStorage.removeItem(STORE_KEY); localStorage.removeItem('sam-cms-demo'); localStorage.removeItem(WA_KEY); localStorage.removeItem(MEDIA_KEY); }
   /** demo only: look at the panel as another role */
   switchRole(role) { this.st.role = role; const u = this.st.users.find((x) => x.role === role); this.st.me = u.id; this.persist(); }
   guard(what) { if (!ROLE_OK[what].includes(this.st.role)) { const e = new Error('permission denied (' + what + ')'); throw e; } }
@@ -475,12 +491,16 @@ export class DemoApi {
 
   async list(table) {
     if (['leads'].includes(table)) this.guard('leads');
+    // RLS gives the content role no rows of any other table
+    if (this.st.role === 'content' && !CONTENT_TABLES.includes(table)) return this.wait([], 60);
     const rows = (this.st[table] || []).slice();
     if (rows.length && 'sort' in rows[0]) rows.sort((a, b) => a.sort - b.sort); else rows.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
     return this.wait(rows, 100);
   }
   audit_(table, action, before, after) {
-    this.st.audit.unshift({ id: Date.now() + Math.random(), at: iso(Date.now()), actor: this.st.me, table_name: table, row_id: (after || before).id || (after || before).key, action, before, after });
+    // copies: the log keeps the row as it was at that moment, not a link to the live one
+    const copy = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
+    this.st.audit.unshift({ id: Date.now() + Math.random(), at: iso(Date.now()), actor: this.st.me, table_name: table, row_id: (after || before).id || (after || before).key, action, before: copy(before), after: copy(after) });
   }
   async save(table, row) {
     if (TABLE_WRITE[table]) this.guard(TABLE_WRITE[table]);
@@ -489,6 +509,8 @@ export class DemoApi {
     if (table === 'campaigns') row = { ...row, currency: this.campaignCurrency(row) };
     if (table === 'coupons' && list.some((x) => x.code.toUpperCase() === String(row.code).toUpperCase() && x.id !== row.id)) throw new Error('duplicate key code');
     if (table === 'tours' && list.some((x) => x.slug === row.slug && x.id !== row.id)) throw new Error('duplicate key slug');
+    if (table === 'tours' && (row.tags || []).some((t) => !TOUR_TAGS.includes(t))) throw new Error('violates check constraint "tours_tags_known"');
+    if (table === 'reels' && !REEL_RE.test(row.url || '')) throw new Error('violates check constraint "reels_url_check"');
     const now = iso(Date.now());
     if (row.id) {
       const cur = list.find((x) => x.id === row.id);
@@ -508,9 +530,54 @@ export class DemoApi {
     this.st[table] = this.st[table].filter((x) => x.id !== id);
     this.audit_(table, 'delete', cur, null); this.persist();
   }
-  async reorder(table, ids) { ids.forEach((id, i) => { const r = this.st[table].find((x) => x.id === id); if (r) r.sort = i; }); this.persist(); }
+  async reorder(table, ids) { if (TABLE_WRITE[table]) this.guard(TABLE_WRITE[table]); ids.forEach((id, i) => { const r = this.st[table].find((x) => x.id === id); if (r) r.sort = i; }); this.persist(); }
 
-  async settings() { return this.wait(this.st.settings, 60); }
+  async settings() { return this.wait(this.st.role === 'content' ? {} : this.st.settings, 60); }
+
+  // ---- history of a content row and «Вернуть эту версию» — row_history() / restore_version() ----
+  contentGuard_(table) {
+    if (!CONTENT_TABLES.includes(table)) throw new Error('not_content_table');
+    this.guard(TABLE_WRITE[table]);
+  }
+  async history(table, id) {
+    this.contentGuard_(table);
+    const name = (a) => { const u = this.st.users.find((x) => x.id === a); return u ? (u.full_name || u.email) : null; };
+    return this.wait(this.st.audit.filter((a) => a.table_name === table && a.row_id === id && a.action !== 'delete')
+      .sort((a, b) => String(b.at).localeCompare(String(a.at)))
+      .slice(0, 100).map((a) => ({ id: a.id, at: a.at, action: a.action, actor: a.actor, actor_name: name(a.actor), version: a.after })), 120);
+  }
+  async restore(auditId) {
+    const a = this.st.audit.find((x) => x.id === auditId);
+    if (!a) throw new Error('version_not_found');
+    this.contentGuard_(a.table_name);
+    const snap = JSON.parse(JSON.stringify(a.after || a.before)), list = this.st[a.table_name], now = iso(Date.now());
+    let cur = list.find((x) => x.id === a.row_id);
+    // a photo of that version is no longer in the «bucket» → the present one stays (media_alive)
+    let kept = false;
+    ['photo_url', 'photo_hero_url'].forEach((k) => { if (k in snap && !this.mediaAlive_(snap[k])) { snap[k] = cur ? cur[k] || null : null; kept = true; } });
+    if (!cur) {
+      this.guard('write_owner');   // a deleted record comes back only from the owner's hands
+      cur = { ...snap, updated_at: now, updated_by: this.st.me };
+      list.push(cur); this.audit_(a.table_name, 'insert', null, cur);
+    } else {
+      const before = JSON.parse(JSON.stringify(cur));
+      RESTORE_KEEPS.forEach((k) => delete snap[k]);
+      Object.assign(cur, snap, { updated_at: now, updated_by: this.st.me });
+      this.audit_(a.table_name, 'update', before, cur);
+    }
+    this.persist();
+    return this.wait({ row: cur, photo_kept: kept }, 120);
+  }
+
+  // ---- the demo «bucket» ----
+  saveMedia_() { try { localStorage.setItem(MEDIA_KEY, JSON.stringify(this.media)); return true; } catch (e) { return false; } }
+  mediaAlive_(url) { return !url || !String(url).startsWith(MEDIA_REF) || !!this.media[String(url).slice(MEDIA_REF.length)]; }
+  /** the address to put into <img> / background-image: LiveApi gives the address back as it is */
+  src(url) { return url && String(url).startsWith(MEDIA_REF) ? this.media[String(url).slice(MEDIA_REF.length)] || '' : url || ''; }
+  async removeFiles(urls) {
+    (urls || []).forEach((u) => { if (u && String(u).startsWith(MEDIA_REF) && this.media[u.slice(MEDIA_REF.length)]) { delete this.media[u.slice(MEDIA_REF.length)]; this.removed.push(u); } });
+    this.saveMedia_(); this.publish();
+  }
   async saveSetting(key, value) {
     if (!(this.st.role === 'admin' || (this.st.role === 'marketer' && ['seo', 'analytics', 'stats'].includes(key)))) throw new Error('permission denied');
     this.audit_('site_settings', 'update', { key, value: this.st.settings[key] }, { key, value });
@@ -528,6 +595,11 @@ export class DemoApi {
   async couponStats() { this.guard('stats'); return this.wait(couponStats(this.st.coupons, this.st.leads), 100); }
   async audit() { this.guard('audit'); return this.wait(this.st.audit, 100); }
   async upload(file) {
-    return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+    if (!['admin', 'manager', 'marketer', 'content'].includes(this.st.role)) throw new Error('permission denied (media)');
+    const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+    const id = uuid().replace(/-/g, '').slice(0, 12);
+    this.media[id] = data;
+    if (!this.saveMedia_()) { delete this.media[id]; throw new Error('demo_storage_full'); }
+    return MEDIA_REF + id;
   }
 }

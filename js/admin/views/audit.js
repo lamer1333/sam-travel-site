@@ -1,13 +1,15 @@
 // Audit log: who changed what, when — with a field-level diff.
-import { h, mount, fmt, drawer, select, table, pageHead } from '../ui.js';
+import { h, mount, fmt, icon, toast, drawer, confirmDlg, select, table, pageHead } from '../ui.js';
 import { ROLE_NAMES } from '../main.js';
 
 const TABLES = { site_settings: 'Настройки сайта', tours: 'Туры', reviews: 'Отзывы', team: 'Команда', reels: 'Рилсы', promos: 'Промо', campaigns: 'Кампании', coupons: 'Промокоды', wa_templates: 'Шаблоны', profiles: 'Роли', leads: 'Продажи' };
 const ACT = { insert: ['ok', 'Создано'], update: ['warn', 'Изменено'], delete: ['bad', 'Удалено'] };
 const SKIP = ['updated_at', 'updated_by', 'created_at'];
+// a deleted tour, review, reel or team member comes back from here — the owner only (restore_version in 080_content.sql)
+const RESTORABLE = ['tours', 'reviews', 'reels', 'team'];
 
 export default async function auditView(root, ctx) {
-  const [rows] = await Promise.all([ctx.api.audit(400), ctx.users().catch(() => [])]);
+  let [rows] = await Promise.all([ctx.api.audit(400), ctx.users().catch(() => [])]);
   const f = { table: '', actor: '' };
   const box = h('div');
   const actors = Array.from(new Set(rows.map((r) => r.actor).filter(Boolean)));
@@ -28,10 +30,22 @@ export default async function auditView(root, ctx) {
   }
   function open(r) {
     const keys = r.action === 'update' ? changed(r) : Object.keys(r.after || r.before || {}).filter((k) => !SKIP.includes(k));
+    // still deleted = no later line about the same record
+    const gone = r.action === 'delete' && RESTORABLE.includes(r.table_name) && !rows.some((x) => x.table_name === r.table_name && x.row_id === r.row_id && x.id !== r.id && new Date(x.at) >= new Date(r.at) && x.action !== 'delete');
     drawer({ title: (TABLES[r.table_name] || r.table_name) + ': ' + title(r), sub: ACT[r.action][1] + ' · ' + fmt.dt(r.at) + ' · ' + (r.actor ? ctx.staffName(r.actor) : 'система'),
       body: () => h('div.diff', keys.map((k) => h('div', h('b', k), ': ',
         r.action !== 'insert' ? h('del', show(r.before && r.before[k])) : null, r.action === 'update' ? ' → ' : null,
-        r.action !== 'delete' ? h('ins', show(r.after && r.after[k])) : null))) });
+        r.action !== 'delete' ? h('ins', show(r.after && r.after[k])) : null))),
+      footer: gone ? (api) => h('div.btns', { style: { width: '100%', justifyContent: 'space-between' } },
+        h('span.muted', 'Запись удалена. Её можно вернуть такой, какой она была.'),
+        h('button.btn.btn--primary', { onclick: async () => {
+          if (!(await confirmDlg('Вернуть удалённую запись «' + title(r) + '»?', { ok: 'Вернуть', danger: false, sub: 'Она вернётся в «Контент сайта» с тем же текстом и на то же место. Возврат попадёт в журнал.' }))) return;
+          try {
+            const res = await ctx.api.restore(r.id);
+            toast(res.photo_kept ? 'Запись возвращена. Её фото уже удалено из хранилища — загрузите новое' : 'Запись возвращена');
+            api.close(); rows = await ctx.api.audit(400); paint();
+          } catch (e) { ctx.err(e); }
+        } }, icon('history'), 'Вернуть запись')) : null });
   }
   function title(r) {
     const x = r.after || r.before || {};
