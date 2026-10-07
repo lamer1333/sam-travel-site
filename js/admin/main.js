@@ -5,6 +5,7 @@
 import { h, $, $$, mount, clear, icon, toast, fmt, initials, input, field, debounce, setCurrency } from './ui.js';
 import { LiveApi, errText } from './api.js';
 import { DemoApi } from './demo.js';
+import * as REM from './reminders.js';
 
 const DEMO = new URLSearchParams(location.search).has('demo');
 const app = $('#app');
@@ -74,6 +75,13 @@ export const ctx = {
   go(route) { location.hash = '#/' + route; },
   async users(force) { if (force || !ctx.cache.users) ctx.cache.users = await ctx.api.users(); return ctx.cache.users; },
   async settings(force) { if (force || !ctx.cache.settings) ctx.cache.settings = await ctx.api.settings(); return ctx.cache.settings; },
+  // «Написать сегодня» (TZ-BACKEND.md §4.12): the flight reminders owed today. One answer
+  // feeds the counter in the menu and the two blocks on the dashboard.
+  async reminders(force) {
+    if (!ctx.can('sales')) return null;
+    if (force || !ctx.cache.reminders) { ctx.cache.reminders = await ctx.api.reminders(); paintCount(); }
+    return ctx.cache.reminders;
+  },
   staffName(id) { const u = (ctx.cache.users || []).find((x) => x.id === id); return u ? (u.full_name || u.email) : '—'; },
   team() { return (ctx.cache.users || []).filter((u) => u.role === 'admin' || u.role === 'manager'); },
   range(days = ctx.period.days) {
@@ -92,7 +100,7 @@ window.__samPanel = ctx;   // handy in the console
 // ---------- boot ----------
 async function boot() {
   if (DEMO) {
-    ctx.api = new DemoApi();
+    ctx.api = new DemoApi(REM);
     return start();
   }
   if (!window.sb) { mount(app, loginView('Не загрузилась библиотека Supabase — проверьте интернет.')); return; }
@@ -115,6 +123,7 @@ async function start() {
   window.addEventListener('hashchange', route);
   route();
   if (ctx.role !== 'content') ctx.users().catch(() => {});   // the list of people is closed to the content role
+  if (['admin', 'manager'].includes(ctx.role)) ctx.reminders().catch(() => {});
 }
 
 // ---------- login ----------
@@ -213,7 +222,17 @@ function paintSide() {
   mount(els.tabbar,
     flat.slice(0, flat.length > 5 ? 4 : 5).map(([r, label, ic]) => h('a', { href: '#/' + r, dataset: { route: r } }, h('i', icon(ic)), h('span.lbl', short(label)))),
     flat.length > 5 || both ? h('button', { type: 'button', onclick: () => toggleSide(els.side) }, h('i', icon('menu')), h('span.lbl', 'Меню')) : null);
-  markCurrent();
+  markCurrent(); paintCount();
+}
+/** how many clients are waiting for a message today — next to «Сводка», where the list is */
+function paintCount() {
+  const n = ((ctx.cache.reminders || {}).items || []).length;
+  // the rail / drawer and the phone's bottom bar
+  [els.side && $('.nav a[data-route="dashboard"]', els.side), els.tabbar && $('a[data-route="dashboard"]', els.tabbar)].forEach((a) => {
+    if (!a) return;
+    const old = $('.count', a); if (old) old.remove();
+    if (n) a.appendChild(h('span.count', { title: 'Написать сегодня: ' + n }, String(n)));
+  });
 }
 function markCurrent() { const r = currentRoute(); $$('.nav a', els.side).concat($$('a', els.tabbar)).forEach((a) => a.setAttribute('aria-current', a.dataset.route === r ? 'page' : 'false')); }
 function currentRoute() { const r = location.hash.replace(/^#\/?/, '').split('?')[0].replace(/^leads(\/|$)/, 'sales$1');   // old links to «Заявки»

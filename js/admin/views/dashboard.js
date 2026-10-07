@@ -3,14 +3,20 @@
 // (TZ-BACKEND.md §4.11, §5). The panel does not recount anything.
 // The site has no request form: an «обращение» is a click on a WhatsApp or phone link,
 // a sale is what the owner typed in. Money is «по дате продажи».
-import { h, icon, fmt, table, plural, currency } from '../ui.js';
+// On top — the flight reminders (§4.12): who to write to today, with the message already
+// typed in the client's language, and the flights of the next 7 days. The list, the texts
+// and the wa.me links come from reminders_today(), 090_reminders.sql; the message itself
+// is sent by a person from their own WhatsApp.
+import { h, mount, icon, fmt, table, plural, currency, toast } from '../ui.js';
 import { kpi, timeChart, barList, funnel, heatmap, heatPeak } from '../charts.js';
-import { loadTours, tourName, srcName } from './common.js';
+import { loadTours, tourName, srcName, tripDay } from './common.js';
+import { KIND_SHORT } from '../reminders.js';
 
 export default async function dashboard(root, ctx) {
   const rg = ctx.range();
-  const [s, p] = await Promise.all([
+  const [s, p, , , rem0] = await Promise.all([
     ctx.api.sales(rg.from, rg.to), ctx.api.sales(rg.prevFrom, rg.prevTo).catch(() => null), ctx.users().catch(() => []), loadTours(ctx),
+    ctx.reminders(true).catch(() => null),
   ]);
   const k = s.kpi, pk = p ? p.kpi : {}, days = s.daily, cur = currency();
 
@@ -37,6 +43,8 @@ export default async function dashboard(root, ctx) {
   // Money in this panel is typed in by people, not measured — say so when it is missing.
   if (!k.sales_ever) root.append(h('div.note', { style: { marginBottom: '14px' } }, icon('spark'),
     h('span', 'Продаж пока нет, поэтому выручка, средний чек и доход пустые. Сайт сам ничего не продаёт и заявок не собирает: клиент пишет вам в WhatsApp, а когда он купил тур — внесите это кнопкой «Продажа». В конце его сообщения есть номер обращения («№ K7M2X») — впишите его, и панель покажет, с какой рекламы пришёл клиент.')));
+
+  if (rem0) root.append(reminders(ctx, rem0));
 
   const grid = h('div.dash');
   root.append(grid);
@@ -93,6 +101,48 @@ export default async function dashboard(root, ctx) {
       { key: 'revenue', label: 'Выручка', align: 'r', sort: true, render: (r) => fmt.money(r.revenue, cur) },
       { key: 'profit', label: 'Доход', align: 'r', sort: true, render: (r) => fmt.money(r.profit, cur) },
     ] })));
+}
+
+// ---------- «Написать сегодня» и «Ближайшие вылеты» ----------
+function reminders(ctx, rem) {
+  const todo = h('section.card.c7'), soon = h('section.card.c5');
+  const dayDiff = (d) => Math.round((Date.parse(d) - Date.parse(rem.today)) / 86400e3);
+  const inDays = (d) => { const n = dayDiff(d); return n === 0 ? 'сегодня' : n === 1 ? 'завтра' : 'через ' + n + ' ' + plural(n, 'день', 'дня', 'дней'); };
+  const when = (it) => (it.kind === 'bon_voyage' ? 'вылет ' + tripDay(it.depart_on) : 'вернулись ' + tripDay(it.return_on));
+  const refresh = async () => { rem = await ctx.reminders(true); paint(); };
+  // the button is a plain link to wa.me: it opens the chat with the text typed in, and the
+  // record is marked as sent at the same moment — «Отменить» in the toast takes the mark off
+  async function done(it) {
+    try {
+      await ctx.api.reminderDone(it.id);
+      await refresh();
+      toast(it.name + ': отмечено «отправлено»', '', { icon: 'check', ms: 7000, action: { label: 'Отменить', run: () => ctx.api.reminderDone(it.id, false).then(refresh).catch(ctx.err) } });
+    } catch (e) { ctx.err(e); }
+  }
+  function paint() {
+    const items = rem.items, n = items.length;
+    mount(todo, h('div.card__h', h('div', h('h3', 'Написать сегодня', n ? h('span.count', String(n)) : null),
+      h('p', 'Накануне вылета — «хорошего полёта», на следующий день после возвращения — «с возвращением». Текст уже набран на языке клиента.'))),
+      !rem.enabled ? h('div.note', icon('alert'), h('span', 'Напоминания выключены. Включить — в разделе «Контакты и реквизиты».'))
+        : !n ? h('div.empty', h('b', 'Сегодня писать некому'), h('div', 'Клиенты появятся здесь накануне вылета — укажите дату вылета в продаже.'))
+        : h('div.list', items.map((it) => h('div.item.rem', { dataset: { reminder: it.id } },
+          h('div.item__main',
+            h('div.row', h('b', it.name), h('span.tag', KIND_SHORT[it.kind]), h('span.tag', it.lang.toUpperCase()),
+              it.overdue ? h('span.badge.badge--bad', { title: 'Нужно было написать ' + tripDay(it.due_on) }, 'просрочено') : null),
+            h('small', [tourName(ctx, it.tour), when(it), it.phone].filter(Boolean).join(' · ')),
+            h('div.rem__text', it.text)),
+          h('div.rem__act',
+            h('a.btn.btn--wa.btn--sm', { href: it.wa_url, target: '_blank', rel: 'noopener', onclick: () => { done(it); } }, icon('wa'), 'Отправить в WhatsApp'),
+            h('button.btn.btn--ghost.btn--sm', { type: 'button', title: 'Уже написали сами — убрать из списка', onclick: () => done(it) }, 'Уже отправлено'))))));
+    mount(soon, h('div.card__h', h('div', h('h3', 'Ближайшие вылеты'), h('p', 'На 7 дней вперёд, по дате вылета'))),
+      rem.upcoming.length ? h('div.list', rem.upcoming.map((u) => h('div.item', { style: { cursor: 'pointer' }, title: 'Открыть продажу', onclick: () => ctx.go('sales/' + u.id) },
+        h('div.item__main', h('b', u.name), h('small', [tourName(ctx, u.tour), u.return_on ? 'обратно ' + tripDay(u.return_on) : null].filter(Boolean).join(' · ') || u.phone)),
+        h('div', { style: { textAlign: 'right', flex: 'none' } }, h('b', { style: { display: 'block' } }, tripDay(u.depart_on)),
+          h('small.muted', inDays(u.depart_on) + (u.reminder === 'sent' ? ' · написали' : ''))))))
+        : h('div.empty', 'В ближайшие 7 дней никто не улетает'));
+  }
+  paint();
+  return h('div.dash', { style: { marginBottom: '16px' } }, todo, soon);
 }
 
 function greeting() { const hr = new Date().getHours(); return hr < 5 ? 'Доброй ночи' : hr < 12 ? 'Доброе утро' : hr < 18 ? 'Добрый день' : 'Добрый вечер'; }

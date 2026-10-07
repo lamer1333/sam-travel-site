@@ -23,10 +23,12 @@ export class LiveApi {
   // The site has no request form (TZ-BACKEND.md §4.11): the `leads` table holds only what the
   // owner typed in — sales (won) and refunds (lost). PostgREST gives at most `max rows`
   // (1000 by default) per request, so the journal is read page by page → { rows, total }.
-  async journal({ q, status, noProfit, since, offset = 0, limit = PAGE } = {}) {
+  // `depart` = { from, to } (flight days, 'YYYY-MM-DD') or { none: true } — the «Вылет» filter; soonest flight first.
+  async journal({ q, status, noProfit, since, depart, offset = 0, limit = PAGE } = {}) {
     let r = this.sb.from('leads').select('*', { count: 'exact' }).in('status', status ? [status] : ['won', 'lost']);
     if (since) r = r.gte('closed_at', since);
     if (noProfit) r = r.eq('status', 'won').is('profit', null);
+    if (depart) r = depart.none ? r.is('depart_on', null) : r.gte('depart_on', depart.from).lte('depart_on', depart.to);
     if (q) {
       const like = JSON.stringify('%' + q + '%'), digits = q.replace(/\D/g, ''), ref = q.toUpperCase().replace(/[^0-9A-Z]/g, '');
       const any = [`name.ilike.${like}`, `message.ilike.${like}`];
@@ -35,6 +37,7 @@ export class LiveApi {
       if (ref.length === 5) any.push(`ref.eq.${ref}`);
       r = r.or(any.join(','));
     }
+    if (depart && !depart.none) r = r.order('depart_on');
     const { data, error, count } = await r.order('closed_at', { ascending: false }).order('id').range(offset, offset + limit - 1);
     if (error) throw error;
     return { rows: data, total: count == null ? offset + data.length : count };
@@ -59,6 +62,14 @@ export class LiveApi {
   }
   /** what the site knows about the visit with this reference number («№ K7M2X» at the end of a WhatsApp message), or null */
   async waRef(code) { return must(await this.sb.rpc('wa_ref', { p_code: code })); }
+
+  // ---- flight reminders (090_reminders.sql) ----
+  // The database builds the list, the text in the client's language and the wa.me link; the
+  // message itself is sent by a person from their own phone.
+  /** { today, enabled, items: who to write to today, upcoming: flights within 7 days } */
+  async reminders() { return must(await this.sb.rpc('reminders_today')); }
+  /** mark a reminder as sent (done = false takes the mark off) */
+  async reminderDone(id, done = true) { return must(await this.sb.rpc('reminder_done', { p_id: id, p_done: done })); }
 
   // ---- people ----
   async users() { return must(await this.sb.rpc('users_list')); }
@@ -136,6 +147,12 @@ export function errText(e) {
   if (/value_negative/.test(m)) return 'Сумма не может быть отрицательной';
   if (/sale_date_in_future/.test(m)) return 'Дата продажи не может быть в будущем';
   if (/lost_reason_required/.test(m)) return 'Укажите причину возврата';
+  if (/return_before_depart/.test(m)) return 'Дата возвращения не может быть раньше даты вылета';
+  if (/wa_auto_unavailable/.test(m)) return 'Автоматическая отправка станет доступна после подключения WhatsApp Business Platform';
+  if (/bad_mail_hour/.test(m)) return 'Час письма — целое число от 0 до 23';
+  if (/bad_review_url/.test(m)) return 'Ссылка для отзыва должна начинаться с https://';
+  if (/reminder_not_found/.test(m)) return 'Напоминание не найдено — обновите страницу';
+  if (/duplicate key.*wa_templates_kind_lang/i.test(m)) return 'Текст этого напоминания на этом языке уже есть — правьте его';
   if (/ref_invalid/.test(m)) return 'Номер обращения — 5 знаков из конца сообщения клиента, например K7M2X';
   if (/ref_not_found/.test(m)) return 'Обращения с таким номером за последние 90 дней нет. Проверьте номер или внесите продажу без него';
   if (/last_owner/.test(m)) return 'Это последний владелец — сначала назначьте другого';

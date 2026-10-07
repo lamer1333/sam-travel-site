@@ -8,6 +8,11 @@
 //   (pg_cron → notify_kick() → эта же функция с телом {"type":"retry"}).
 //   Правила — в supabase/migrations/050_notify.sql, логика — в handler.mjs.
 //
+//   Этап 9: та же функция шлёт письмо дня «Сегодня написать: N клиентов» — напоминания
+//   о вылетах со ссылками wa.me (090_reminders.sql). Его ставит в очередь pg_cron
+//   (reminders_tick → notify_kick → эта функция с телом {"type":"retry"}); вебхук на
+//   leads для этого не нужен. Клиентам функция ничего не отправляет.
+//
 // Вебхук (Supabase → Database → Webhooks): таблица leads, событие Insert, метод POST,
 // адрес функции, HTTP-заголовок  x-webhook-secret: <WEBHOOK_SECRET>.
 // «Verify JWT» у функции выключить — её защищает секрет вебхука.

@@ -1,6 +1,7 @@
 // Contacts & company details: one place, applied to every link on the site
 // (header, menu, contacts block, footer, floating WhatsApp, structured data).
-import { h, mount, icon, toast, field, input, select, chipsPick, pageHead, card, i18nEditor, setCurrency } from '../ui.js';
+import { h, mount, icon, toast, field, input, select, toggle, chipsPick, pageHead, card, i18nEditor, setCurrency } from '../ui.js';
+import { waSettings } from '../reminders.js';
 
 const SAMPLE = { licence: '23-1057-2023', insurance: 'TRV-2026-0412' };
 
@@ -49,4 +50,27 @@ export default async function contactsView(root, ctx) {
       h('div.field', h('span', 'Рабочие дни'), chipsPick(days, hr.days, (v) => { hr.days = v.map(Number).sort(); })),
       h('div.grid2', field('С', input(hr.from, { type: 'time', oninput: (v) => { hr.from = v; } })), field('До', input(hr.to, { type: 'time', oninput: (v) => { hr.to = v; } })))),
     h('div.btns', { style: { marginTop: '14px' } }, h('button.btn.btn--primary', { onclick: () => save('hours', hr, 'Рабочее время сохранено') }, 'Сохранить'))));
+
+  // Flight reminders (TZ-BACKEND.md §4.12). The system prepares the list and the text; the
+  // message is sent by a person. «Отправлять автоматически» is shown but locked: it needs the
+  // paid WhatsApp Business Platform, and the database refuses the mode until then.
+  const w = waSettings(s);
+  const rv = input(w.review_url, { type: 'url', placeholder: 'https://g.page/r/…/review', oninput: (v) => { w.review_url = v.trim(); bad(rv, !w.review_url || /^https?:\/\/\S+$/.test(w.review_url)); } });
+  const auto = toggle(false, 'Отправлять автоматически');
+  auto.querySelector('input').disabled = true; auto.style.opacity = '.55'; auto.style.cursor = 'not-allowed';
+  g.append(h('section.card.c12', h('div.card__h', h('div', h('h3', 'Напоминания о вылетах'), h('p', 'Накануне вылета и на следующий день после возвращения панель подсказывает, кому написать, и готовит текст на языке клиента. Сообщение отправляете вы — со своего WhatsApp, одним нажатием.'))),
+    h('div.grid2',
+      h('div.stack',
+        toggle(w.enabled, 'Напоминания включены', (v) => { w.enabled = v; }),
+        field('Час письма со списком (по Еревану)', select(Array.from({ length: 24 }, (_, i) => [i, String(i).padStart(2, '0') + ':00']), w.mail_hour, (v) => { w.mail_hour = Number(v); }),
+          'Раз в день на ' + (c.email || 'почту агентства') + ' приходит письмо «Сегодня написать: …» с кнопками WhatsApp. Писать некому — письма нет')),
+      h('div.stack',
+        field('Ссылка для отзыва', rv, 'Дописывается в сообщение «с возвращением» — например, ссылка на ваши отзывы в Google'),
+        h('div.field', h('span', 'Автоматическая отправка'), auto, h('small', 'Станет доступно после подключения WhatsApp Business Platform')))),
+    h('div.btns', { style: { marginTop: '14px' } },
+      h('button.btn.btn--primary', { onclick: () => {
+        if (w.review_url && !/^https?:\/\/\S+$/.test(w.review_url)) { toast('Ссылка для отзыва должна начинаться с https://', 'bad'); rv.focus(); return; }
+        save('whatsapp', { ...w, mode: 'remind' }, 'Настройки напоминаний сохранены').then(() => ctx.reminders(true).catch(() => {}));
+      } }, 'Сохранить'),
+      h('button.btn', { onclick: () => ctx.go('templates') }, 'Тексты сообщений'))));
 }

@@ -243,6 +243,7 @@ export function saleCsvColumns(x) {
     ['Продажа', (l) => (isSale(l) ? 'да' : '')], ['Дата продажи', (l) => (l.status === 'won' && l.closed_at ? ymd(l.closed_at) : '')],
     ['Дата возврата', (l) => (isRefund(l) && l.closed_at ? ymd(l.closed_at) : '')], ['Причина возврата', (l) => (isRefund(l) ? l.lost_reason : '')],
     ['Имя', (l) => l.name], ['Телефон', (l) => l.phone], ['Направление', (l) => x.tourName(l.tour)], ['Что купили', (l) => l.message],
+    ['Вылет', (l) => l.depart_on], ['Возвращение', (l) => l.return_on], ['Язык клиента', (l) => l.lang],
     ['Номер обращения', (l) => l.ref], ['Канал', (l) => x.channelName(leadChannel(l))], ['utm_source', (l) => l.utm_source], ['utm_campaign', (l) => l.utm_campaign],
     ['Сумма', (l) => l.value], ['Доход агентства', (l) => l.profit], ['Валюта', () => x.currency],
     ['Кто внёс', (l) => (l.assigned_to ? x.staffName(l.assigned_to) : '')], ['Промокод', (l) => l.coupon_code], ['Теги', (l) => (l.tags || []).join(' ')],
