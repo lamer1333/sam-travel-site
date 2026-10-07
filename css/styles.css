@@ -1627,3 +1627,15 @@ html.has-promo-bar .topbar { top: var(--promo-h, 0px); }
 .cta-card__btns .btn { flex: 1 1 200px; justify-content: center; }
 .cta-card .btn svg, .sheet__cta .btn svg { width: 22px; height: 22px; flex: none; }
 .sheet__cta .btn { flex: 1 1 180px; justify-content: center; min-width: 0; text-align: center; line-height: 1.2; padding-block: 10px; }
+
+/* ---------- photos and tour types from the panel (stage 8) ----------
+   A photo uploaded in the panel is already cut to the shape of its place (card 2 : 3,
+   description head 16 : 9, team 3 : 4, review author 1 : 1), so it is shown edge to edge:
+   the built-in gradients keep their soft oversized backdrop, an uploaded photo does not. */
+.photo--img::before { inset: 0; transform: none; }
+.sheet__hero.photo--img { height: auto; aspect-ratio: 16 / 9; }
+.tour-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tour-tags[hidden] { display: none; }
+.tour-tags span { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.04em; line-height: 1; padding: 5px 9px; border-radius: 999px; background: rgba(11,13,18,0.07); color: var(--ink); }
+.tour .tour-tags span { background: rgba(255,255,255,0.22); color: #fff; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.sheet .tour-tags { margin-top: 10px; }

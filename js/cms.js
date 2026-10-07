@@ -114,17 +114,36 @@
     var n = data && data.settings && data.settings.contacts && data.settings.contacts.whatsapp;
     return /^\d{10,15}$/.test(n || '') ? n : ORIG.wa;
   }
+  /* One text of a tour: the visitor's language, else English, then Russian, then Armenian —
+     field by field, so a half-translated tour never shows an empty line. */
+  function T(i18n, k, l) {
+    var o = i18n || {}, order = [l || lang(), 'en', 'ru', 'hy'];
+    for (var i = 0; i < order.length; i++) {
+      var v = (o[order[i]] || {})[k];
+      if (Array.isArray(v) ? v.filter(Boolean).length : (v && String(v).trim())) return v;
+    }
+    return k === 'inc' ? [] : '';
+  }
+  /* The tour type is picked in the panel from a fixed list; the label is printed in the visitor's language. */
+  var TYPES = { beach: { en: 'Beach', ru: 'Пляж', hy: 'Լողափ' }, city: { en: 'City', ru: 'Город', hy: 'Քաղաք' },
+    nature: { en: 'Nature', ru: 'Природа', hy: 'Բնություն' }, family: { en: 'Family', ru: 'Семейный', hy: 'Ընտանեկան' } };
+  function typeLabels(tags, l) {
+    return (tags || []).filter(function (k) { return TYPES[k]; }).map(function (k) { return TYPES[k][l || lang()] || TYPES[k].en; });
+  }
   function applyTours(list) {
     if (!list || !list.length) return;
     var stage = $('#carou-stage'), dots = $('.carou__dots'); if (!stage) return;
     stage.innerHTML = list.map(function (t) {
-      var c = L(t.i18n) || {}, bg = cssUrl(t.photo_url);
+      var bg = cssUrl(t.photo_url), season = T(t.i18n, 'season'), types = typeLabels(t.tags);
+      /* photo--img: an uploaded photo is already cut to the card's shape (2 : 3) — it is shown edge to edge */
       return '<article class="tour" data-tour="' + esc(t.slug) + '" role="button" tabindex="0">'
-        + '<div class="photo ' + esc(t.photo_class || 'p-sea') + '"' + (bg ? ' style="--photo:' + esc(bg) + '"' : '') + '>'
-        + (c.season ? '<span class="tour__season">' + esc(c.season) + '</span>' : '') + '</div>'
+        + '<div class="photo ' + esc(t.photo_class || 'p-sea') + (bg ? ' photo--img' : '') + '"' + (bg ? ' style="--photo:' + esc(bg) + '"' : '') + '>'
+        + (season ? '<span class="tour__season">' + esc(season) + '</span>' : '') + '</div>'
         + '<a class="tour__wa" href="https://wa.me/' + esc(waNumber()) + '" target="_blank" rel="noopener" data-wa="tour" data-wa-tour="' + esc(t.slug) + '" aria-label="WhatsApp"><svg aria-hidden="true"><use href="#i-wa"/></svg></a>'
-        + '<div class="tour__body"><h3>' + esc(c.card_title || c.title || t.slug) + '</h3><p>' + esc(c.card_text || '') + '</p>'
-        + '<div class="tour__foot"><span>' + esc(c.dates || '') + '</span><b>' + esc(price(t)) + '</b></div></div></article>';
+        + '<div class="tour__body">'
+        + (types.length ? '<div class="tour-tags">' + types.map(function (x) { return '<span>' + esc(x) + '</span>'; }).join('') + '</div>' : '')
+        + '<h3>' + esc(T(t.i18n, 'card_title') || T(t.i18n, 'title') || t.slug) + '</h3><p>' + esc(T(t.i18n, 'card_text')) + '</p>'
+        + '<div class="tour__foot"><span>' + esc(T(t.i18n, 'dates')) + '</span><b>' + esc(price(t)) + '</b></div></div></article>';
     }).join('');
     if (dots) dots.innerHTML = list.map(function (_, i) { return '<button type="button" role="tab" data-carou-go="' + i + '" aria-label="Slide ' + (i + 1) + '"></button>'; }).join('');
     if (window.SAM_CAROUSEL_REFRESH) window.SAM_CAROUSEL_REFRESH();
@@ -132,8 +151,10 @@
   /* the tour sheet asks here first (see openTour in app.js) */
   window.SAM_CMS_TOURS = function (key, l) {
     var t = data && (data.tours || []).filter(function (x) { return x.slug === key; })[0]; if (!t) return null;
-    var c = t.i18n[l] || t.i18n.en || {}, en = t.i18n.en || {};
-    return { meta: c.meta || en.meta || '', title: c.title || en.title || '', text: c.text || en.text || '', inc: (c.inc && c.inc.length ? c.inc : en.inc) || [], photo: t.photo_class || 'p-sea', photoUrl: /^(https:|data:image)/.test(t.photo_url || '') ? t.photo_url : '' };
+    /* the head of the description has its own frame (16 : 9); a tour saved before that has one photo for both places */
+    var ok = function (u) { return /^(https:|data:image)/.test(u || '') ? u : ''; };
+    return { meta: T(t.i18n, 'meta', l), title: T(t.i18n, 'title', l), text: T(t.i18n, 'text', l), inc: T(t.i18n, 'inc', l), photo: t.photo_class || 'p-sea',
+      photoUrl: ok(t.photo_hero_url) || ok(t.photo_url), tags: typeLabels(t.tags, l) };
   };
 
   /* ---------- reviews ---------- */
@@ -149,7 +170,7 @@
       var html = cols[ci].map(function (r) {
         var body = L(r.body) || '', bg = cssUrl(r.photo_url);
         return '<article class="review"><div class="stars" aria-label="' + r.rating + ' stars">' + new Array(r.rating + 1).join(STAR) + '</div>'
-          + '<q>' + esc(body) + '</q><div class="review__who"><div class="photo"' + (bg ? ' style="--photo:' + esc(bg) + '"' : '') + '></div>'
+          + '<q>' + esc(body) + '</q><div class="review__who"><div class="photo' + (bg ? ' photo--img' : '') + '"' + (bg ? ' style="--photo:' + esc(bg) + '"' : '') + '></div>'
           + '<div><b>' + esc(r.author) + '</b><span>' + esc(r.trip || '') + '</span></div></div></article>';
       }).join('');
       tr.innerHTML = '<div class="tcol__set">' + html + '</div><div class="tcol__set" aria-hidden="true">' + html + '</div>';
@@ -162,7 +183,7 @@
     var box = $('.about-panel__photos'); if (!box) return;
     box.innerHTML = list.slice(0, 4).map(function (m) {
       var bg = cssUrl(m.photo_url);
-      return '<div class="person"><div class="photo"' + (bg ? ' style="--photo:' + esc(bg) + '"' : '') + '>' + (bg ? '' : '<span class="ph">photo</span>') + '</div>'
+      return '<div class="person"><div class="photo' + (bg ? ' photo--img' : '') + '"' + (bg ? ' style="--photo:' + esc(bg) + '"' : '') + '>' + (bg ? '' : '<span class="ph">photo</span>') + '</div>'
         + '<b>' + esc(Ls(m.i18n, 'name')) + '</b><span>' + esc(Ls(m.i18n, 'role')) + '</span></div>';
     }).join('');
   }
@@ -364,6 +385,14 @@
   function load() {
     if (DEMO) {
       try { data = JSON.parse(localStorage.getItem('sam-cms-demo') || 'null'); } catch (e) {}
+      /* the demo panel keeps uploaded photos in this browser under short addresses (js/admin/demo.js) */
+      try {
+        var media = JSON.parse(localStorage.getItem('sam-demo-media') || '{}') || {};
+        var real = function (u) { return /^demo-media:/.test(u || '') ? media[u.slice(11)] || null : u; };
+        if (data) ['tours', 'reviews', 'team'].forEach(function (k) {
+          (data[k] || []).forEach(function (r) { r.photo_url = real(r.photo_url); if ('photo_hero_url' in r) r.photo_hero_url = real(r.photo_hero_url); });
+        });
+      } catch (e) {}
       if (data) first(); else if (PREVIEW) { data = { settings: {}, promos: [] }; first(); }
       return;
     }

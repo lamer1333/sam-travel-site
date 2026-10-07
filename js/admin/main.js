@@ -9,7 +9,7 @@ import { DemoApi } from './demo.js';
 const DEMO = new URLSearchParams(location.search).has('demo');
 const app = $('#app');
 
-export const ROLE_NAMES = { admin: 'Владелец', manager: 'Менеджер', marketer: 'Маркетолог', client: 'Клиент' };
+export const ROLE_NAMES = { admin: 'Владелец', manager: 'Менеджер', marketer: 'Маркетолог', content: 'Контент', client: 'Клиент' };
 // The journal holds what the owner typed in: a sale, or a sale that was refunded.
 export const STATUS_NAME = { won: 'Продажа', lost: 'Возврат' };
 // where a sale without a reference number came from — the owner picks it
@@ -17,6 +17,8 @@ export const MANUAL_SOURCES = ['manual', 'phone', 'walk_in', 'instagram'];
 export const SOURCE_NAME = { manual: 'WhatsApp', phone: 'Звонок', walk_in: 'Пришли в офис', instagram: 'Instagram Direct' };
 
 // ---------- navigation ----------
+// The role «Контент» (the SMM specialist, TZ-CONTENT.md §9.2) has a menu of one section —
+// «Контент сайта». The database keeps the same line: 080_content.sql.
 const NAV = {
   owner: [
     ['Работа', [
@@ -25,7 +27,7 @@ const NAV = {
       ['people', 'Клиенты и команда', 'users', ['admin', 'manager']],
     ]],
     ['Сайт', [
-      ['content', 'Контент сайта', 'layout', ['admin']],
+      ['content', 'Контент сайта', 'layout', ['admin', 'content']],
       ['contacts', 'Контакты и реквизиты', 'phone', ['admin']],
       ['templates', 'Шаблоны ответов', 'message', ['admin']],
     ]],
@@ -61,7 +63,7 @@ const VIEWS = {
 const PERIOD_VIEWS = ['dashboard', 'm/overview', 'm/promos'];
 function wsOf(route) { return route.startsWith('m/') ? 'mkt' : 'owner'; }
 function allowed(route, role) { for (const ws of Object.values(NAV)) for (const [, items] of ws) for (const it of items) if (it[0] === route) return it[3].includes(role); return false; }
-function home(role) { return role === 'marketer' ? 'm/overview' : 'dashboard'; }
+function home(role) { return role === 'marketer' ? 'm/overview' : role === 'content' ? 'content' : 'dashboard'; }
 function titleOf(route) { for (const ws of Object.values(NAV)) for (const [, items] of ws) for (const it of items) if (it[0] === route) return it[1]; return ''; }
 
 // ---------- context shared with views ----------
@@ -80,7 +82,7 @@ export const ctx = {
   },
   can(what) {
     const r = ctx.role;
-    return ({ sales: ['admin', 'manager'], owner: ['admin'], marketing: ['admin', 'marketer'], team: ['admin'] }[what] || []).includes(r);
+    return ({ sales: ['admin', 'manager'], owner: ['admin'], marketing: ['admin', 'marketer'], team: ['admin'], content: ['admin', 'marketer', 'content'], team_photos: ['admin', 'content'] }[what] || []).includes(r);
   },
   err(e) { console.error(e); toast(errText(e), 'bad'); },
   rerender: () => route(),
@@ -104,7 +106,7 @@ async function start() {
   try {
     ctx.me = await ctx.api.whoami();
   } catch (e) { mount(app, loginView(errText(e))); return; }
-  if (!ctx.me || !['admin', 'manager', 'marketer'].includes(ctx.me.role)) { mount(app, noAccess()); return; }
+  if (!ctx.me || !['admin', 'manager', 'marketer', 'content'].includes(ctx.me.role)) { mount(app, noAccess()); return; }
   ctx.role = ctx.me.role;
   ctx.cache = {};
   // every sum in the panel is shown in the company currency
@@ -112,7 +114,7 @@ async function start() {
   renderShell();
   window.addEventListener('hashchange', route);
   route();
-  ctx.users().catch(() => {});
+  if (ctx.role !== 'content') ctx.users().catch(() => {});   // the list of people is closed to the content role
 }
 
 // ---------- login ----------
@@ -129,14 +131,14 @@ function loginView(msg) {
   return h('div.login', h('div.login__card',
     h('div.login__brand', h('img', { src: 'sam-logo.png', alt: '' }), h('b', 'SAM TRAVEL')),
     h('h1', 'Панель управления'),
-    h('p', 'Для владельца, менеджеров и маркетолога. Вход — тем же аккаунтом, что и на сайте; роль назначает владелец.'),
+    h('p', 'Для владельца, менеджеров, маркетолога и SMM-специалиста. Вход — тем же аккаунтом, что и на сайте; роль назначает владелец.'),
     form,
     h('div.login__demo', 'Нет доступа или хочется посмотреть? ', h('a', { href: 'admin.html?demo' }, 'Открыть демо-панель'), ' — данные сгенерированы, ничего не сохраняется на сервере.')));
 }
 function noAccess() {
   return h('div.login', h('div.login__card',
     h('h1', 'Нет доступа'),
-    h('p', 'Этот аккаунт — клиентский. Попросите владельца назначить вам роль «Менеджер» или «Маркетолог» в разделе «Клиенты и команда».'),
+    h('p', 'Этот аккаунт — клиентский. Попросите владельца назначить вам роль «Менеджер», «Маркетолог» или «Контент» в разделе «Клиенты и команда».'),
     h('div.btns', h('a.btn', { href: 'cabinet.html' }, 'В личный кабинет'), h('button.btn', { onclick: async () => { await ctx.api.signOut(); location.reload(); } }, 'Выйти'))));
 }
 
@@ -159,7 +161,7 @@ function renderShell() {
   const page = h('main.page', { id: 'page', tabindex: '-1' });
   const demoBar = DEMO ? h('div.demo-bar', h('b', 'Демо-режим.'), h('span', 'Данные сгенерированы, изменения остаются в этом браузере.'),
     h('label', 'Смотреть как: ', h('select', { onchange: (e) => { ctx.api.switchRole(e.target.value); location.hash = ''; location.reload(); } },
-      [['admin', 'Владелец'], ['manager', 'Менеджер'], ['marketer', 'Маркетолог']].map(([v, l]) => h('option', { value: v, selected: v === role }, l)))),
+      [['admin', 'Владелец'], ['manager', 'Менеджер'], ['marketer', 'Маркетолог'], ['content', 'Контент']].map(([v, l]) => h('option', { value: v, selected: v === role }, l)))),
     h('button', { onclick: () => { ctx.api.reset(); location.reload(); } }, 'Сбросить демо')) : null;
   els = { side, title, page, periodSeg };
   mount(app, h('div.shell', side, h('div.main', demoBar, top, page)));
@@ -183,7 +185,7 @@ function paintSide() {
   try { localStorage.setItem('sam-admin-ws', ws); } catch (e) {}
   const both = role === 'admin';
   mount(els.side,
-    h('div.side__brand', h('img', { src: 'sam-logo.png', alt: '' }), h('div', h('b', 'SAM TRAVEL'), h('small', ws === 'mkt' ? 'Панель маркетолога' : 'Панель владельца'))),
+    h('div.side__brand', h('img', { src: 'sam-logo.png', alt: '' }), h('div', h('b', 'SAM TRAVEL'), h('small', role === 'content' ? 'Контент сайта' : ws === 'mkt' ? 'Панель маркетолога' : 'Панель владельца'))),
     both ? h('div.ws', { role: 'group', 'aria-label': 'Рабочее пространство' },
       h('button', { type: 'button', 'aria-pressed': String(ws === 'owner'), onclick: () => ctx.go('dashboard') }, 'Владелец'),
       h('button', { type: 'button', 'aria-pressed': String(ws === 'mkt'), onclick: () => ctx.go('m/overview') }, 'Маркетинг')) : null,
@@ -242,13 +244,13 @@ const ACTIONS = [
   ['Новая кампания и UTM-ссылка', 'target', 'marketing', 'm/campaigns/new'],
   ['Новый баннер или поп-ап', 'megaphone', 'marketing', 'm/promos/new'],
   ['Сгенерировать промокоды', 'tag', 'marketing', 'm/coupons/new'],
-  ['Новый горящий тур', 'layout', 'marketing', (ctx) => (ctx.role === 'marketer' ? 'm/content' : 'content') + '/tours/new'],
+  ['Новый горящий тур', 'layout', 'content', (ctx) => (ctx.role === 'marketer' ? 'm/content' : 'content') + '/tours/new'],
   ['Выгрузить подписчиков (CSV)', 'download', 'marketing', 'm/audience/export'],
   ['Именинники месяца (CSV)', 'calendar', 'marketing', 'm/birthdays/export'],
 ];
 function openPalette() {
   if ($('.cmdk')) return;
-  const inp = h('input', { placeholder: 'Раздел, действие, имя, телефон или номер обращения…', 'aria-label': 'Поиск', autocomplete: 'off' });
+  const inp = h('input', { placeholder: ctx.can('sales') ? 'Раздел, действие, имя, телефон или номер обращения…' : 'Раздел или действие…', 'aria-label': 'Поиск', autocomplete: 'off' });
   const list = h('ul', { role: 'listbox' });
   const ov = h('div.overlay.is-open');
   const box = h('div.cmdk', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Поиск и команды' }, inp, list);

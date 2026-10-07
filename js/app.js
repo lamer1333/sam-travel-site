@@ -155,6 +155,14 @@
     var ph = $('#sheet-photo'); ph.className = 'sheet__hero photo ' + t.photo;
     ph.style.setProperty('--photo', t.photoUrl ? 'url("' + t.photoUrl + '") center / cover no-repeat' : '');
     var phLabel = ph.querySelector('.ph'); if (phLabel) phLabel.hidden = !!t.photoUrl;
+    /* a photo from the panel is cut to 16 : 9 for this place — the head takes that shape and shows it whole */
+    ph.classList.toggle('photo--img', !!t.photoUrl);
+    /* the tour type (Beach, City…) — set in the panel, printed in the language of the site */
+    var tg = $('#sheet-tags');
+    if (tg) {
+      tg.textContent = ''; tg.hidden = !(t.tags && t.tags.length);
+      (t.tags || []).forEach(function (s) { var el = document.createElement('span'); el.textContent = s; tg.appendChild(el); });
+    }
     $('#sheet-inc').innerHTML = t.inc.map(function (s) { return '<li><svg><use href="#i-check"/></svg>' + s + '</li>'; }).join('');
     sheet.scrollTop = 0; sheet.style.transform = '';
     /* the main button of the description: «Написать про {тур}» */

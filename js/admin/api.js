@@ -101,8 +101,28 @@ export class LiveApi {
     return this.sb.storage.from('media').getPublicUrl(path).data.publicUrl;
   }
 
+  /** the address to put into <img> / background-image (the demo keeps its photos elsewhere, see DemoApi.src) */
+  src(url) { return url || ''; }
+  /** Delete files of the `media` bucket by their public addresses — the photos a newer one replaced. Addresses that are not ours are skipped. */
+  async removeFiles(urls) {
+    const paths = (urls || []).map(mediaPath).filter(Boolean);
+    if (paths.length) must(await this.sb.storage.from('media').remove(paths));
+  }
+
+  // ---- history of a content row (080_content.sql) ----
+  /** past versions of a tour, review, reel or team member, newest first: [{ id, at, action, actor, actor_name, version }] */
+  async history(table, id) { return must(await this.sb.rpc('row_history', { p_table: table, p_id: id })); }
+  /** «Вернуть эту версию» → { row, photo_kept }; the database checks the rights and writes the return to the audit log */
+  async restore(auditId) { return must(await this.sb.rpc('restore_version', { p_audit: auditId })); }
+
   // the site reads the database itself; nothing to publish
   publish() {}
+}
+
+/** 'https://…/storage/v1/object/public/media/content/a.webp' → 'content/a.webp'; null for anything that is not a file of the bucket */
+export function mediaPath(url) {
+  const m = /\/storage\/v1\/object\/public\/media\/([^?#]+)/.exec(String(url || ''));
+  return m ? decodeURIComponent(m[1]) : null;
 }
 
 /** Friendly Russian text for the errors people actually hit */
@@ -126,6 +146,11 @@ export function errText(e) {
   if (/duplicate key.*code/i.test(m)) return 'Такой промокод уже существует';
   if (/duplicate key.*slug/i.test(m)) return 'Тур с таким адресом (slug) уже есть';
   if (/violates check constraint.*url/i.test(m)) return 'Нужна ссылка вида https://www.instagram.com/reel/…';
+  if (/tours_tags_known/.test(m)) return 'Тип тура выбирается из списка: Пляж, Город, Природа, Семейный';
+  if (/version_not_found/.test(m)) return 'Этой версии в журнале уже нет';
+  if (/not_content_table/.test(m)) return 'История и возврат версии есть только у туров, отзывов, рилсов и команды';
+  if (/demo_storage_full/.test(m)) return 'Демо: в браузере закончилось место для фото. Нажмите «Сбросить демо» вверху страницы';
+  if (/Payload too large|exceeded the maximum allowed size/i.test(m)) return 'Файл больше 5 МБ — хранилище его не принимает';
   if (/Could not find the function|does not exist/i.test(m)) return 'База не обновлена: накатите миграции из supabase/migrations/';
   if (/Failed to fetch|NetworkError/i.test(m)) return 'Нет связи с сервером';
   return m;
