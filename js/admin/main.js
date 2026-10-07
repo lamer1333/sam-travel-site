@@ -148,7 +148,7 @@ function renderShell() {
   const role = ctx.role;
   const side = h('aside.side', { 'aria-label': 'Навигация' });
   const title = h('h1.top__title');
-  const periodSeg = h('div.seg.hide-sm', { role: 'group', 'aria-label': 'Период' },
+  const periodSeg = h('div.seg', { role: 'group', 'aria-label': 'Период' },
     [[7, '7 дней'], [30, '30 дней'], [90, '90 дней']].map(([d, l]) => h('button', { type: 'button', 'aria-pressed': String(ctx.period.days === d), onclick: (e) => {
       ctx.period.days = d; $$('button', periodSeg).forEach((b) => b.setAttribute('aria-pressed', String(b === e.currentTarget))); route();
     } }, l)));
@@ -163,13 +163,23 @@ function renderShell() {
     h('label', 'Смотреть как: ', h('select', { onchange: (e) => { ctx.api.switchRole(e.target.value); location.hash = ''; location.reload(); } },
       [['admin', 'Владелец'], ['manager', 'Менеджер'], ['marketer', 'Маркетолог'], ['content', 'Контент']].map(([v, l]) => h('option', { value: v, selected: v === role }, l)))),
     h('button', { onclick: () => { ctx.api.reset(); location.reload(); } }, 'Сбросить демо')) : null;
-  els = { side, title, page, periodSeg };
-  mount(app, h('div.shell', side, h('div.main', demoBar, top, page)));
+  // phones: four sections under the thumb, the rest behind «Меню» (css: .tabbar)
+  const tabbar = h('nav.tabbar', { 'aria-label': 'Разделы' });
+  els = { side, title, page, periodSeg, tabbar };
+  mount(app, h('div.shell' + (railOn() ? '.is-rail' : ''), side, h('div.main', demoBar, top, page), tabbar));
   paintSide();
   document.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(); }
     else if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && !document.querySelector('.cmdk')) { e.preventDefault(); openPalette(); }
   });
+}
+// Desktop navigation is an icon rail by default; «»» opens the labels, and the choice is remembered.
+function railOn() { try { return localStorage.getItem('sam-admin-rail') !== '0'; } catch (e) { return true; } }
+function toggleRail() {
+  const shell = $('.shell'), on = !shell.classList.contains('is-rail');
+  shell.classList.toggle('is-rail', on);
+  try { localStorage.setItem('sam-admin-rail', on ? '1' : '0'); } catch (e) {}
+  const b = $('.rail-toggle'); if (b) { b.textContent = on ? '»' : '«'; b.title = on ? 'Показать названия разделов' : 'Свернуть меню'; }
 }
 function toggleSide(side, force) {
   const open = force != null ? force : !side.classList.contains('is-open');
@@ -185,21 +195,27 @@ function paintSide() {
   try { localStorage.setItem('sam-admin-ws', ws); } catch (e) {}
   const both = role === 'admin';
   mount(els.side,
-    h('div.side__brand', h('img', { src: 'sam-logo.png', alt: '' }), h('div', h('b', 'SAM TRAVEL'), h('small', role === 'content' ? 'Контент сайта' : ws === 'mkt' ? 'Панель маркетолога' : 'Панель владельца'))),
+    h('div.side__brand', h('img', { src: 'sam-logo.png', alt: '' }), h('div', h('b', 'SAM TRAVEL'), h('small', role === 'content' ? 'Контент сайта' : ws === 'mkt' ? 'Панель маркетолога' : 'Панель владельца')),
+      h('button.rail-toggle.hide-sm', { type: 'button', title: railOn() ? 'Показать названия разделов' : 'Свернуть меню', 'aria-label': 'Свернуть или развернуть меню', onclick: toggleRail }, railOn() ? '»' : '«')),
     both ? h('div.ws', { role: 'group', 'aria-label': 'Рабочее пространство' },
-      h('button', { type: 'button', 'aria-pressed': String(ws === 'owner'), onclick: () => ctx.go('dashboard') }, 'Владелец'),
-      h('button', { type: 'button', 'aria-pressed': String(ws === 'mkt'), onclick: () => ctx.go('m/overview') }, 'Маркетинг')) : null,
+      h('button', { type: 'button', 'aria-pressed': String(ws === 'owner'), title: 'Владелец', onclick: () => ctx.go('dashboard') }, icon('dashboard'), h('span', 'Владелец')),
+      h('button', { type: 'button', 'aria-pressed': String(ws === 'mkt'), title: 'Маркетинг', onclick: () => ctx.go('m/overview') }, icon('megaphone'), h('span', 'Маркетинг'))) : null,
     h('nav.nav', NAV[ws].map(([group, items]) => {
       const vis = items.filter((it) => it[3].includes(role));
       if (!vis.length) return null;
-      return [h('div.nav__h', group), vis.map(([r, label, ic]) => h('a', { href: '#/' + r, dataset: { route: r }, onclick: () => toggleSide(els.side, false) }, icon(ic), label))];
+      return [h('div.nav__h', group), vis.map(([r, label, ic]) => h('a', { href: '#/' + r, title: label, dataset: { route: r }, onclick: () => toggleSide(els.side, false) }, icon(ic), h('span', label)))];
     })),
     h('div.side__foot',
       h('div.me', h('span.avatar', initials(ctx.me.full_name || ctx.me.email)), h('div', { style: { minWidth: 0 } }, h('b', ctx.me.full_name || ctx.me.email), h('small', ROLE_NAMES[role]))),
-      h('button.btn.btn--ghost.btn--sm', { style: { justifyContent: 'flex-start' }, onclick: async () => { await ctx.api.signOut(); location.href = DEMO ? 'admin.html' : 'admin.html'; } }, icon('logout'), DEMO ? 'Выйти из демо' : 'Выйти')));
+      h('button.btn.btn--ghost.btn--sm', { style: { justifyContent: 'flex-start' }, onclick: async () => { await ctx.api.signOut(); location.href = DEMO ? 'admin.html' : 'admin.html'; } }, icon('logout'), h('span', DEMO ? 'Выйти из демо' : 'Выйти'))));
+  const flat = NAV[ws].flatMap(([, items]) => items.filter((it) => it[3].includes(role)));
+  const short = (l) => l.split(' ')[0];
+  mount(els.tabbar,
+    flat.slice(0, flat.length > 5 ? 4 : 5).map(([r, label, ic]) => h('a', { href: '#/' + r, dataset: { route: r } }, h('i', icon(ic)), h('span.lbl', short(label)))),
+    flat.length > 5 || both ? h('button', { type: 'button', onclick: () => toggleSide(els.side) }, h('i', icon('menu')), h('span.lbl', 'Меню')) : null);
   markCurrent();
 }
-function markCurrent() { const r = currentRoute(); $$('.nav a', els.side).forEach((a) => a.setAttribute('aria-current', a.dataset.route === r ? 'page' : 'false')); }
+function markCurrent() { const r = currentRoute(); $$('.nav a', els.side).concat($$('a', els.tabbar)).forEach((a) => a.setAttribute('aria-current', a.dataset.route === r ? 'page' : 'false')); }
 function currentRoute() { const r = location.hash.replace(/^#\/?/, '').split('?')[0].replace(/^leads(\/|$)/, 'sales$1');   // old links to «Заявки»
   const base = Object.keys(VIEWS).find((k) => r === k || r.startsWith(k + '/')); return base || ''; }
 

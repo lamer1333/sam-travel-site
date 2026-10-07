@@ -380,7 +380,7 @@ export function table({ columns, rows, onRow, selectable, selected, onSelect, em
     }, c.label, sortKey === c.key ? (dir > 0 ? ' ↑' : ' ↓') : '')));
     const body = data.length ? data.map((r) => h('tr', { class: (onRow ? 'is-click ' : '') + (sel.has(r.id) ? 'is-selected' : ''), onclick: onRow ? (e) => { if (!e.target.closest('input,button,a,select,label')) onRow(r); } : null },
       selectable ? h('td', h('input', { type: 'checkbox', 'aria-label': 'Выбрать', checked: sel.has(r.id), onchange: (e) => { e.target.checked ? sel.add(r.id) : sel.delete(r.id); onSelect && onSelect(sel); paint(); } })) : null,
-      columns.map((c) => { const v = c.render ? c.render(r) : r[c.key]; return h('td', { class: (c.align === 'r' ? 'r num ' : '') + (c.cls || '') }, v == null ? '—' : v); })))
+      columns.map((c, ci) => { const v = c.render ? c.render(r) : r[c.key]; return h('td', { class: (c.align === 'r' ? 'r num ' : '') + (c.cls || ''), ...(ci === 0 ? { 'data-primary': '' } : c.label ? { 'data-label': c.label } : {}) }, v == null ? '—' : v); })))
       : [h('tr', h('td', { colspan: columns.length + (selectable ? 1 : 0) }, h('div.empty', empty)))];
     mount(wrap, h('table.tbl', h('thead', head), h('tbody', body), foot && data.length ? h('tfoot', foot(data)) : null));
   }
