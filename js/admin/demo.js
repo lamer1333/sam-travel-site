@@ -9,7 +9,10 @@
 // number — campaign → click → sale attribution in the reports is internally consistent.
 // ---------------------------------------------------------------------------
 import { TOURS } from './demo-seed.js';
-import { salesStats, trafficStats, couponStats, refOf, refNorm, refOk, eventChannel } from './metrics.js';
+import { salesStats, trafficStats, couponStats, refOf, refNorm, refOk, eventChannel, ymd } from './metrics.js';
+// Flight reminders (§4.12): the rules live in ./reminders.js, a mirror of 090_reminders.sql.
+// main.js hands that module to DemoApi — this file keeps its two imports, so the tests can
+// load it on its own.
 
 const STORE_KEY = 'sam-admin-demo-v1';
 const WA_KEY = 'sam-demo-wa';   // WhatsApp clicks made on the site opened with ?cms=demo (js/track.js)
@@ -99,7 +102,7 @@ export function attributeLead(old, row, lookup) {
 const couponUsed = (leads, code) => leads.filter((l) => l.status === 'won' && l.coupon_code && l.coupon_code.toUpperCase() === String(code).toUpperCase()).length;
 
 // ------------------------------------------------------------------ generate
-function generate() {
+function generate(REM) {
   const R = rng(20260929);
   const pick = (arr) => arr[Math.floor(R() * arr.length)];
   const wpick = (pairs) => { const tot = pairs.reduce((a, p) => a + p[1], 0); let x = R() * tot; for (const p of pairs) { x -= p[1]; if (x <= 0) return p[0]; } return pairs[pairs.length - 1][0]; };
@@ -268,6 +271,7 @@ function generate() {
     seo: { en: { title: 'SAM TRAVEL — Travel agency in Yerevan | Beach, city & group tours', description: 'Travel agency in Yerevan. Beach, city and group trips arranged by a real manager — flights, hotels, visa support and insurance, confirmed in one message on WhatsApp.' },
            ru: { title: 'SAM TRAVEL — турагентство в Ереване | пляжные, городские и групповые туры', description: '' }, hy: { title: '', description: '' } },
     analytics: { ga4: '', pixel: '' },
+    whatsapp: { enabled: true, mail_hour: 11, review_url: 'https://g.page/r/samtravel/review', mode: 'remind' },
   };
   const reels = [{ id: uuid(), url: 'https://www.instagram.com/reel/DceFC3aCMGX/', published: true, sort: 0, created_at: iso(now - 30 * DAY) }];
   const wa_templates = [
@@ -276,7 +280,21 @@ function generate() {
     ['После поездки', 'ru', '{name}, с возвращением! Как прошла поездка{tour}? Будем благодарны за короткий отзыв — он помогает другим путешественникам.'],
     ['Documents are ready', 'en', 'Hi {name}! This is {manager} from SAM TRAVEL. The documents for your trip{tour} are ready — sending the voucher and tickets. Please check the names and dates.'],
     ['Փաստաթղթերը պատրաստ են', 'hy', 'Բարև, {name}։ {manager}-ն է, SAM TRAVEL-ից։ Ձեր ուղևորության փաստաթղթերը{tour} պատրաստ են՝ ուղարկում եմ վաուչերը և տոմսերը։'],
-  ].map(([title, lang, body], i) => ({ id: uuid(), title, lang, body, sort: i, created_at: iso(now - 50 * DAY) }));
+  ].map(([title, lang, body], i) => ({ id: uuid(), title, lang, body, sort: i, kind: null, created_at: iso(now - 50 * DAY) }));
+  // Stage 9 (ТЗ §4.12): the two reminder texts in three languages, trip dates of the sales and
+  // the reminders they produce. A separate generator, so the rest of the demo data stays as it was.
+  const reminders = [];
+  if (REM) {
+    REM.KINDS.forEach((kind, k) => ['ru', 'hy', 'en'].forEach((lang, i) => wa_templates.push({ id: uuid(), title: REM.KIND_NAME[kind], lang, body: REM.reminderDefault(kind, lang), sort: 100 + k * 3 + i, kind, created_at: iso(now - 2 * DAY) })));
+    const R9 = rng(9090), today = ymd(now);
+    leads.forEach((l) => {
+      l.wa_opt_in = R9() < 0.6; l.depart_on = null; l.return_on = null;
+      if (R9() < 0.55) { l.depart_on = REM.addDays(ymd(l.closed_at), 9 + Math.floor(R9() * 30)); l.return_on = REM.addDays(l.depart_on, 4 + Math.floor(R9() * 8)); }
+      REM.syncReminders(reminders, null, l, today, uuid);
+    });
+    // what was due before today has long been written
+    reminders.forEach((r) => { if (r.due_on < today) Object.assign(r, { status: 'sent', done_at: r.due_on + 'T07:30:00.000Z' }); });
+  }
   // Stage 4 (ТЗ §4.9): date of birth and e-mail confirmation. A separate generator, so the
   // rest of the demo data stays as it was.
   const R4 = rng(4040);
@@ -297,7 +315,7 @@ function generate() {
   aud(12, OWNER, 'team', 'update', { ...team[0], i18n: { ...team[0].i18n, en: { name: 'Anna G.', role: 'Beach · 8 years' } } }, team[0]);
   audit.reverse();
 
-  return { v: 7, generated: now, me: OWNER, role: 'admin', users, campaigns, promos, events, leads, activity: {}, coupons, reviews, team, tours, settings, reels, wa_templates, audit };
+  return { v: 8, generated: now, me: OWNER, role: 'admin', users, campaigns, promos, events, leads, activity: {}, coupons, reviews, team, tours, settings, reels, wa_templates, reminders, audit };
 }
 
 // ------------------------------------------------------------------ public snapshot (same shape as public_site)
@@ -324,15 +342,46 @@ const ROLE_OK = {
 const TABLE_WRITE = { tours: 'write_marketing', reviews: 'write_marketing', reels: 'write_marketing', promos: 'write_marketing', campaigns: 'write_marketing', coupons: 'write_marketing', team: 'write_owner', wa_templates: 'write_owner' };
 
 export class DemoApi {
-  constructor() {
+  /** REM — the module ./reminders.js (the rules of flight reminders) */
+  constructor(REM) {
     this.mode = 'demo';
+    this.REM = REM;
     let st = null;
     try { st = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) {}
-    const fresh = generate();
+    const fresh = generate(REM);
     if (!st || st.v !== fresh.v) st = fresh;
     else st.events = fresh.events;   // site events are regenerated (deterministic), never stored
     this.st = st;
+    this.demoTrips();
     this.persist();
+  }
+  get today() { return ymd(Date.now()); }
+  /**
+   * Demo only: whatever day the demo is opened on, there is somebody to write to today.
+   * A few recent sales are re-dated once a day: flights tomorrow in three languages, one
+   * yesterday's reminder nobody sent, two clients who are back, flights later this week.
+   */
+  demoTrips() {
+    const R = this.REM, st = this.st, today = this.today;
+    if (!R || st.trip_day === today) return;
+    const plan = [
+      { dep: 1, nights: 7, lang: 'ru', tour: 'sharm', name: 'Мариам Петросян' }, { dep: 1, nights: 5, lang: 'hy', tour: 'dubai', name: 'Արմեն Սարգսյան' },
+      { dep: 1, nights: 9, lang: 'en', tour: 'maldives', name: 'Kristine Hovhannisyan' }, { dep: 0, nights: 6, lang: 'ru', tour: 'georgia', name: 'Тигран Аветисян' },
+      { dep: -8, nights: 7, lang: 'ru', tour: 'dubai', name: 'Гаяне Саакян' }, { dep: -13, nights: 10, lang: 'hy', tour: 'phuket', name: 'Անի Գրիգորյան' },
+      { dep: 3, nights: 7, lang: 'ru', tour: 'sharm', name: 'Нарек Оганесян' }, { dep: 5, nights: 4, lang: 'ru', tour: null, name: 'Ирина Смирнова' },
+    ];
+    let pool = st.leads.filter((l) => (l.details || {}).demo_trip != null);
+    if (pool.length < plan.length) {
+      pool = st.leads.filter((l) => l.status === 'won' && !l.ref).slice(0, plan.length);
+      pool.forEach((l, i) => { l.details = { ...(l.details || {}), demo_trip: i }; });
+    }
+    pool.forEach((l) => {
+      const p = plan[l.details.demo_trip]; if (!p) return;
+      Object.assign(l, { name: p.name, lang: p.lang, tour: p.tour, depart_on: R.addDays(today, p.dep), return_on: R.addDays(today, p.dep + p.nights), wa_opt_in: true });
+      st.reminders = st.reminders.filter((r) => r.lead_id !== l.id);
+      if (l.status === 'won') R.syncReminders(st.reminders, null, l, today, uuid);
+    });
+    st.trip_day = today;
   }
   persist() {
     const { events, ...rest } = this.st;
@@ -362,15 +411,16 @@ export class DemoApi {
   async waRef(code) { this.guard('leads'); return this.wait(waRefLookup(this.events_(), this.st.promos, code), 120); }
 
   // The sales journal: sales and refunds, newest first, page by page — the same as LiveApi.
-  async journal({ q, status, noProfit, since, offset = 0, limit = 500 } = {}) {
+  async journal({ q, status, noProfit, since, depart, offset = 0, limit = 500 } = {}) {
     this.guard('leads');
     const text = String(q || '').trim().toLowerCase(), qd = text.replace(/\D/g, ''), qr = refNorm(text);
     const digits = (l) => String(l.phone || '').replace(/\D/g, '');
     const all = this.st.leads.filter((l) => (status ? l.status === status : ['won', 'lost'].includes(l.status))
       && (!since || (l.closed_at && l.closed_at >= since))
       && (!noProfit || (l.status === 'won' && l.profit == null))
+      && (!depart || (depart.none ? !l.depart_on : !!l.depart_on && l.depart_on >= depart.from && l.depart_on <= depart.to))
       && (!text || (l.name || '').toLowerCase().includes(text) || (l.message || '').toLowerCase().includes(text) || (qd.length >= 3 && digits(l).includes(qd)) || (l.ref && l.ref === qr) || (l.tags || []).includes(text)))
-      .sort((a, b) => (a.closed_at < b.closed_at ? 1 : -1));
+      .sort((a, b) => (depart && !depart.none && a.depart_on !== b.depart_on ? (a.depart_on < b.depart_on ? -1 : 1) : a.closed_at < b.closed_at ? 1 : -1));
     return this.wait({ rows: all.slice(offset, offset + limit), total: all.length }, 140);
   }
   async sale(id) { this.guard('leads'); return this.wait(this.st.leads.find((l) => l.id === id) || null, 60); }
@@ -399,7 +449,7 @@ export class DemoApi {
     this.guard('leads');
     const l = this.st.leads.find((x) => x.id === id);
     await this.saleActivity(id);
-    const old = { ...l }, next = guardLead(old, attributeLead(old, { ...l, ...patch }, this.lookup_()), this.currency);
+    const old = { ...l }, next = guardLead(old, attributeLead(old, this.REM.tripGuard(old, { ...l, ...patch }), this.lookup_()), this.currency);
     if (next.status !== old.status) this.logAct(id, 'status', next.status, { from: old.status, to: next.status });
     if ((next.assigned_to || null) !== (old.assigned_to || null)) this.logAct(id, 'assign', null, { to: next.assigned_to });
     // the row was already closed and stays closed: every money edit leaves «было → стало»
@@ -411,14 +461,15 @@ export class DemoApi {
       if (Object.keys(m).length) this.logAct(id, 'money', null, m);
     }
     Object.assign(l, next);
+    this.REM.syncReminders(this.st.reminders, old, l, this.today, uuid);
     this.recount(old.coupon_code, next.coupon_code);
     this.persist(); return this.wait(l, 60);
   }
   async createSale(row) {
     this.guard('leads');
-    const base = { id: uuid(), created_at: iso(Date.now()), updated_at: iso(Date.now()), status: 'new', tags: [], details: {}, ...row };
-    const l = guardLead(null, attributeLead(null, base, this.lookup_()), this.currency);
-    this.st.leads.unshift(l); this.st.activity[l.id] = [{ id: uuid(), lead_id: l.id, created_at: l.created_at, actor: this.st.me, kind: 'system', body: 'Продажа внесена', meta: {} }];
+    const base = { id: uuid(), created_at: iso(Date.now()), updated_at: iso(Date.now()), status: 'new', tags: [], details: {}, depart_on: null, return_on: null, wa_opt_in: false, ...row };
+    const l = guardLead(null, attributeLead(null, this.REM.tripGuard(null, base), this.lookup_()), this.currency);
+    this.st.leads.unshift(l); this.REM.syncReminders(this.st.reminders, null, l, this.today, uuid); this.st.activity[l.id] = [{ id: uuid(), lead_id: l.id, created_at: l.created_at, actor: this.st.me, kind: 'system', body: 'Продажа внесена', meta: {} }];
     this.recount(l.coupon_code);
     this.persist(); return this.wait(l, 60);
   }
@@ -427,6 +478,7 @@ export class DemoApi {
     const cur = this.st.leads.find((l) => l.id === id);
     if (!cur) return;
     this.st.leads = this.st.leads.filter((l) => l.id !== id);
+    this.st.reminders = this.st.reminders.filter((r) => r.lead_id !== id);
     delete this.st.activity[id];
     this.audit_('leads', 'delete', cur, null);   // a deleted sale leaves a line in the audit log
     this.recount(cur.coupon_code);
@@ -436,6 +488,24 @@ export class DemoApi {
     this.guard('leads'); await this.saleActivity(lead_id);
     this.logAct(lead_id, kind, body, meta);
     this.persist(); return this.wait(this.st.activity[lead_id].slice(-1)[0], 40);
+  }
+
+  // ---- flight reminders: reminders_today() and reminder_done() of 090_reminders.sql ----
+  async reminders() {
+    this.guard('leads');
+    const st = this.st;
+    return this.wait(this.REM.remindersToday({ leads: st.leads, reminders: st.reminders, tours: st.tours, templates: st.wa_templates, settings: st.settings }, this.today), 120);
+  }
+  async reminderDone(id, done = true) {
+    this.guard('leads');
+    const r = this.st.reminders.find((x) => x.id === id);
+    if (!r) throw new Error('reminder_not_found');
+    if (done && r.status === 'due') {
+      Object.assign(r, { status: 'sent', done_by: this.st.me, done_at: iso(Date.now()) });
+      await this.saleActivity(r.lead_id);
+      this.logAct(r.lead_id, 'whatsapp', r.kind === 'bon_voyage' ? 'Напоминание накануне вылета отправлено' : 'Сообщение «с возвращением» отправлено', { reminder: r.kind });
+    } else if (!done && r.status === 'sent') Object.assign(r, { status: 'due', done_by: null, done_at: null });
+    this.persist(); return this.wait(r, 60);
   }
 
   // «заявок» — без спама, «покупок» — проданные с суммой: как users_list / audience_list в 040_clients.sql
@@ -489,6 +559,7 @@ export class DemoApi {
     if (table === 'campaigns') row = { ...row, currency: this.campaignCurrency(row) };
     if (table === 'coupons' && list.some((x) => x.code.toUpperCase() === String(row.code).toUpperCase() && x.id !== row.id)) throw new Error('duplicate key code');
     if (table === 'tours' && list.some((x) => x.slug === row.slug && x.id !== row.id)) throw new Error('duplicate key slug');
+    if (table === 'wa_templates' && row.kind && list.some((x) => x.kind === row.kind && x.lang === row.lang && x.id !== row.id)) throw new Error('duplicate key wa_templates_kind_lang_idx');
     const now = iso(Date.now());
     if (row.id) {
       const cur = list.find((x) => x.id === row.id);
@@ -513,6 +584,7 @@ export class DemoApi {
   async settings() { return this.wait(this.st.settings, 60); }
   async saveSetting(key, value) {
     if (!(this.st.role === 'admin' || (this.st.role === 'marketer' && ['seo', 'analytics', 'stats'].includes(key)))) throw new Error('permission denied');
+    if (key === 'whatsapp') value = this.REM.guardWaSettings(value);   // wa_settings_guard
     this.audit_('site_settings', 'update', { key, value: this.st.settings[key] }, { key, value });
     this.st.settings[key] = value; this.persist();
   }

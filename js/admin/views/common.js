@@ -39,6 +39,8 @@ export const CTA_NAME = { wa_click: 'Клик в WhatsApp', tel_click: 'Клик
 export const DEVICE_NAME = { mobile: 'Телефон', desktop: 'Компьютер', tablet: 'Планшет', '?': 'Неизвестно' };
 /** '1996-10-06' → '6 октября 1996'. A date of birth has no time zone: print the day as written. */
 export const birthDate = (d) => d ? new Date(d.slice(0, 10) + 'T00:00:00Z').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '—';
+/** a flight or return day, '2026-10-08' → '8 окт., чт'. A plain date has no time zone: print the day as written. */
+export const tripDay = (d) => d ? new Date(String(d).slice(0, 10) + 'T00:00:00Z').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', weekday: 'short', timeZone: 'UTC' }) : '—';
 /** where on the page a WhatsApp link was pressed (events.label) */
 export const WA_PLACE = { sheet: 'описание тура', 'carou-stage': 'карточка тура', contacts_cta: 'блок контактов', contacts: 'блок контактов', services: 'услуги', b2b: 'услуги', topbar: 'шапка сайта', menu: 'меню', plan: 'подбор тура', 'c-send': 'чек-лист документов', top: 'общая кнопка' };
 export const LANG_NAME = { ru: 'Русский', hy: 'Армянский', en: 'Английский', '?': '—' };

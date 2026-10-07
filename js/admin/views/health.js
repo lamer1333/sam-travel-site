@@ -14,6 +14,7 @@ export default async function healthView(root, ctx) {
   const F4 = [{ key: 'card_title' }, { key: 'card_text' }, { key: 'title' }, { key: 'text' }];
   const untranslated = pubT.filter((t) => LANGS.some(([l]) => !isFilled(t.i18n[l], F4)));
   const owners = users.filter((u) => u.role === 'admin');
+  const replies = tpl.filter((t) => !t.kind);   // without the texts of the flight reminders: those exist in all three languages from the start
   const C = [
     // [weight, ok, title, detail, route, level if not ok]
     [3, co.licence && co.licence !== '23-1057-2023' && co.insurance && co.insurance !== 'TRV-2026-0412', 'Настоящие номера лицензии и страховки', 'Сейчас на сайте номера-образцы из макета — это видят клиенты и проверяющие.', 'contacts', 'bad'],
@@ -28,7 +29,7 @@ export default async function healthView(root, ctx) {
     [3, /^\d{10,15}$/.test(wa), 'Номер WhatsApp указан', 'Все кнопки сайта ведут в WhatsApp. Номер — цифрами с кодом страны, без «+».', 'contacts', 'bad'],
     [2, !users.some((u) => u.email === 'demo@samtravel.am'), 'Удалён тестовый пользователь', 'demo@samtravel.am создавался для проверки входа — удалите в Supabase → Authentication.', 'people', 'bad'],
     [1, owners.length >= 2, 'Второй человек с правами владельца', 'Если единственный владелец потеряет доступ, назначить роли будет некому.', 'people', 'warn'],
-    [1, ['ru', 'hy', 'en'].every((l) => tpl.some((t) => t.lang === l)), 'Шаблоны ответов на всех языках', 'Есть языки: ' + Array.from(new Set(tpl.map((t) => t.lang))).join(', ').toUpperCase(), 'templates', 'warn'],
+    [1, ['ru', 'hy', 'en'].every((l) => replies.some((t) => t.lang === l)), 'Шаблоны ответов на всех языках', 'Есть языки: ' + Array.from(new Set(replies.map((t) => t.lang))).join(', ').toUpperCase(), 'templates', 'warn'],
     [1, !/@(gmail|mail|yandex|yahoo)\./i.test((s.contacts || {}).email || ''), 'Почта на своём домене', 'info@samtravel.am выглядит солиднее, чем gmail, и реже попадает в спам.', 'contacts', 'warn'],
   ];
   const total = C.reduce((a, c) => a + c[0], 0), got = C.reduce((a, c) => a + (c[1] ? c[0] : 0), 0);

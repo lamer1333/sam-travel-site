@@ -44,6 +44,39 @@ ${wa ? btn(wa, 'Написать в WhatsApp', '#1FA855', '#ffffff') : ''}${pane
   return { subject, text, html };
 }
 
+const KIND_LABEL = { bon_voyage: 'Вылет завтра — хорошего полёта', welcome_back: 'Вернулись — с возвращением' };
+const dayRu = (d) => { const [y, m, dd] = String(d || '').split('-'); return dd ? dd + '.' + m + '.' + y : ''; };
+const clients = (n) => { const a = n % 10, b = n % 100; return n + ' ' + (a === 1 && b !== 11 ? 'клиент' : a >= 2 && a <= 4 && (b < 12 || b > 14) ? 'клиента' : 'клиентов'); };
+
+/**
+ * Письмо «Сегодня написать: N клиентов» (напоминания о вылетах, 090_reminders.sql).
+ * Кому писать, текст на языке клиента и ссылку wa.me собрала база (reminders_digest):
+ * здесь только вёрстка. Сообщение клиенту отправляет человек — кнопка открывает чат
+ * с уже набранным текстом. Экспортируется для тестов.
+ */
+export function buildDigestMail(digest, env) {
+  const site = (env.SITE_URL || '').replace(/\/+$/, '');
+  const panel = site ? site + '/admin.html#/dashboard' : '';
+  const items = digest.items || [];
+  const what = (it) => (KIND_LABEL[it.kind] || it.kind) + (it.overdue ? ' (просрочено)' : '');
+  const when = (it) => (it.kind === 'bon_voyage' ? 'вылет ' + dayRu(it.depart_on) : 'вернулись ' + dayRu(it.return_on));
+  const subject = 'Сегодня написать: ' + clients(items.length);
+  const text = items.map((it) => [it.name + (it.tour_name ? ' · ' + it.tour_name : '') + ' · ' + when(it), what(it), it.text, 'Отправить в WhatsApp: ' + it.wa_url].join('\n')).join('\n\n')
+    + (panel ? '\n\nОтметить отправленные в панели: ' + panel : '');
+  const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:15px;line-height:1.5;color:#0B0D12;max-width:560px">
+<h2 style="margin:0 0 6px;font-size:19px">${esc(subject)}</h2>
+<p style="margin:0 0 16px;color:#667085">Кнопка открывает чат с клиентом, текст уже набран на его языке — остаётся нажать «отправить».</p>
+${items.map((it) => `<div style="border:1px solid #E4E7EC;border-radius:12px;padding:14px 16px;margin:0 0 12px">
+<div style="font-weight:700">${esc(it.name)}${it.tour_name ? ' · ' + esc(it.tour_name) : ''}</div>
+<div style="color:#667085;font-size:13px;margin:2px 0 8px">${esc(what(it))} · ${esc(when(it))} · ${esc(it.phone)}</div>
+<div style="background:#F5F6F8;border-radius:8px;padding:9px 11px;margin:0 0 10px;white-space:pre-wrap">${esc(it.text)}</div>
+<a href="${esc(it.wa_url)}" style="display:inline-block;padding:10px 16px;border-radius:10px;background:#1FA855;color:#ffffff;font-weight:600;text-decoration:none">Отправить в WhatsApp</a>
+</div>`).join('\n')}
+${panel ? `<p style="margin:14px 0 0"><a href="${esc(panel)}" style="color:#667085">Отметить отправленные в панели</a></p>` : ''}
+</div>`;
+  return { subject, text, html };
+}
+
 /** Отправка через почтовый сервис из переменных окружения. Бросает ошибку с причиной. */
 async function sendMail(mail, to, key, env, fetchImpl) {
   const provider = (env.MAIL_PROVIDER || 'resend').toLowerCase();
@@ -81,7 +114,8 @@ async function rpc(name, args, env, fetchImpl) {
  *   • вебхук базы на вставку в leads  { type: 'INSERT', table: 'leads', record: {...} }
  *   • повтор неудачных (pg_cron)      { type: 'retry' }
  * Оба — только с заголовком x-webhook-secret. Что и кому слать, решает база
- * (notify_claim): из тела вебхука берётся только id заявки.
+ * (notify_claim): из тела вебхука берётся только id заявки. В режиме «повтор» база
+ * отдаёт и письмо дня с напоминаниями о вылетах (job.kind === 'reminders').
  */
 export async function handle(req, env, fetchImpl = fetch) {
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
@@ -109,9 +143,10 @@ export async function handle(req, env, fetchImpl = fetch) {
     let err = null;
     try {
       if (!job.to) throw new Error('no agency email in site_settings.contacts');
-      await sendMail(buildMail(job.lead, env), job.to, 'lead-mail/' + job.id, env, fetchImpl);
+      const mail = job.kind === 'reminders' ? buildDigestMail(job.digest, env) : buildMail(job.lead, env);
+      await sendMail(mail, job.to, 'lead-mail/' + job.id, env, fetchImpl);
     } catch (e) { err = String(e && e.message || e); }
-    if (err) { failed++; console.error('lead-mail: lead ' + job.lead.id + ', attempt ' + job.attempt + ': ' + err); } else sent++;
+    if (err) { failed++; console.error('lead-mail: ' + (job.kind === 'reminders' ? 'reminders ' + job.digest.day : 'lead ' + job.lead.id) + ', attempt ' + job.attempt + ': ' + err); } else sent++;
     try { await rpc('notify_done', { p_id: job.id, p_ok: !err, p_error: err }, env, fetchImpl); }
     catch (e) { console.error('lead-mail:', e.message); }
   }

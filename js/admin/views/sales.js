@@ -4,16 +4,23 @@
 // field is the reference number from the end of the client's message («№ K7M2X»): by it the
 // database fills in the tour and the advert the client came from. A refund turns the row
 // into «Возврат» and takes it out of the revenue.
+// Flight reminders (§4.12): the form also takes the flight and return dates and the client's
+// language; from them the database makes the «написать сегодня» list of the dashboard.
 // The journal is read from the server page by page — a list asked for in one request would
 // silently stop at the first thousand rows.
-import { h, add, mount, icon, fmt, toast, modal, drawer, confirmDlg, field, input, textarea, select, tagsInput, table, csv, copyText, debounce, pageHead, plural, currency } from '../ui.js';
+import { h, add, mount, icon, fmt, toast, modal, drawer, confirmDlg, field, input, textarea, select, toggle, tagsInput, table, csv, copyText, debounce, pageHead, plural, currency } from '../ui.js';
 import { STATUS_NAME, SOURCE_NAME } from '../main.js';
-import { waLink, fillTemplate, loadTours, tourName, ymd, saleIso, srcName, WA_PLACE, LANG_NAME, DEVICE_NAME } from './common.js';
+import { waLink, fillTemplate, loadTours, tourName, ymd, saleIso, srcName, tripDay, WA_PLACE, LANG_NAME, DEVICE_NAME } from './common.js';
+import { addDays } from '../reminders.js';
 import { saleCsvColumns, leadChannel, marginOf, refNorm, refOk, isSale } from '../metrics.js';
 
 const REFUND_REASONS = ['Возврат', 'Клиент передумал', 'Отказ в визе', 'Отмена рейса или отеля', 'Перенос поездки', 'Другое'];
 const SOURCES = [['manual', 'WhatsApp'], ['phone', 'Звонок'], ['walk_in', 'Пришли в офис'], ['instagram', 'Instagram Direct']];
-const state = { q: '', days: '90', status: '', noProfit: false };
+// the language the reminder is written in — one of the three the templates exist in
+const CLIENT_LANGS = [['ru', 'Русский'], ['hy', 'Армянский'], ['en', 'Английский']];
+const OPT_IN = 'Клиент согласен получать сообщения в WhatsApp';
+const OPT_IN_HINT = 'Сейчас ни на что не влияет — понадобится, когда сообщения сможет отправлять система';
+const state = { q: '', days: '90', status: '', noProfit: false, depart: '' };
 
 export default async function salesView(root, ctx, params) {
   await Promise.all([ctx.settings(), ctx.users().catch(() => []), loadTours(ctx)]);
@@ -33,12 +40,16 @@ export default async function salesView(root, ctx, params) {
     h('div', { style: { position: 'relative', flex: '1 1 220px', maxWidth: '340px' } }, search),
     select([['30', 'За 30 дней'], ['90', 'За 90 дней'], ['365', 'За год'], ['all', 'За всё время']], state.days, (v) => { state.days = v; reload(); }),
     select([['', 'Продажи и возвраты'], ['won', 'Только продажи'], ['lost', 'Только возвраты']], state.status, (v) => { state.status = v; reload(); }),
+    select([['', 'Вылет: любой'], ['7', 'Вылет в ближайшие 7 дней'], ['30', 'Вылет в ближайшие 30 дней'], ['none', 'Без даты вылета']], state.depart, (v) => { state.depart = v; reload(); }),
     h('label.switch', { title: 'Продажи, где не вписана комиссия агентства: отчёты оценивают её по марже' }, h('input', { type: 'checkbox', checked: state.noProfit, onchange: (e) => { state.noProfit = e.target.checked; reload(); } }), h('i'), h('span', 'Без дохода агентства'))),
     body, moreBox);
 
-  // by sale date; a search looks through the whole journal
+  // by sale date; a search looks through the whole journal, and so does «вылет в ближайшие дни»:
+  // a trip that starts tomorrow may have been sold half a year ago
+  const soon = () => +state.depart > 0;
   const filter = () => ({ q: state.q, status: state.noProfit ? 'won' : state.status, noProfit: state.noProfit,
-    since: state.q || state.days === 'all' ? null : new Date(Date.now() - state.days * 86400e3).toISOString() });
+    depart: state.depart === 'none' ? { none: true } : soon() ? { from: ymd(Date.now()), to: addDays(ymd(Date.now()), +state.depart) } : null,
+    since: state.q || soon() || state.days === 'all' ? null : new Date(Date.now() - state.days * 86400e3).toISOString() });
   async function pull(more) {
     const f = filter(), k = JSON.stringify(f);
     if (k !== key) { key = k; rows = []; total = 0; } else if (!more || busy) return;
@@ -65,12 +76,13 @@ export default async function salesView(root, ctx, params) {
       + (left > 0 ? ` · ещё ${fmt.num(left)} ${plural(left, 'запись', 'записи', 'записей')} не загружено` : '')
       + '. Сюда попадает только то, что вы внесли сами: сайт заявок не собирает.';
     mount(body, h('div.card.card--flush', table({
-      rows, onRow: (l) => openSale(ctx, l.id, reload), initialSort: ['closed_at', -1],
-      empty: state.q || state.noProfit || state.status ? 'Под фильтр ничего не попало' : 'Продаж за это время нет. Клиент купил тур — нажмите «Продажа».',
+      rows, onRow: (l) => openSale(ctx, l.id, reload), initialSort: soon() ? ['depart_on', 1] : ['closed_at', -1],
+      empty: state.q || state.noProfit || state.status || state.depart ? 'Под фильтр ничего не попало' : 'Продаж за это время нет. Клиент купил тур — нажмите «Продажа».',
       columns: [
         { key: 'closed_at', label: 'Дата', sort: true, render: (l) => h('span', { title: fmt.dt(l.closed_at) }, fmt.date(l.closed_at)) },
         { key: 'name', label: 'Клиент', sort: true, render: (l) => h('div.cell-main', h('b', l.name), h('small', l.phone)) },
         { key: 'tour', label: 'Направление', sort: (l) => tourName(ctx, l.tour) || '', render: (l) => tourName(ctx, l.tour) || h('span.muted', '—') },
+        { key: 'depart_on', label: 'Вылет', sort: (l) => l.depart_on || '9999', render: (l) => (l.depart_on ? h('div.cell-main', h('b', tripDay(l.depart_on)), l.return_on ? h('small', 'обратно ' + tripDay(l.return_on)) : null) : h('span.muted', '—')) },
         { key: 'source', label: 'Откуда', sort: (l) => srcName(leadChannel(l)), render: (l) => h('div.cell-main', h('b', srcName(leadChannel(l))), l.ref ? h('small', '№ ' + l.ref + (l.utm_campaign ? ' · ' + l.utm_campaign : '')) : null) },
         { key: 'value', label: 'Сумма', align: 'r', sort: (l) => +l.value || 0, render: (l) => (l.value ? fmt.money(l.value) : '') },
         { key: 'profit', label: 'Доход агентства', align: 'r', sort: (l) => +l.profit || 0, render: (l) => (l.profit != null ? fmt.money(l.profit) : l.status === 'won' ? h('span.muted', { title: 'Комиссия не вписана — отчёты оценивают её по марже' }, '≈ по марже') : '') },
@@ -141,7 +153,7 @@ function refSummary(ctx, e) {
 
 // ---------- «Продажа»: the one way a chat gets into the panel ----------
 export function createSale(ctx, after) {
-  const d = { ref: '', name: '', phone: '', message: '', source: 'manual', tour: '', coupon_code: '', assigned_to: ctx.me.id };
+  const d = { ref: '', name: '', phone: '', message: '', source: 'manual', tour: '', coupon_code: '', assigned_to: ctx.me.id, lang: 'ru', wa_opt_in: false };
   const tours = (ctx.cache.tours || []).map((t) => [t.slug, tourName(ctx, t.slug)]);
   const team = ctx.team();
   const sf = saleFields(ctx);
@@ -151,10 +163,15 @@ export function createSale(ctx, after) {
   const srcSel = select(SOURCES, d.source, (v) => { d.source = v; });
   const tourSel = select([['', '—'], ...tours], '', (v) => { d.tour = v; touched.tour = true; });
   const couponIn = input('', { placeholder: 'AUTUMN7', oninput: (v) => { d.coupon_code = v.trim().toUpperCase(); touched.coupon = true; }, attrs: { autocapitalize: 'characters' } });
+  // the trip: from these dates the database makes the reminders «хорошего полёта» and «с возвращением»
+  const depIn = input('', { type: 'date' }), retIn = input('', { type: 'date' });
+  depIn.addEventListener('change', () => { retIn.min = depIn.value; });
+  const langSel = select(CLIENT_LANGS, d.lang, (v) => { d.lang = v; });
+  const LANG_HINT = 'На этом языке будет текст напоминания', langHint = h('span', LANG_HINT);
   const note = (kind, text) => mount(refNote, text ? h('div.note' + (kind ? '.note--' + kind : ''), { style: { marginTop: '8px' } }, icon(kind === 'warn' ? 'alert' : 'check'), h('span', text)) : null);
   const check = debounce(async () => {
     const ref = refNorm(refIn.value) || '';
-    d.ref = ref; found = null; srcSel.disabled = false;
+    d.ref = ref; found = null; srcSel.disabled = false; langSel.disabled = false; langHint.textContent = LANG_HINT;
     if (!ref) { checked = ''; note(); return; }
     if (!refOk(ref)) { checked = ''; note('warn', 'Номер — пять знаков после «№» в конце сообщения клиента, например K7M2X. Букв O, I, L и цифр 0, 1 в нём не бывает.'); return; }
     try {
@@ -164,6 +181,8 @@ export function createSale(ctx, after) {
       if (!e) { note('warn', 'Обращения с таким номером за последние 90 дней нет. Проверьте номер — или сотрите его и выберите, откуда клиент.'); return; }
       note('', 'Клиент писал с сайта: ' + refSummary(ctx, e) + '. Источник и рекламная метка подставятся сами.');
       d.source = 'manual'; srcSel.value = 'manual'; srcSel.disabled = true;
+      // the database takes the language of the visit, exactly as it takes the advert tags
+      if (CLIENT_LANGS.some((x) => x[0] === e.lang)) { d.lang = e.lang; langSel.value = e.lang; langSel.disabled = true; langHint.textContent = 'По номеру обращения: на этом языке клиент смотрел сайт. Изменить можно в карточке продажи'; }
       if (e.tour && !touched.tour && tours.some((t) => t[0] === e.tour)) { d.tour = e.tour; tourSel.value = e.tour; }
       if (e.coupon_code && !touched.coupon) { d.coupon_code = e.coupon_code; couponIn.value = e.coupon_code; }
     } catch (x) { ctx.err(x); }
@@ -180,6 +199,8 @@ export function createSale(ctx, after) {
       h('div.grid2', field('Откуда клиент', srcSel, 'Если номера обращения нет'), field('Направление', tourSel)),
       field('Что купили', textarea('', { oninput: (v) => (d.message = v), placeholder: 'Отель, даты, сколько человек…' })),
       sf.el,
+      h('div.grid2', field('Дата вылета', depIn, 'Накануне панель напомнит пожелать хорошего полёта'), field('Дата возвращения', retIn, 'На следующий день — написать «с возвращением»')),
+      h('div.grid2', field('Язык клиента', langSel, langHint), h('div.field', h('span', 'Согласие'), toggle(false, OPT_IN, (v) => { d.wa_opt_in = v; }), h('small', OPT_IN_HINT))),
       h('div.grid2', field('Промокод', couponIn, 'Если клиент назвал код'),
         team.length > 1 ? field('Кто внёс', select(team.map((u) => [u.id, u.full_name || u.email]), d.assigned_to, (v) => (d.assigned_to = v))) : null)),
     actions: [{ label: 'Отмена' }, { label: 'Записать продажу', kind: 'primary', onClick: async () => {
@@ -188,10 +209,13 @@ export function createSale(ctx, after) {
       if (ref && !refOk(ref)) { toast('Номер обращения — пять знаков. Исправьте или сотрите его', 'bad'); refIn.focus(); return false; }
       if (ref && checked === ref && !found) { toast('Обращения с таким номером нет. Исправьте номер или сотрите его', 'bad'); refIn.focus(); return false; }
       const s = sf.read(); if (!s) return false;
+      if (depIn.value && retIn.value && retIn.value < depIn.value) { toast('Дата возвращения не может быть раньше даты вылета', 'bad'); retIn.focus(); return false; }
       const row = { name: d.name.trim(), phone: d.phone.trim(), message: d.message.trim() || null, source: d.source, tour: d.tour || null,
-        coupon_code: d.coupon_code || null, assigned_to: d.assigned_to, ref: ref || null, lang: 'ru', status: 'won', ...s };
+        coupon_code: d.coupon_code || null, assigned_to: d.assigned_to, ref: ref || null, lang: d.lang, status: 'won', ...s,
+        depart_on: depIn.value || null, return_on: retIn.value || null, wa_opt_in: d.wa_opt_in };
       try {
         const l = await ctx.api.createSale(row);
+        ctx.reminders(true).catch(() => {});
         toast('Продажа записана: ' + fmt.money(l.value), '', { icon: 'check' });
         if (after) await after();
         openSale(ctx, l.id, after);
@@ -242,7 +266,7 @@ export async function openSale(ctx, id, after) {
         : h('button.btn.btn--ghost', { title: 'Клиент всё-таки едет: вернуть запись в продажи', onclick: unrefund }, 'Отменить возврат'),
       ctx.can('owner') ? h('button.btn.btn--danger.btn--ghost', { onclick: async () => {
         if (!(await confirmDlg('Удалить запись «' + l.name + '»?', { sub: 'Вместе с историей. Останется строка в журнале изменений. Для возврата денег клиенту есть «Оформить возврат».' }))) return;
-        try { await ctx.api.deleteSale(l.id); changed = true; toast('Удалено'); (api || dr).close(); } catch (e) { ctx.err(e); }
+        try { await ctx.api.deleteSale(l.id); changed = true; ctx.reminders(true).catch(() => {}); toast('Удалено'); (api || dr).close(); } catch (e) { ctx.err(e); }
       } }, icon('trash'), 'Удалить') : null);
   }
   async function refund() {
@@ -294,6 +318,17 @@ export async function openSale(ctx, id, after) {
     if (l.tour && !tours.some((t) => t[0] === l.tour)) tours.push([l.tour, l.tour]);
     const couponIn = input(l.coupon_code || '', { placeholder: '—', attrs: { autocapitalize: 'characters' } });
     couponIn.addEventListener('change', () => save({ coupon_code: couponIn.value.trim().toUpperCase() || null }));
+    // the trip: a changed date moves the reminder, a refund takes it off — the database does both
+    const depIn = input(l.depart_on || '', { type: 'date' }), retIn = input(l.return_on || '', { type: 'date' });
+    depIn.addEventListener('change', async () => { if (!(await save({ depart_on: depIn.value || null }))) depIn.value = l.depart_on || ''; });
+    retIn.addEventListener('change', async () => { if (!(await save({ return_on: retIn.value || null }))) retIn.value = l.return_on || ''; });
+    const langs = CLIENT_LANGS.some((x) => x[0] === l.lang) ? CLIENT_LANGS : [[l.lang || '', l.lang || '—'], ...CLIENT_LANGS];
+    const trip = h('div', { style: { marginTop: '12px' } }, h('div.section-t', 'Поездка'),
+      h('div.grid2',
+        field('Дата вылета', depIn, won ? 'Накануне панель напомнит написать клиенту' : 'После возврата напоминаний нет'),
+        field('Дата возвращения', retIn),
+        field('Язык клиента', select(langs, l.lang || '', (v) => save({ lang: v })), 'На нём будет текст напоминания'),
+        h('div.field', h('span', 'Согласие'), toggle(l.wa_opt_in, OPT_IN, (v) => save({ wa_opt_in: v })), h('small', OPT_IN_HINT))));
     mount(work, h('div.section-t', won ? 'Продажа' : 'Возврат'),
       h('div.grid2',
         field((won ? 'Сумма продажи, ' : 'Сумма, ') + cur, valueIn, won ? 'Сколько заплатил клиент' : 'Для справки: в выручку не входит'),
@@ -303,6 +338,7 @@ export async function openSale(ctx, id, after) {
         won ? null : field('Причина возврата', select(REFUND_REASONS.includes(l.lost_reason) ? REFUND_REASONS : [l.lost_reason, ...REFUND_REASONS].filter(Boolean), l.lost_reason || '', (v) => save({ lost_reason: v }))),
         field('Промокод', couponIn),
         ctx.team().length > 1 ? field('Кто внёс', select([['', '—'], ...ctx.team().map((u) => [u.id, u.full_name || u.email])], l.assigned_to || '', (v) => save({ assigned_to: v || null }).then(refreshTl))) : null),
+      trip,
       h('div', { style: { marginTop: '12px' } }, field('Что купили', what)),
       h('div', { style: { marginTop: '12px' } }, field('Теги', tagsInput(l.tags, (t) => save({ tags: t })))));
   }
@@ -333,6 +369,7 @@ export async function openSale(ctx, id, after) {
   async function save(patch, okText) {
     try {
       const u = await ctx.api.updateSale(l.id, patch); Object.assign(l, u || patch); changed = true;
+      if (['depart_on', 'return_on', 'status', 'phone', 'lang', 'tour'].some((k) => k in patch)) ctx.reminders(true).catch(() => {});
       toast(okText || 'Сохранено', '', { icon: 'check', ms: 1400 });
       return true;
     } catch (e) { ctx.err(e); return false; }
@@ -350,7 +387,8 @@ export async function openSale(ctx, id, after) {
   }
   function pickTemplate() {
     const lang = l.lang || 'ru';
-    const list = templates.slice().sort((a, b) => (a.lang === lang ? -1 : 0) - (b.lang === lang ? -1 : 0));
+    // the texts of the flight reminders (kind) are filled in by the database, not picked here
+    const list = templates.filter((t) => !t.kind).sort((a, b) => (a.lang === lang ? -1 : 0) - (b.lang === lang ? -1 : 0));
     const vars = { name: l.name, tour: tourName(ctx, l.tour), manager: ctx.me.full_name };
     const ta = textarea(list[0] ? fillTemplate(list[0].body, vars) : '', { rows: 5 });
     modal({
