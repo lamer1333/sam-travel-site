@@ -536,6 +536,7 @@
       var el = n.parentElement; if (!el || el.closest('script, style, svg, [data-count]')) continue;
       if (!originals.has(n)) originals.set(n, n.nodeValue);
       var orig = originals.get(n), key = orig.replace(/\s+/g, ' ').trim(); if (!key) continue;
+      key = el.getAttribute('data-i18n') || key;   /* headings split across nodes carry their own key */
       var t = tr(key);
       n.nodeValue = (t === key) ? orig : orig.match(/^\s*/)[0] + t + orig.match(/\s*$/)[0];
     }
