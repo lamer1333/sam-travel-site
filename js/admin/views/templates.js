@@ -5,7 +5,7 @@
 // them in itself, so they cannot be deleted or moved to another language — only reworded.
 import { h, clear, icon, toast, drawer, confirmDlg, field, input, textarea, select, sortable, pageHead } from '../ui.js';
 import { fillTemplate } from './common.js';
-import { KINDS, KIND_NAME, reminderFill, reminderDefault, waSettings } from '../reminders.js';
+import { KINDS, templateName, reminderFill, reminderDefault, waSettings } from '../reminders.js';
 
 export default async function templatesView(root, ctx) {
   let rows = await ctx.api.list('wa_templates');
@@ -23,8 +23,8 @@ export default async function templatesView(root, ctx) {
   const preview = (t, body = t.body) => (t.kind ? reminderFill(body, sample.name, TOUR_SAMPLE[t.lang], t.kind === 'welcome_back' ? review : '') : fillTemplate(body, sample));
   function paint() {
     clear(list); clear(sys);
-    rows.filter((t) => t.kind).sort((a, b) => KINDS.indexOf(a.kind) - KINDS.indexOf(b.kind) || a.sort - b.sort).forEach((t) => sys.appendChild(h('div.item', { dataset: { id: t.id }, style: { alignItems: 'flex-start', cursor: 'pointer' }, onclick: () => edit(t) },
-      h('div.item__main', h('div.row', h('b', KIND_NAME[t.kind]), h('span.tag', t.lang.toUpperCase())), h('div.dim', { style: { fontSize: '13px', whiteSpace: 'pre-wrap', marginTop: '4px' } }, preview(t))))));
+    rows.filter((t) => t.kind).sort((a, b) => KINDS.indexOf(a.kind) - KINDS.indexOf(b.kind) || (a.variant ? 1 : 0) - (b.variant ? 1 : 0) || a.sort - b.sort).forEach((t) => sys.appendChild(h('div.item', { dataset: { id: t.id }, style: { alignItems: 'flex-start', cursor: 'pointer' }, onclick: () => edit(t) },
+      h('div.item__main', h('div.row', h('b', templateName(t)), h('span.tag', t.lang.toUpperCase())), h('div.dim', { style: { fontSize: '13px', whiteSpace: 'pre-wrap', marginTop: '4px' } }, preview(t))))));
     rows.filter((t) => !t.kind).sort((a, b) => a.sort - b.sort).forEach((t) => list.appendChild(h('div.item', { draggable: 'true', dataset: { id: t.id }, style: { alignItems: 'flex-start', cursor: 'pointer' }, onclick: (e) => { if (!e.target.closest('.item__grip')) edit(t); } },
       h('span.item__grip', icon('grip')),
       h('div.item__main', h('div.row', h('b', t.title), h('span.tag', t.lang.toUpperCase())), h('div.dim', { style: { fontSize: '13px', whiteSpace: 'pre-wrap', marginTop: '4px' } }, fillTemplate(t.body, sample))))));
@@ -42,15 +42,15 @@ export default async function templatesView(root, ctx) {
     const tags = t.kind ? [['{name}', 'Имя клиента'], ['{tour}', 'Направление'], ...(t.kind === 'welcome_back' ? [['[: {review}]', 'Ссылка для отзыва']] : [])]
       : [['{name}', 'Имя клиента'], ['{tour}', 'Направление'], ['{manager}', 'Имя менеджера']];
     drawer({
-      title: t.kind ? KIND_NAME[t.kind] + ' · ' + t.lang.toUpperCase() : t.id ? t.title : 'Новый шаблон',
-      sub: t.kind ? (t.kind === 'bon_voyage' ? 'Клиенту пишут накануне вылета' : 'Клиенту пишут на следующий день после возвращения') : null,
+      title: t.kind ? templateName(t) + ' · ' + t.lang.toUpperCase() : t.id ? t.title : 'Новый шаблон',
+      sub: t.kind ? (t.variant === 'today' ? 'Этот текст уходит, если накануне не написали: в день вылета «завтра» уже неправда' : t.kind === 'bon_voyage' ? 'Клиенту пишут накануне вылета' : 'Клиенту пишут на следующий день после возвращения') : null,
       body: () => h('div.stack',
         h('div.grid2', field('Название', input(d.title, { placeholder: 'Первый ответ', oninput: (v) => { d.title = v; } })), field('Язык', langSel, t.kind ? 'У напоминания — один текст на язык' : null)),
         field('Текст', ta, t.kind ? 'Подставляются имя (первое слово) и направление на языке клиента. Кусок в [квадратных скобках] пропадает целиком, если подставить нечего: у продажи нет направления или не задана ссылка для отзыва.' : null),
         h('div.chips', tags.map(([tag, l]) => h('button.chip', { type: 'button', onclick: () => ins(tag) }, '+ ' + l))),
         h('div.section-t', 'Так увидит клиент'), pv),
       footer: (api) => h('div.btns', { style: { width: '100%', justifyContent: 'space-between' } },
-        t.kind ? h('button.btn.btn--ghost', { title: 'Вернуть текст, с которым панель была установлена', onclick: () => { ta.value = d.body = reminderDefault(t.kind, t.lang); show(); } }, 'Исходный текст')
+        t.kind ? h('button.btn.btn--ghost', { title: 'Вернуть текст, с которым панель была установлена', onclick: () => { ta.value = d.body = reminderDefault(t.kind + (t.variant ? '_' + t.variant : ''), t.lang); show(); } }, 'Исходный текст')
         : t.id ? h('button.btn.btn--danger.btn--ghost', { onclick: async () => { if (!(await confirmDlg('Удалить шаблон?'))) return; try { await ctx.api.remove('wa_templates', t.id); rows = rows.filter((x) => x.id !== t.id); api.close(); paint(); } catch (e) { ctx.err(e); } } }, icon('trash')) : h('span'),
         h('button.btn.btn--primary', { onclick: async () => {
           if (!d.title.trim() || !d.body.trim()) { toast('Нужны название и текст', 'bad'); return; }

@@ -62,8 +62,6 @@ const DAY = 86400e3, MIN = 60e3;
   for (const [a, b, want, label] of cases) {
     const got = Number(await val(`select public.work_minutes($1::timestamptz, $2::timestamptz) m`, [a, b]));
     check(near(got, want, 0.001), `рабочие минуты: ${label}`, got);
-    const js = M.workMinutes(a, b, hours);
-    check(near(js, want, 0.001), `  то же в metrics.js`, js);
   }
   // считает по настройке, а не по зашитым часам
   await db.query(`update site_settings set value = value || '{"from":"09:00","days":[1,2,3,4,5,6,7]}' where key = 'hours'`);
@@ -73,7 +71,7 @@ const DAY = 86400e3, MIN = 60e3;
   await db.query(`update site_settings set value = value || '{"from":"19:00","to":"10:00"}' where key = 'hours'`);
   const plain = Number(await val(`select public.work_minutes($1::timestamptz, $2::timestamptz) m`, [y('2026-10-05T23:00'), y('2026-10-06T10:05')]));
   check(near(plain, 665, 0.001), 'часы «с 19 до 10» прочитать нельзя → считаются обычные минуты', plain);
-  check(near(M.workMinutes(y('2026-10-05T23:00'), y('2026-10-06T10:05'), { from: '19:00', to: '10:00' }), 665, 0.001), '  то же в metrics.js');
+  // (этап 11: зеркало work_minutes в js/admin/metrics.js удалено — отчёты рабочие часы не используют, §5 п.4)
   await db.query(`update site_settings set value = $1 where key = 'hours'`, [JSON.stringify(hours)]);
 }
 

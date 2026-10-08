@@ -26,13 +26,22 @@
   var ref = refOf(sid);
   var q = new URLSearchParams(location.search);
   var utm = {};
-  ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'].forEach(function (k) { var v = q.get(k); if (v) utm[k] = v.slice(0, 100); });
+  ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content'].forEach(function (k) { var v = q.get(k); if (v) utm[k] = v.slice(0, 100); });
   var refHost = '';
   try { if (document.referrer) { var r = new URL(document.referrer); if (r.host !== location.host) refHost = r.host.replace(/^www\./, ''); } } catch (e) {}
   var w = Math.min(screen.width || innerWidth, innerWidth);
   var device = /iPad|Tablet/i.test(navigator.userAgent) || (w >= 600 && w < 1024 && 'ontouchstart' in window) ? 'tablet' : w < 768 ? 'mobile' : 'desktop';
   var queue = [], enabled = false, preview = q.has('promo_preview') || q.has('cms'), demo = q.get('cms') === 'demo';
-  function lang() { return (window.SAM_LANG && window.SAM_LANG()) || document.documentElement.lang || 'en'; }
+  /* The first event (page_view) is sent before js/app.js has switched the page to the visitor's
+     language, so until SAM_LANG exists the language is worked out the way app.js does it:
+     ?lang= in the address, else the saved choice, else English. */
+  var LANGS = { en: 1, ru: 1, hy: 1 };
+  function lang() {
+    if (window.SAM_LANG) return window.SAM_LANG();
+    var l = q.get('lang');
+    if (!(l && LANGS.hasOwnProperty(l))) { try { l = localStorage.getItem('sam-lang'); } catch (e) { l = null; } }
+    return l && LANGS.hasOwnProperty(l) ? l : 'en';
+  }
 
   function track(name, props) {
     if (preview && !(demo && name === 'wa_click')) return;
@@ -99,13 +108,30 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watchSections); else watchSections();
 
-  /* clicks that matter, by delegation — works for blocks rebuilt from the database */
-  document.addEventListener('click', function (e) {
+  /* where a link stands: its own data-track-label (a link that must not be mixed with the rest
+     of its block), else the nearest block with an id, else one of the blocks that have none */
+  var NO_ID = [['.fab', 'fab'], ['.footer', 'footer'], ['.promo-bar', 'promo_bar'], ['.promo-pop', 'promo_popup']];
+  function placeOf(a) {
+    var w = a.getAttribute('data-track-label'); if (w) return w;
+    var el = a.closest('[id]'); if (el) return el.id;
+    for (var i = 0; i < NO_ID.length; i++) if (a.closest(NO_ID[i][0])) return NO_ID[i][1];
+    return '';
+  }
+  /* A WhatsApp link opened with the middle button, «open in a new tab» or a long press on a
+     phone never fires `click`. Those are counted too — once: the menu and the click that may
+     follow it on the same link within two seconds are one press. */
+  var lastWa = { el: null, t: 0 };
+  function onPress(e) {
+    if (e.type === 'auxclick' && e.button !== 1) return;
     var a = e.target.closest && e.target.closest('a[href]'); if (!a) return;
     var href = a.getAttribute('href') || '';
-    /* data-track-label names a link that must not be mixed with the rest of its block */
-    var where = a.getAttribute('data-track-label'); if (!where) { where = a.closest('[id]'); where = where ? where.id : ''; }
+    /* the middle button and the menu matter for WhatsApp links only */
+    if ((e.type === 'auxclick' || e.type === 'contextmenu') && !/wa\.me\//.test(href)) return;
+    var where = placeOf(a);
     if (/wa\.me\//.test(href)) {
+      var now = Date.now();
+      if (lastWa.el === a && now - lastWa.t < 2000) return;
+      lastWa = { el: a, t: now };
       /* which tour the button is about, and the banner whose promo code the visitor took */
       var w = { label: where, ref: ref }, tour = a.getAttribute('data-wa-tour');
       var promo = a.getAttribute('data-wa-promo') || (window.SAM_WA_PROMO ? window.SAM_WA_PROMO() : '');
@@ -118,5 +144,7 @@
     else if (href === '#plan') track('plan_open', { label: where });
     else if (href.indexOf('#checklist') === 0) track('checklist_open', { label: where });
     else if (href === '#auth') track('auth_open');
-  }, true);
+  }
+  /* by delegation — works for blocks rebuilt from the database */
+  ['click', 'auxclick', 'contextmenu'].forEach(function (t) { document.addEventListener(t, onPress, true); });
 })();

@@ -80,18 +80,6 @@
   }, { threshold: 0.6 });
   $$('[data-count]').forEach(function (el) { tick.observe(el); });
 
-  /* ---------- destination filters ---------- */
-  var chips = $$('.chip[data-filter]'), grid = $('#grid');
-  chips.forEach(function (c) {
-    c.addEventListener('click', function () {
-      chips.forEach(function (x) { x.setAttribute('aria-pressed', String(x === c)); });
-      var f = c.dataset.filter;
-      grid.classList.remove('in');
-      $$('.card', grid).forEach(function (card) { card.classList.toggle('is-hidden', f !== 'all' && card.dataset.type.split(' ').indexOf(f) === -1); });
-      requestAnimationFrame(function () { requestAnimationFrame(function () { grid.classList.add('in'); }); });
-    });
-  });
-
   /* ---------- rails: arrows + mouse drag with momentum (touch stays native) ---------- */
   function project(v, d) { d = d || 0.998; return (v / 1000) * d / (1 - d); }
   $$('[data-rail]').forEach(function (b) {
@@ -137,9 +125,6 @@
     dubai:    { meta: 'UAE · year-round', title: 'Dubai', text: 'Four hours from Yerevan, visa on arrival, and a city that works as well in January as in October. Beach mornings, mall afternoons, desert at sunset.', photo: 'p-desert', inc: ['Direct flight from Yerevan', 'Hotel on the beach or in the city — we shortlist three', 'Desert safari and Burj Khalifa tickets on request', 'Manager on the line during the trip'] },
     sharm:    { meta: 'Egypt · Oct–May', title: 'Sharm El Sheikh', text: 'Warm sea all winter, the best reef diving four hours from home, and hotels where nothing has to be decided after breakfast.', photo: 'p-sea', inc: ['Direct flight from Yerevan', 'All-inclusive hotel by your budget', 'Transfer, insurance, visa on arrival', 'Manager on the line during the trip'] },
     maldives: { meta: 'Islands · Nov–Apr', title: 'Maldives', text: 'One island, one hotel, one lagoon. We pick the island by what you want: house reef, quiet, kids club, or none of the above.', photo: 'p-lagoon', inc: ['Flights with one comfortable connection', 'Water or beach villa — we explain the real difference', 'Seaplane or speedboat transfer', 'Manager on the line during the trip'] },
-    bali:     { meta: 'Indonesia · Apr–Oct', title: 'Bali', text: 'Rice terraces, temples, surf and the calmest sea for kids on the south coast. We split the stay between two areas so you see both Balis.', photo: 'p-jungle', inc: ['Flights via Doha or Dubai', 'Two-area itinerary: Ubud + coast', 'Driver-guide for temple days', 'Manager on the line during the trip'] },
-    antalya:  { meta: 'Türkiye · May–Oct', title: 'Antalya', text: 'The family default for a reason: short flight, all-inclusive done properly, and a coastline that fits any budget.', photo: 'p-ocean', inc: ['Direct charter from Yerevan', 'All-inclusive hotel with kids club', 'Transfer and insurance included', 'Manager on the line during the trip'] },
-    paris:    { meta: 'France · all seasons', title: 'Paris', text: 'A city break with the visa handled. We book the flights, a hotel in the right arrondissement, and tell you which museum to skip.', photo: 'p-city', inc: ['Schengen visa support', 'Flights and central hotel', 'Museum passes and day trips on request', 'Manager on the line during the trip'] },
     phuket:   { meta: 'Thailand · Nov–Apr', title: 'Phuket', text: 'Big island, many beaches. We match the beach to the traveller — lively Patong, quiet Kata, or a villa away from both.', photo: 'p-island', inc: ['Flights with one connection', 'Beach hotel or villa', 'Island day-trips by longtail or speedboat', 'Manager on the line during the trip'] },
     georgia:  { meta: 'Georgia · Dec–Mar', title: 'Gudauri', text: 'Skiing five hours from Yerevan by car. Ski-in hotels, lift passes, instructors for first-timers, and khachapuri after.', photo: 'p-snow', inc: ['Car transfer from Yerevan', 'Ski-in hotel and lift pass', 'Instructor and gear rental on request', 'Manager on the line during the trip'] }
   };
@@ -198,7 +183,7 @@
     var tg = e.target.closest('[data-toggle]');
     if (tg) { e.preventDefault(); var tid = tg.dataset.toggle;
       if (document.getElementById(tid).classList.contains('is-open')) close(tid); else open(tid); return; }
-    var o = e.target.closest('[data-open]'); if (o) { e.preventDefault(); if (o.dataset.open === 'dirpick') pickTarget = o.dataset.target || 'prices'; if (o.dataset.close) close(o.dataset.close); open(o.dataset.open); return; }
+    var o = e.target.closest('[data-open]'); if (o) { e.preventDefault(); if (o.dataset.close) close(o.dataset.close); open(o.dataset.open); return; }
     var c = e.target.closest('[data-close]'); if (c) { close(c.dataset.close); }
   });
   /* a tour card is not a <button> (it holds a WhatsApp link), so the keyboard opens it here */
@@ -536,7 +521,10 @@
       var el = n.parentElement; if (!el || el.closest('script, style, svg, [data-count]')) continue;
       if (!originals.has(n)) originals.set(n, n.nodeValue);
       var orig = originals.get(n), key = orig.replace(/\s+/g, ' ').trim(); if (!key) continue;
-      var t = tr(key);
+      /* data-i18n-ctx on an ancestor: this text has its own key, «ctx::text» — for words that
+         are translated differently in different places («Travel Insurance» / «Corporate Travel») */
+      var cx = el.closest('[data-i18n-ctx]'), ck = cx ? cx.getAttribute('data-i18n-ctx') + '::' + key : '';
+      var t = ck && tr(ck) !== ck ? tr(ck) : tr(key);
       n.nodeValue = (t === key) ? orig : orig.match(/^\s*/)[0] + t + orig.match(/\s*$/)[0];
     }
     $$('[placeholder], [aria-label]').forEach(function (e) {
@@ -844,8 +832,10 @@
     var dots = $$('[data-carou-go]');
     /* js/cms.js swaps the cards for the ones managed in the panel, then calls this */
     window.SAM_CAROUSEL_REFRESH = function () {
+      /* the same set of cards redrawn (a language switch) stays on the card the visitor was looking at */
+      var keep = cards.length, at = Math.round(target);
       cards = $$('.tour', stage); n = cards.length; dots = $$('[data-carou-go]');
-      pos = target = vel = 0; if (n) paint();
+      pos = target = (n && n === keep) ? at : 0; vel = 0; if (n) paint();
     };
     if (!n) return;
 
@@ -869,7 +859,11 @@
         var rot = Math.max(-1.25, Math.min(1.25, o)) * -c.rot;
         el.style.transform = 'translate(-50%,-50%) translateX(' + (o * c.x).toFixed(2) + 'px) translateZ(' + (-ao * c.z).toFixed(2) + 'px) rotateY(' + rot.toFixed(2) + 'deg) scale(' + (1 - ao * c.scale).toFixed(4) + ')';
         el.style.filter = 'brightness(' + Math.max(0.55, 1 - ao * 0.16).toFixed(3) + ')';
-        el.style.opacity = ao > half - 0.5 ? String(Math.max(0, (half - ao) / 0.5)) : '1';
+        /* the card at the far side of the loop fades out as it jumps from one edge to the other;
+           with two or three cards there is no far side — both neighbours stay in view */
+        var op = n > 3 && ao > half - 0.5 ? Math.max(0, (half - ao) / 0.5) : 1;
+        el.style.opacity = String(op);
+        el.style.pointerEvents = op < 0.05 ? 'none' : '';   /* what cannot be seen cannot be pressed */
         el.style.zIndex = String(Math.round(100 - ao * 10));
         var cur = ao < 0.5;
         el.classList.toggle('is-current', cur);

@@ -84,7 +84,7 @@ export default async function overview(root, ctx) {
       h('p.muted', { style: { margin: 0, fontSize: '12.5px' } }, (s.devices.mobile || 0) / (f.visits || 1) > 0.6 ? 'Больше половины заходят с телефона — проверяйте баннеры и рекламу сначала на мобильном.' : ''))));
 
   const cells = s.heat.map((c) => ({ dow: c.dow, h: c.h, v: c.visits }));
-  g.append(h('section.card.c12', h('div.card__h', h('div', h('h3', 'Когда люди на сайте'), h('p', (heatPeak(cells) || '') + '. Запускайте рекламу и посты за час до пика.'))), heatmap(cells, { unit: 'посещений' })));
+  g.append(h('section.card.c12', h('div.card__h', h('div', h('h3', 'Когда люди на сайте'), h('p', [heatPeak(cells), 'Запускайте рекламу и посты за час до пика.'].filter(Boolean).join('. ')))), heatmap(cells, { unit: 'посещений' })));
 }
 
 function crCell(cr, avg) {

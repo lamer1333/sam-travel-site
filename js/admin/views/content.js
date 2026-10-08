@@ -1,10 +1,12 @@
 // Site content: hot tours, reviews, team, reels, the numbers strip — what the SMM
 // specialist changes (TZ-CONTENT.md §7–§9). The plates, icons and texts of the site
 // itself are static and are not edited here.
-// Everything trilingual; the site falls back to its built-in copy for any
-// block that has no published rows, so an empty table never blanks the page.
+// Everything trilingual. With no published tours the site shows one card «Спросите нас в
+// WhatsApp»; with no reviews or team members it hides that block (AUDIT.md, решение 1).
 import { h, $$, mount, clear, icon, fmt, toast, drawer, modal, confirmDlg, field, input, select, toggle, chipsPick, i18nEditor, langDots, sortable, stars, starsPick, pageHead, LANGS, pickLang } from '../ui.js';
 import { FRAMES, frameHint, cropFile } from '../crop.js';
+import { ymd } from './common.js';
+import { addDays } from '../reminders.js';
 
 const TOUR_FIELDS = [
   { key: 'card_title', label: 'Заголовок карточки', max: 40, placeholder: 'Дубай · 5 ночей' },
@@ -31,7 +33,7 @@ export default async function contentView(root, ctx, params, route) {
   const smm = ctx.role === 'content';
   const TABS = [['tours', 'Горящие туры'], ['reels', 'Рилсы'], ['reviews', 'Отзывы'], ctx.can('team_photos') ? ['team', 'Команда'] : null, smm ? null : ['numbers', 'Цифры']].filter(Boolean);
   const tab = TABS.some((t) => t[0] === params[0]) ? params[0] : 'tours';
-  root.append(pageHead('Контент сайта', 'Изменения появляются на сайте сразу после сохранения. Если в блоке нет ни одной опубликованной записи — сайт показывает свой исходный текст.',
+  root.append(pageHead('Контент сайта', 'Изменения появляются на сайте сразу после сохранения. Нет ни одного опубликованного тура — на сайте вместо карусели одна карточка «Спросите нас в WhatsApp»; нет отзывов или сотрудников — этот блок на сайте скрыт.',
     h('a.btn', { href: ctx.demo ? 'index.html?cms=demo' : 'index.html', target: '_blank', rel: 'noopener' }, icon('external'), 'Открыть сайт')));
   root.append(sizesGuide());
   root.append(h('div.tabs', { role: 'tablist' }, TABS.map(([k, l]) => h('button', { role: 'tab', 'aria-selected': String(k === tab), onclick: () => ctx.go(base + '/' + k) }, l))));
@@ -218,7 +220,7 @@ const tourText = (i18n, l, k) => { const o = i18n || {}; for (const x of [l, 'en
 async function tours(box, ctx, isNew) {
   let rows = await ctx.api.list('tours');
   const list = h('div.list');
-  const today = new Date().toISOString().slice(0, 10);
+  const today = ymd(Date.now());   // «показывать до» is a Yerevan day
   box.append(h('div.toolbar', h('span.muted', 'Порядок карточек в карусели — перетаскиванием. Выключенные туры — черновики.'), h('span', { style: { flex: 1 } }),
     h('button.btn.btn--primary', { onclick: () => edit({}) }, icon('plus'), 'Новый тур')), list);
   sortable(list, async (ids) => { try { await ctx.api.reorder('tours', ids); ids.forEach((id, i) => { rows.find((r) => r.id === id).sort = i; }); toast('Порядок сохранён'); } catch (e) { ctx.err(e); } });
@@ -233,11 +235,11 @@ async function tours(box, ctx, isNew) {
           h('b', ru.card_title || ru.title || t.slug),
           h('small', [ru.dates, ru.meta, t.price_from ? 'от ' + fmt.money(t.price_from, t.currency) : null, (t.tags || []).map((k) => typeName(k)).join(', ') || null].filter(Boolean).join(' · '))),
         !t.photo_url ? h('span.badge.badge--warn.badge--plain', 'нет фото') : !t.photo_hero_url ? h('span.badge.badge--warn.badge--plain', { title: 'Сайт сам обрежет фото карточки под шапку описания' }, 'нет кадра шапки') : null,
-        expired ? h('span.badge.badge--off', 'скрыт с ' + fmt.date(t.hot_until)) : t.hot_until ? h('span.badge.badge--warn', 'до ' + fmt.day(t.hot_until)) : null,
+        expired ? h('span.badge.badge--off', { title: 'Последний день показа — ' + fmt.date(t.hot_until) }, 'скрыт с ' + fmt.date(addDays(t.hot_until, 1))) : t.hot_until ? h('span.badge.badge--warn', 'до ' + fmt.day(t.hot_until)) : null,
         langMark(tourLangs(t.i18n)),
         toggle(t.published, null, async (on, el) => { try { const u = await ctx.api.save('tours', { ...t, published: on }); Object.assign(t, u); toast(on ? 'Тур на сайте' : 'Тур скрыт'); paint(); } catch (e) { el.checked = !on; ctx.err(e); } })));
     });
-    if (!rows.length) list.appendChild(h('div.card', h('div.empty', h('b', 'Туров нет'), 'Сайт показывает свои исходные карточки')));
+    if (!rows.length) list.appendChild(h('div.card', h('div.empty', h('b', 'Туров нет'), 'На сайте вместо карусели — одна карточка «Спросите нас в WhatsApp»')));
   }
   function edit(t) {
     const d = { slug: '', published: false, photo_url: null, photo_hero_url: null, photo_class: 'p-sea', tags: [], price_from: null, currency: 'USD', hot_until: null, i18n: {}, ...JSON.parse(JSON.stringify(t)) };
@@ -331,14 +333,17 @@ async function reviews(box, ctx, isNew) {
   box.append(h('div.toolbar',
     h('div.seg', [['all', 'Все'], ['pending', 'На модерации'], ['live', 'На сайте']].map(([k, l]) => h('button', { type: 'button', 'aria-pressed': String(k === filter), onclick: (e) => { filter = k; $$('button', e.currentTarget.parentNode).forEach((b) => b.setAttribute('aria-pressed', String(b === e.currentTarget))); paint(); } }, l))),
     h('span', { style: { flex: 1 } }), h('button.btn.btn--primary', { onclick: () => edit({}) }, icon('plus'), 'Добавить отзыв')), list);
-  sortable(list, async (ids) => { try { await ctx.api.reorder('reviews', ids); toast('Порядок сохранён'); } catch (e) { ctx.err(e); } });
+  // the order is kept in the rows too — otherwise the next repaint would put them back;
+  // under a filter the list is partial, and dragging it would renumber the hidden rows wrongly
+  sortable(list, async (ids) => { if (filter !== 'all') return; try { await ctx.api.reorder('reviews', ids); ids.forEach((id, i) => { const r = rows.find((x) => x.id === id); if (r) r.sort = i; }); toast('Порядок сохранён'); } catch (e) { ctx.err(e); paint(); } });
   function paint() {
     clear(list);
     const data = rows.filter((r) => filter === 'all' || (filter === 'live' ? r.published : !r.published)).sort((a, b) => a.sort - b.sort);
+    const drag = filter === 'all';
     data.forEach((r) => {
       const text = reviewText(r);
-      list.appendChild(h('div.item', { draggable: 'true', dataset: { id: r.id }, style: { alignItems: 'flex-start' } },
-        h('span.item__grip', icon('grip')),
+      list.appendChild(h('div.item', { draggable: drag ? 'true' : null, dataset: { id: r.id }, style: { alignItems: 'flex-start' } },
+        drag ? h('span.item__grip', { title: 'Перетащите' }, icon('grip')) : h('span.item__grip', { title: 'Порядок меняется во вкладке «Все»', style: { opacity: '.3', cursor: 'default' } }, icon('grip')),
         h('div.item__thumb.item__thumb--round' + (r.photo_url ? '' : '.p-city'), { style: { backgroundImage: bg(ctx, r.photo_url) } }),
         h('div.item__main', { style: { cursor: 'pointer' }, onclick: () => edit(r) },
           h('div.row', h('b', r.author), stars(r.rating), h('span.tag', SRC[r.source] || r.source), r.featured ? h('span.badge.badge--warn.badge--plain', '★ первым') : null, langMark(reviewLangs(r.body))),
@@ -346,7 +351,7 @@ async function reviews(box, ctx, isNew) {
         h('div.stack', { style: { gap: '6px', justifyItems: 'end' } },
           toggle(r.published, r.published ? 'На сайте' : 'Скрыт', async (on, el) => { try { const u = await ctx.api.save('reviews', { ...r, published: on }); Object.assign(r, u); paint(); } catch (e) { el.checked = !on; ctx.err(e); } }))));
     });
-    if (!data.length) list.appendChild(h('div.card', h('div.empty', h('b', filter === 'pending' ? 'Модерировать нечего' : 'Отзывов нет'), rows.length ? '' : 'Пока нет ни одного опубликованного — сайт показывает шаблонные образцы. Добавьте настоящие отзывы клиентов.')));
+    if (!data.length) list.appendChild(h('div.card', h('div.empty', h('b', filter === 'pending' ? 'Модерировать нечего' : 'Отзывов нет'), rows.length ? '' : 'Пока нет ни одного опубликованного — блок «Отзывы» на сайте скрыт. Добавьте настоящие отзывы клиентов.')));
   }
   function edit(r) {
     const d = { author: '', trip: '', rating: 5, source: 'direct', published: false, featured: false, photo_url: null, body: {}, ...JSON.parse(JSON.stringify(r)) };
@@ -369,7 +374,7 @@ async function reviews(box, ctx, isNew) {
         h('div.btns', h('button.btn', { onclick: () => api.close() }, 'Отмена'), h('button.btn.btn--primary', { onclick: async () => {
           if (!d.author.trim() || !Object.keys(d.body).length) { toast('Нужны имя и текст', 'bad'); return; }
           if (!(await confirmLangs(reviewLangs(d.body)))) return;
-          try { const u = await ctx.api.save('reviews', d); saved = true; await ses.commit([u.photo_url]); if (r.id) Object.assign(r, u); else rows.push(u); toast('Сохранено'); api.close(); paint(); } catch (e) { ctx.err(e); }
+          try { const u = await ctx.api.save('reviews', { ...d, sort: d.sort ?? rows.length }); saved = true; await ses.commit([u.photo_url]); if (r.id) Object.assign(r, u); else rows.push(u); toast('Сохранено'); api.close(); paint(); } catch (e) { ctx.err(e); }
         } }, 'Сохранить'))),
     });
   }
@@ -378,23 +383,28 @@ async function reviews(box, ctx, isNew) {
 }
 
 // ---------- team ----------
+// The role «Контент» changes only the photo of a team member (AUDIT.md, «Решения заказчика» 2):
+// it does not add or remove people, rename them, hide them or move them. The owner does all of it.
 async function team(box, ctx) {
   let rows = await ctx.api.list('team');
+  const full = ctx.can('team');
   const F = [{ key: 'name', label: 'Имя', max: 40 }, { key: 'role', label: 'Специализация и стаж', max: 50, placeholder: 'Пляжи и острова · 8 лет' }];
   const list = h('div.list');
-  box.append(h('div.toolbar', h('span.muted', 'Менеджеры в блоке «О нас». Фото с лицом повышают доверие сильнее любых слов.'), h('span', { style: { flex: 1 } }), h('button.btn.btn--primary', { onclick: () => edit({}) }, icon('plus'), 'Добавить')), list);
-  sortable(list, async (ids) => { try { await ctx.api.reorder('team', ids); toast('Порядок сохранён'); } catch (e) { ctx.err(e); } });
+  box.append(h('div.toolbar', h('span.muted', full ? 'Менеджеры в блоке «О нас». Фото с лицом повышают доверие сильнее любых слов.' : 'Менеджеры в блоке «О нас». Вы меняете фото; имя, должность и состав команды правит владелец.'), h('span', { style: { flex: 1 } }),
+    full ? h('button.btn.btn--primary', { onclick: () => edit({}) }, icon('plus'), 'Добавить') : null), list);
+  if (full) sortable(list, async (ids) => { try { await ctx.api.reorder('team', ids); ids.forEach((id, i) => { const r = rows.find((x) => x.id === id); if (r) r.sort = i; }); toast('Порядок сохранён'); } catch (e) { ctx.err(e); paint(); } });
   function paint() {
     clear(list);
     rows.slice().sort((a, b) => a.sort - b.sort).forEach((m) => {
       const ru = pickLang(m.i18n, 'ru');
-      list.appendChild(h('div.item', { draggable: 'true', dataset: { id: m.id } }, h('span.item__grip', icon('grip')),
+      list.appendChild(h('div.item', { draggable: full ? 'true' : null, dataset: { id: m.id } }, full ? h('span.item__grip', { title: 'Перетащите' }, icon('grip')) : null,
         h('div.item__thumb.item__thumb--person' + (m.photo_url ? '' : '.p-city'), { style: { backgroundImage: bg(ctx, m.photo_url) } }),
         h('div.item__main', { style: { cursor: 'pointer' }, onclick: () => edit(m) }, h('b', ru.name || '—'), h('small', ru.role || '')),
         !m.photo_url ? h('span.badge.badge--warn', 'нет фото') : null, langDots(m.i18n, F),
-        toggle(m.published, null, async (on, el) => { try { const u = await ctx.api.save('team', { ...m, published: on }); Object.assign(m, u); } catch (e) { el.checked = !on; ctx.err(e); } })));
+        full ? toggle(m.published, null, async (on, el) => { try { const u = await ctx.api.save('team', { ...m, published: on }); Object.assign(m, u); } catch (e) { el.checked = !on; ctx.err(e); } })
+          : h('span.badge.badge--plain' + (m.published ? '.badge--ok' : '.badge--off'), m.published ? 'на сайте' : 'скрыт')));
     });
-    if (!rows.length) list.appendChild(h('div.card', h('div.empty', h('b', 'В команде никого'), 'Сайт показывает свои исходные карточки')));
+    if (!rows.length) list.appendChild(h('div.card', h('div.empty', h('b', 'В команде никого'), 'Блок с фотографиями менеджеров на сайте скрыт')));
   }
   function edit(m) {
     const d = { i18n: {}, photo_url: null, whatsapp: '', published: true, ...JSON.parse(JSON.stringify(m)) };
@@ -402,16 +412,24 @@ async function team(box, ctx) {
     let saved = false;
     drawer({
       title: m.id ? pickLang(m.i18n, 'ru').name : 'Новый менеджер',
+      sub: full ? null : pickLang(m.i18n, 'ru').role || null,
       onClose: () => { if (!saved) ses.cancel(); },
       body: () => h('div.stack', h('div.field', h('span', 'Фото'), photoSlot(ctx, ses, FRAMES.person, d.photo_url, (u) => { d.photo_url = u; }, { label: 'Фото сотрудника' })),
-        i18nEditor(d.i18n, F, (v) => { d.i18n = v; }),
-        field('Личный WhatsApp (необязательно)', input(d.whatsapp, { placeholder: '37455957585', oninput: (v) => { d.whatsapp = v.replace(/\D/g, ''); } })),
-        toggle(d.published, 'Показывать на сайте', (v) => { d.published = v; })),
+        full ? [i18nEditor(d.i18n, F, (v) => { d.i18n = v; }),
+          field('Личный WhatsApp (необязательно)', input(d.whatsapp, { placeholder: '37455957585', oninput: (v) => { d.whatsapp = v.replace(/\D/g, ''); } })),
+          toggle(d.published, 'Показывать на сайте', (v) => { d.published = v; })]
+          : h('div.note', icon('shield'), h('span', 'Имя, должность, WhatsApp и показ на сайте меняет владелец.'))),
       footer: (api) => h('div.btns', { style: { width: '100%', justifyContent: 'space-between' } },
-        m.id ? h('div.btns', h('button.btn.btn--danger.btn--ghost', { 'aria-label': 'Убрать из команды', onclick: async () => { if (!(await confirmDlg('Убрать из команды?', { sub: 'Удалённую запись вернёт только владелец из журнала.' }))) return; try { await ctx.api.remove('team', m.id); rows = rows.filter((x) => x.id !== m.id); api.close(); paint(); } catch (e) { ctx.err(e); } } }, icon('trash')),
+        m.id ? h('div.btns', full ? h('button.btn.btn--danger.btn--ghost', { 'aria-label': 'Убрать из команды', onclick: async () => { if (!(await confirmDlg('Убрать из команды?', { sub: 'Удалённую запись вернёт только владелец из журнала.' }))) return; try { await ctx.api.remove('team', m.id); rows = rows.filter((x) => x.id !== m.id); api.close(); paint(); } catch (e) { ctx.err(e); } } }, icon('trash')) : null,
           historyBtn(() => historyDlg(ctx, 'team', m, pickLang(m.i18n, 'ru').name || 'сотрудник', (v) => [pickLang(v.i18n, 'ru').name, pickLang(v.i18n, 'ru').role, v.photo_url ? 'с фото' : 'без фото'].filter(Boolean).join(' · '),
             (row, before) => { Object.assign(m, row); dropLeftPhotos(ctx, before, row); api.close(); paint(); }))) : h('span'),
-        h('button.btn.btn--primary', { onclick: async () => { try { const u = await ctx.api.save('team', d); saved = true; await ses.commit([u.photo_url]); if (m.id) Object.assign(m, u); else rows.push(u); toast('Сохранено'); api.close(); paint(); } catch (e) { ctx.err(e); } } }, 'Сохранить')),
+        h('button.btn.btn--primary', { onclick: async () => {
+          try {
+            // the content role sends the row as it is with the new photo only
+            const u = await ctx.api.save('team', full ? { ...d, sort: d.sort ?? rows.length } : { ...m, photo_url: d.photo_url });
+            saved = true; await ses.commit([u.photo_url]); if (m.id) Object.assign(m, u); else rows.push(u); toast('Сохранено'); api.close(); paint();
+          } catch (e) { ctx.err(e); }
+        } }, 'Сохранить')),
     });
   }
   paint();
@@ -478,7 +496,7 @@ async function reels(box, ctx) {
         toggle(r.published, null, async (on, el) => { try { const u = await ctx.api.save('reels', { ...r, published: on }); Object.assign(r, u); paint(); } catch (e) { el.checked = !on; ctx.err(e); } }),
         h('button.btn.btn--ghost.btn--sm', { 'aria-label': 'Удалить', onclick: async () => { if (!(await confirmDlg('Удалить рилс из списка?', { sub: 'Можно просто выключить — он останется в списке.' }))) return; try { await ctx.api.remove('reels', r.id); rows = rows.filter((x) => x.id !== r.id); paint(); } catch (e) { ctx.err(e); } } }, icon('trash'))));
     });
-    if (!rows.length) list.appendChild(h('div.card', h('div.empty', h('b', 'Рилсов нет'), 'Сайт показывает свои исходные слоты')));
+    if (!rows.length) list.appendChild(h('div.card', h('div.empty', h('b', 'Рилсов нет'), 'На сайте в блоке останутся заглушки')));
   }
   paint();
 }
@@ -488,7 +506,7 @@ async function numbers(box, ctx) {
   const s = await ctx.settings();
   const d = { years: '', trips: '', destinations: '', travellers: '', ...(s.stats || {}) };
   const L = [['years', 'Лет в туризме'], ['trips', 'Поездок организовано'], ['destinations', 'Направлений'], ['travellers', 'Туристов отправлено']];
-  const pv = h('div.kpis', { style: { gridTemplateColumns: 'repeat(4, 1fr)' } });
+  const pv = h('div.kpis.kpis--plain');
   const paintPv = () => mount(pv, L.map(([k, l]) => h('div.kpi', h('span.kpi__value', d[k] || '—'), h('span.kpi__label', l))));
   box.append(h('div.card', h('div.card__h', h('div', h('h3', 'Блок «В цифрах»'), h('p', 'Раздел «О нас». Пишите как на сайте: «500+», «3 000+».'))),
     h('div.grid2', L.map(([k, l]) => field(l, input(d[k], { oninput: (v) => { d[k] = v; paintPv(); } })))),

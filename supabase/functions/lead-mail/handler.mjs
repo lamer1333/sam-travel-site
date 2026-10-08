@@ -23,7 +23,7 @@ export function buildMail(lead, env) {
   const site = (env.SITE_URL || '').replace(/\/+$/, '');
   const digits = String(lead.phone_digits || lead.phone || '').replace(/\D/g, '');
   const wa = digits.length >= 8 ? 'https://wa.me/' + digits : '';
-  const panel = site ? site + '/admin.html#/leads/' + lead.id : '';
+  const panel = site ? site + '/admin.html#/sales/' + lead.id : '';
   const tour = lead.tour_title || lead.tour || '';
   const from = [lead.utm_source, lead.utm_campaign].filter(Boolean).join(' / ');
   const rows = [
@@ -44,7 +44,7 @@ ${wa ? btn(wa, 'Написать в WhatsApp', '#1FA855', '#ffffff') : ''}${pane
   return { subject, text, html };
 }
 
-const KIND_LABEL = { bon_voyage: 'Вылет завтра — хорошего полёта', welcome_back: 'Вернулись — с возвращением' };
+const KIND_LABEL = { bon_voyage: 'Вылет завтра — хорошего полёта', bon_voyage_today: 'Вылет сегодня — хорошего полёта', welcome_back: 'Вернулись — с возвращением' };
 const dayRu = (d) => { const [y, m, dd] = String(d || '').split('-'); return dd ? dd + '.' + m + '.' + y : ''; };
 const clients = (n) => { const a = n % 10, b = n % 100; return n + ' ' + (a === 1 && b !== 11 ? 'клиент' : a >= 2 && a <= 4 && (b < 12 || b > 14) ? 'клиента' : 'клиентов'); };
 
@@ -58,7 +58,9 @@ export function buildDigestMail(digest, env) {
   const site = (env.SITE_URL || '').replace(/\/+$/, '');
   const panel = site ? site + '/admin.html#/dashboard' : '';
   const items = digest.items || [];
-  const what = (it) => (KIND_LABEL[it.kind] || it.kind) + (it.overdue ? ' (просрочено)' : '');
+  // «хорошего полёта» висит в списке и в день вылета — тогда вылет уже не «завтра»
+  const kindOf = (it) => (it.kind === 'bon_voyage' && it.depart_on && digest.day && it.depart_on <= digest.day ? 'bon_voyage_today' : it.kind);
+  const what = (it) => (KIND_LABEL[kindOf(it)] || it.kind) + (it.overdue ? ' (просрочено)' : '');
   const when = (it) => (it.kind === 'bon_voyage' ? 'вылет ' + dayRu(it.depart_on) : 'вернулись ' + dayRu(it.return_on));
   const subject = 'Сегодня написать: ' + clients(items.length);
   const text = items.map((it) => [it.name + (it.tour_name ? ' · ' + it.tour_name : '') + ' · ' + when(it), what(it), it.text, 'Отправить в WhatsApp: ' + it.wa_url].join('\n')).join('\n\n')

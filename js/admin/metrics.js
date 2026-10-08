@@ -10,7 +10,7 @@
 // with an amount, counted by its sale date; возврат = a journal row in «lost».
 // ---------------------------------------------------------------------------
 
-const DAY = 86400e3, MIN = 60e3, TZ = 4 * 3600e3;                 // Asia/Yerevan = UTC+4 all year
+const DAY = 86400e3, TZ = 4 * 3600e3;                       // Asia/Yerevan = UTC+4 all year
 export const MANUAL = ['phone', 'walk_in', 'instagram', 'manual'];   // the source the owner picks for a sale without a reference number
 const ms = (d) => (d instanceof Date ? d.getTime() : typeof d === 'number' ? d : new Date(d).getTime());
 
@@ -18,7 +18,6 @@ export const yv = (d) => new Date(ms(d) + TZ);
 export const ymd = (d) => yv(d).toISOString().slice(0, 10);
 export const num = (x) => (x == null || x === '' ? null : Number(x));
 const round2 = (x) => Math.round((x + Number.EPSILON) * 100) / 100;
-export function median(arr) { const a = arr.filter((x) => x != null && !isNaN(x)).sort((x, y) => x - y); if (!a.length) return null; const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; }
 
 // ------------------------------------------------------------------ reference number (ref_norm / ref_ok, js/track.js)
 const REF_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';   // no 0/O, no 1/I/L
@@ -36,6 +35,22 @@ const CYR = { А: 'A', В: 'B', Е: 'E', К: 'K', М: 'M', Н: 'H', Р: 'P', С:
 export const refNorm = (s) => String(s == null ? '' : s).toUpperCase().replace(/[АВЕКМНРСТУХ]/g, (c) => CYR[c]).replace(/[^0-9A-Z]/g, '') || null;
 export const refOk = (s) => /^[2-9A-HJKMNP-Z]{5}$/.test(s || '');
 
+// ------------------------------------------------------------------ phone of a sale (phone_norm, 110_fixes.sql)
+const digits = (p) => String(p == null ? '' : p).replace(/\D/g, '');
+/** an Armenian number written the home way — «091 22 33 44» — becomes «+374 91 223344»; anything else stays as typed */
+export function phoneNorm(phone) {
+  if (phone == null) return phone;
+  const d = digits(phone);
+  return !/^\+/.test(String(phone).trim()) && /^0\d{8}$/.test(d) ? '+374 ' + d.slice(1, 3) + ' ' + d.slice(3) : phone;
+}
+/** what the sale form says about a phone: '' when it is fine, else the text; `block` = cannot be saved */
+export function phoneProblem(phone) {
+  const p = String(phoneNorm(phone) || '').trim(), d = digits(p);
+  if (d.length < 8) return { block: true, text: 'В телефоне должно быть не меньше 8 цифр — иначе клиенту не написать в WhatsApp' };
+  if (!/^\+/.test(p) && !/^374\d{8}$/.test(d)) return { block: false, text: 'Похоже, номер без кода страны: WhatsApp такой чат не откроет. Начните с «+» и кода, для Армении — +374' };
+  return null;
+}
+
 // ------------------------------------------------------------------ channel (channel_of / lead_channel)
 export function hostOf(url) {
   const m = /^https?:\/\/([^/?#:]+)/i.exec(String(url || ''));
@@ -52,32 +67,6 @@ export function channelOf(source, utmSource, host) {
 /** a sale with a reference number belongs to the channel of the visit; without one — to the source the owner picked */
 export const leadChannel = (l) => channelOf(l.ref ? null : l.source, l.utm_source, hostOf(l.referrer));
 export const eventChannel = (e) => channelOf(null, e.utm_source, e.ref_host);
-
-// ------------------------------------------------------------------ working hours (site_hours / work_minutes)
-/** {days, open, close} in minutes of the day, or days = null when the setting cannot be read */
-export function parseHours(hours) {
-  const h = hours || {};
-  const hm = (s, def) => { const m = /^(\d{1,2}):(\d{2})/.exec(s == null || s === '' ? def : String(s)); return m ? +m[1] * 60 + +m[2] : null; };
-  const days = h.days === undefined ? [1, 2, 3, 4, 5, 6] : Array.isArray(h.days) ? h.days.map(Number) : null;
-  const open = hm(h.from, '10:00'), close = hm(h.to, '19:00');
-  if (!days || days.some(isNaN) || open == null || close == null) return { days: null, open: null, close: null };
-  return { days, open, close };
-}
-/** minutes of working time between two moments: 23:00 → 10:05 with a 10:00 opening is 5 */
-export function workMinutes(a, b, hours) {
-  if (a == null || b == null) return null;
-  const A = ms(a) + TZ, B = ms(b) + TZ;          // Yerevan wall clock on the UTC scale
-  if (B <= A) return 0;
-  const { days, open, close } = parseHours(hours);
-  if (!days || !days.length || close <= open) return (B - A) / MIN;
-  let total = 0;
-  for (let d = Math.floor(A / DAY) * DAY; d <= B; d += DAY) {
-    if (!days.includes(new Date(d).getUTCDay() || 7)) continue;
-    const from = Math.max(A, d + open * MIN), to = Math.min(B, d + close * MIN);
-    if (to > from) total += to - from;
-  }
-  return total / MIN;
-}
 
 // ------------------------------------------------------------------ money
 /** Продажа = запись в won с суммой (§5) */

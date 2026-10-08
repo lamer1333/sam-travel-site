@@ -5,7 +5,7 @@ import { birthDate } from './common.js';
 
 const ROLE_HINT = {
   admin: 'Всё: продажи, контент, роли, реквизиты, журнал',
-  manager: 'Продажи и клиенты',
+  manager: 'Сводка, журнал продаж и напоминания о вылетах; список команды. Без клиентов сайта и настроек',
   marketer: 'Аналитика, кампании, промо, промокоды, подписчики, туры и отзывы. Без телефонов клиентов',
   content: 'Только «Контент сайта»: туры, рилсы, отзывы, фото команды. Без продаж, клиентов и аналитики',
   client: 'Только свой личный кабинет',
@@ -21,8 +21,7 @@ export default async function peopleView(root, ctx, params) {
 
   if (tab === 'team') {
     const staff = users.filter((u) => u.role !== 'client');
-    root.append();
-    box.append(h('div.kpis', Object.keys(ROLE_HINT).filter((r) => r !== 'client').map((r) => h('div.kpi', h('span.kpi__label', ROLE_NAMES[r]), h('span.kpi__value', String(staff.filter((u) => u.role === r).length)), h('small.muted', ROLE_HINT[r])))));
+    box.append(h('div.kpis.kpis--plain', Object.keys(ROLE_HINT).filter((r) => r !== 'client').map((r) => h('div.kpi', h('span.kpi__label', ROLE_NAMES[r]), h('span.kpi__value', String(staff.filter((u) => u.role === r).length)), h('small.muted', ROLE_HINT[r])))));
     if (owner) {
       const q = input('', { placeholder: 'Email зарегистрированного человека', attrs: { type: 'email' } });
       const role = select([['manager', 'Менеджер'], ['marketer', 'Маркетолог'], ['content', 'Контент (SMM)'], ['admin', 'Владелец']], 'manager');

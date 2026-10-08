@@ -7,9 +7,10 @@
    in that message (js/app.js builds the links, js/wa.js holds the texts).
 
    Rules:
-   • The built-in HTML is the fallback. A block is replaced only when the
-     database has published rows for it, and nothing changes if the database
-     can't be reached — the page just stays as shipped.
+   • The built-in HTML is what the visitor sees only while the database can't be
+     reached — the page then stays as shipped. Once it has answered, its answer is
+     shown as it is: no published tours → one card «Ask us on WhatsApp» instead of
+     the built-in samples; no reviews or no team → that block is hidden.
    • js/app.js re-translates the page on a language switch and fires
      'sam:lang'; everything here is re-applied after that.
    • ?cms=demo reads the panel's demo data from this browser instead.
@@ -26,7 +27,13 @@
   function lang() { return (window.SAM_LANG && window.SAM_LANG()) || document.documentElement.lang || 'en'; }
   /** pick the current language from {en, ru, hy}, falling back to English */
   function L(o) { var l = lang(); if (!o) return null; return o[l] || o.en || o.ru || o.hy || null; }
-  function Ls(o, k) { var l = lang(); return (o && ((o[l] && o[l][k]) || (o.en && o.en[k]))) || ''; }
+  /** one field of {en:{…}, ru:{…}, hy:{…}}: the visitor's language, else English, else whichever language has it */
+  function Ls(o, k) {
+    if (!o) return '';
+    var order = [lang(), 'en', 'ru', 'hy'];
+    for (var i = 0; i < order.length; i++) { var v = o[order[i]] && o[order[i]][k]; if (v && String(v).trim()) return v; }
+    return '';
+  }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function cssUrl(u) { return /^(https:\/\/|data:image\/)/.test(u || '') ? 'url("' + String(u).replace(/["\\\n\r]/g, encodeURIComponent) + '") center / cover no-repeat' : ''; }
   function safeHref(u) { u = String(u || ''); return /^(#[\w/-]*|https:\/\/)/.test(u) ? u : '#'; }
@@ -81,6 +88,12 @@
       $$('a[href]').forEach(function (a) { if (x[1].test(a.getAttribute('href')) && !a.closest('.reel')) a.setAttribute('href', url); });
     });
     if (c.address && c.address.en) swapText([ORIG.address, 'Комитас 51, Ереван', 'Կոմիտաս 51, Երևան'], c.address);
+    /* the checklist page draws its address from its own dictionary every time it is opened */
+    var CUI = window.SAM_PAGES && window.SAM_PAGES.CUI;
+    if (c.address && CUI) {
+      ['en', 'ru', 'hy'].forEach(function (l) { var a = c.address[l] || c.address.en; if (a && CUI[l]) CUI[l].contactAddress = a; });
+      var cur = L(c.address); $$('[data-c="contactAddress"]').forEach(function (el) { if (cur) el.textContent = cur; });
+    }
     // structured data for Google
     var ld = $('script[type="application/ld+json"]');
     if (ld) try {
@@ -130,9 +143,32 @@
   function typeLabels(tags, l) {
     return (tags || []).filter(function (k) { return TYPES[k]; }).map(function (k) { return TYPES[k][l || lang()] || TYPES[k].en; });
   }
+  /* No published tours: one card that leads to WhatsApp with the general message (and the
+     visit's reference number, like every other link) — not the built-in sample tours. */
+  var EMPTY = {
+    en: { title: 'Ask us on WhatsApp', text: 'Hot tours change every week. Tell us where and when you want to go — a manager will send what is available right now.', cta: 'Write to a manager →' },
+    ru: { title: 'Спросите нас в WhatsApp', text: 'Горящие туры меняются каждую неделю. Напишите, куда и когда хотите поехать, — менеджер пришлёт то, что есть прямо сейчас.', cta: 'Написать менеджеру →' },
+    hy: { title: 'Հարցրեք մեզ WhatsApp-ով', text: 'Թեժ տուրերը փոխվում են ամեն շաբաթ։ Գրեք՝ ուր և երբ եք ուզում մեկնել, և մենեջերը կուղարկի այն, ինչ հասանելի է հենց հիմա։', cta: 'Գրել մենեջերին →' }
+  };
+  function askCard() {
+    var t = EMPTY[lang()] || EMPTY.en;
+    return '<a class="tour tour--ask" href="https://wa.me/' + esc(waNumber()) + '" target="_blank" rel="noopener" data-track-label="hot_empty">'
+      + '<div class="photo p-sea"></div><span class="tour__wa" aria-hidden="true"><svg><use href="#i-wa"/></svg></span>'
+      + '<div class="tour__body"><h3>' + esc(t.title) + '</h3><p>' + esc(t.text) + '</p>'
+      + '<div class="tour__foot"><span></span><b>' + esc(t.cta) + '</b></div></div></a>';
+  }
+  var SLIDE = { en: 'Slide', ru: 'Слайд', hy: 'Սլայդ' };
   function applyTours(list) {
-    if (!list || !list.length) return;
-    var stage = $('#carou-stage'), dots = $('.carou__dots'); if (!stage) return;
+    if (!Array.isArray(list)) return;
+    var stage = $('#carou-stage'), dots = $('.carou__dots'), hot = $('#hot'); if (!stage) return;
+    /* one card needs neither arrows nor dots */
+    if (hot) hot.classList.toggle('is-single', list.length < 2);
+    if (!list.length) {
+      stage.innerHTML = askCard();
+      if (dots) dots.innerHTML = '';
+      if (window.SAM_CAROUSEL_REFRESH) window.SAM_CAROUSEL_REFRESH();
+      return;
+    }
     stage.innerHTML = list.map(function (t) {
       var bg = cssUrl(t.photo_url), season = T(t.i18n, 'season'), types = typeLabels(t.tags);
       /* photo--img: an uploaded photo is already cut to the card's shape (2 : 3) — it is shown edge to edge */
@@ -145,7 +181,7 @@
         + '<h3>' + esc(T(t.i18n, 'card_title') || T(t.i18n, 'title') || t.slug) + '</h3><p>' + esc(T(t.i18n, 'card_text')) + '</p>'
         + '<div class="tour__foot"><span>' + esc(T(t.i18n, 'dates')) + '</span><b>' + esc(price(t)) + '</b></div></div></article>';
     }).join('');
-    if (dots) dots.innerHTML = list.map(function (_, i) { return '<button type="button" role="tab" data-carou-go="' + i + '" aria-label="Slide ' + (i + 1) + '"></button>'; }).join('');
+    if (dots) dots.innerHTML = list.map(function (_, i) { return '<button type="button" role="tab" data-carou-go="' + i + '" aria-label="' + esc((SLIDE[lang()] || SLIDE.en) + ' ' + (i + 1)) + '"></button>'; }).join('');
     if (window.SAM_CAROUSEL_REFRESH) window.SAM_CAROUSEL_REFRESH();
   }
   /* the tour sheet asks here first (see openTour in app.js) */
@@ -159,8 +195,15 @@
 
   /* ---------- reviews ---------- */
   var STAR = '<svg><use href="#i-star"/></svg>';
+  /** hide a block together with every link that leads to it (top bar, menu, footer) */
+  function showBlock(id, on) {
+    var sec = document.getElementById(id); if (sec) sec.hidden = !on;
+    $$('a[href="#' + id + '"]').forEach(function (a) { var li = a.parentElement; (li && li.tagName === 'LI' ? li : a).hidden = !on; });
+  }
   function applyReviews(list) {
-    if (!list || !list.length) return;
+    if (!Array.isArray(list)) return;
+    showBlock('reviews', list.length > 0);   // no published reviews — no block, rather than sample texts
+    if (!list.length) return;
     var tracks = $$('.tcol__track'); if (!tracks.length) return;
     var lede = $('#reviews .lede'); if (lede) lede.remove();
     var cols = tracks.map(function () { return []; });
@@ -179,8 +222,12 @@
 
   /* ---------- team ---------- */
   function applyTeam(list) {
-    if (!list || !list.length) return;
+    if (!Array.isArray(list)) return;
     var box = $('.about-panel__photos'); if (!box) return;
+    /* nobody published — the photos go, the rest of the panel takes the whole width */
+    box.hidden = !list.length;
+    if (box.parentElement) box.parentElement.classList.toggle('about-panel--solo', !list.length);
+    if (!list.length) return;
     box.innerHTML = list.slice(0, 4).map(function (m) {
       var bg = cssUrl(m.photo_url);
       return '<div class="person"><div class="photo' + (bg ? ' photo--img' : '') + '"' + (bg ? ' style="--photo:' + esc(bg) + '"' : '') + '>' + (bg ? '' : '<span class="ph">photo</span>') + '</div>'
@@ -225,9 +272,11 @@
   var TXT = { copy: { en: 'Code copied', ru: 'Промокод скопирован', hy: 'Պրոմոկոդը պատճենված է' }, code: { en: 'Promo code', ru: 'Промокод', hy: 'Պրոմոկոդ' }, close: { en: 'Close', ru: 'Закрыть', hy: 'Փակել' } };
   function device() { return (window.SAM_TRACK_CTX && window.SAM_TRACK_CTX().device) || 'desktop'; }
   function store(kind) { try { return kind === 'once' ? localStorage : sessionStorage; } catch (e) { return null; } }
+  /** is this promo meant for the language the site is shown in right now */
+  function langOk(p) { var a = p.audience || {}; return !(a.langs && a.langs.length && a.langs.indexOf(lang()) < 0); }
   function eligible(p) {
     var a = p.audience || {}, ctx = window.SAM_TRACK_CTX ? window.SAM_TRACK_CTX() : {};
-    if (a.langs && a.langs.length && a.langs.indexOf(lang()) < 0) return false;
+    if (!langOk(p)) return false;
     if (a.devices && a.devices.length && a.devices.indexOf(device()) < 0) return false;
     if (a.utm_campaign && ctx.utm_campaign !== a.utm_campaign) return false;
     if (!Ls(p.i18n, p.kind === 'bar' ? 'text' : 'title')) return false;
@@ -284,9 +333,11 @@
     document.documentElement.classList.add('has-promo-bar');
     document.documentElement.style.setProperty('--promo-h', b.offsetHeight + 'px');
   }
-  function closeBar() {
+  /** silent = the site took it away itself (the language changed): not a «closed» click, and it may come back */
+  function closeBar(silent) {
     var b = shown.bar; if (!b) return;
-    track('promo_close', b.p); try { sessionStorage.setItem('sam-promo-x-' + b.p.id, '1'); } catch (e) {}
+    if (!silent) { track('promo_close', b.p); try { sessionStorage.setItem('sam-promo-x-' + b.p.id, '1'); } catch (e) {} }
+    window.removeEventListener('resize', barHeight);
     b.el.remove(); shown.bar = null;
     document.documentElement.classList.remove('has-promo-bar'); document.documentElement.style.removeProperty('--promo-h');
   }
@@ -330,6 +381,8 @@
     var a = p.audience || {}, fired = false;
     function fire() {
       if (fired) return;
+      /* the visitor switched the language while the popup was waiting, and it is not for this one */
+      if (!PREVIEW && !langOk(p)) { fired = true; state.popupScheduled = false; try { applyPromos(data.promos); } catch (e) {} return; }
       /* never on top of an open page, menu or sheet — try again shortly */
       if (document.documentElement.classList.contains('is-locked')) { setTimeout(fire, 3000); return; }
       fired = true; renderPopup(p, true);
@@ -371,12 +424,18 @@
     try { applyTeam(data.team); } catch (e) { console.warn('cms team', e); }
     try { applyReels(data.reels); } catch (e) { console.warn('cms reels', e); }
     try { applySeo(s.seo); } catch (e) { console.warn('cms seo', e); }
+    /* a promo aimed at one language goes away when the visitor switches to another, and the
+       one meant for the new language takes its place */
+    if (!PREVIEW && shown.bar && !langOk(shown.bar.p)) closeBar(true);
+    if (!PREVIEW && shown.popup && !langOk(shown.popup.p)) closePopup(true);
     if (shown.bar) renderBar(shown.bar.p);
     if (shown.popup) renderPopup(shown.popup.p);
+    if (started && !PREVIEW) { try { applyPromos(data.promos); } catch (e) { console.warn('cms promos', e); } }
     refreshWa();   // the tour cards were rebuilt: their WhatsApp buttons need the text again
   }
+  var started = false;
   function first() {
-    apply();
+    apply(); started = true;
     try { applyAnalytics((data.settings || {}).analytics); } catch (e) {}
     try { applyPromos(data.promos); } catch (e) { console.warn('cms promos', e); }
   }

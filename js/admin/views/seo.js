@@ -69,7 +69,7 @@ export default async function seoView(root, ctx) {
     h('div.grid2',
       field('GA4 Measurement ID', gaIn, 'Google Analytics → Администратор → Потоки данных → ваш сайт'),
       field('Meta Pixel ID', pxIn, 'Meta Events Manager → Источники данных → ваш пиксель')),
-    h('div.note', { style: { marginTop: '14px' } }, icon('shield'), h('span', 'Собственная аналитика панели (раздел «Трафик и конверсии») работает всегда и без cookie. GA4 и Pixel нужны для рекламных кабинетов: ретаргетинг, оптимизация кампаний по заявкам.')),
+    h('div.note', { style: { marginTop: '14px' } }, icon('shield'), h('span', 'Собственная аналитика панели (раздел «Трафик и конверсии») работает всегда и без cookie. GA4 и Pixel нужны для рекламных кабинетов: ретаргетинг, оптимизация кампаний по обращениям.')),
     h('div.btns', { style: { marginTop: '14px' } }, h('button.btn.btn--primary', { onclick: async () => {
       if (!gaOk(an.ga4) || !pxOk(an.pixel)) { toast('Проверьте формат ID', 'bad'); return; }
       try { await ctx.api.saveSetting('analytics', an); ctx.cache.settings.analytics = an; toast('ID сохранены'); } catch (e) { ctx.err(e); }

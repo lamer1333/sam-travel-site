@@ -41,7 +41,7 @@ export default async function audienceView(root, ctx, params) {
       h('button.btn.btn--sm', { onclick: () => exportAs('generic') }, icon('download'), 'CSV (все поля)'))),
     h('div.toolbar', search,
       chipsPick([['ru', 'RU'], ['hy', 'HY'], ['en', 'EN']], [], (v) => { f.langs = v; paint(); }),
-      chipsPick([['signup_form', 'Регистрация'], ['onboarding_social', 'Соцвход']], [], (v) => { f.src = v; paint(); })),
+      chipsPick([['signup_form', 'Регистрация'], ['onboarding_social', 'Соцвход'], ['cabinet', 'Кабинет']], [], (v) => { f.src = v; paint(); })),
     listBox));
 
   function filtered() {
@@ -54,7 +54,7 @@ export default async function audienceView(root, ctx, params) {
       table({ rows: data.slice(0, 500), initialSort: ['consent_at', -1], columns: [
         { key: 'email', label: 'Email', sort: true, render: (r) => h('div.cell-main', h('b', r.email), r.full_name ? h('small', r.full_name) : null) },
         { key: 'lang', label: 'Язык', sort: true, render: (r) => (r.lang || '').toUpperCase() },
-        { key: 'consent_source', label: 'Как подписался', sort: true, render: (r) => r.consent_source === 'onboarding_social' ? 'Соцвход' : r.consent_source === 'signup_form' ? 'Регистрация' : (r.consent_source || '—') },
+        { key: 'consent_source', label: 'Как подписался', sort: true, render: (r) => r.consent_source === 'onboarding_social' ? 'Соцвход' : r.consent_source === 'signup_form' ? 'Регистрация' : r.consent_source === 'cabinet' ? 'Кабинет' : (r.consent_source || '—') },
         { key: 'consent_at', label: 'Согласие', sort: true, render: (r) => fmt.date(r.consent_at) },
       ] }),
       data.length > 500 ? h('div.muted', { style: { marginTop: '8px' } }, 'Показаны первые 500 — выгрузка возьмёт всех') : null);

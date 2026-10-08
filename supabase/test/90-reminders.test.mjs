@@ -139,7 +139,8 @@ check(wb.wa_url.endsWith(encodeURIComponent(': ' + REVIEW)) && !wb.wa_url.slice(
 check(!(await item(RU, 'bon_voyage')).text.includes('http'), 'в «хорошего полёта» ссылка для отзыва не попадает');
 
 // шаблоны правит владелец в «Шаблоны ответов»
-const tpl = (await db.query(`select kind, lang, body from wa_templates where kind is not null order by kind, lang`)).rows;
+// (этап 11 добавил третий текст — «в день вылета», variant = 'today'; его проверяет 110-fixes.test.mjs)
+const tpl = (await db.query(`select kind, lang, body from wa_templates where kind is not null and variant is null order by kind, lang`)).rows;
 check(tpl.length === 6 && tpl.every((t) => t.body === R.reminderDefault(t.kind, t.lang)), 'в wa_templates два напоминания на EN / RU / HY', tpl.map((t) => t.kind + ':' + t.lang));
 await rejects('owner', `insert into wa_templates(title, lang, body, kind) values ('Ещё один', 'ru', 'x', 'bon_voyage')`, [], 'duplicate key', 'второй шаблон того же вида и языка');
 await rejects('owner', `insert into wa_templates(title, lang, body, kind) values ('Не тот вид', 'ru', 'x', 'birthday')`, [], 'check constraint', 'шаблон неизвестного вида');
@@ -245,7 +246,8 @@ const dg = await val(`select public.reminders_digest($1::date)`, [today]);
 check(dg.day === today && dg.count === dg.items.length && same(dg.items, await list()) && dg.count > 5, 'сбор письма: тот же список, что в панели', dg.count);
 check(dg.items.some((x) => x.overdue) && dg.items.some((x) => x.kind === 'welcome_back') && ['ru', 'en', 'hy'].every((l) => dg.items.some((x) => x.lang === l)), 'в письме есть просроченные, «с возвращением» и клиенты на трёх языках');
 
-check(await queue(today, '10:59') === false && await queue(today, '12:00') === false && await mails() === 0, 'до и после своего часа письмо в очередь не встаёт');
+// (этап 11, AUDIT.md B23: после своего часа письмо встаёт в очередь тоже — см. 110-fixes.test.mjs)
+check(await queue(today, '10:59') === false && await mails() === 0, 'до своего часа письмо в очередь не встаёт');
 check(await queue(today, '11:05') === true && await mails() === 1, 'в 11:05 по Еревану письмо дня встаёт в очередь');
 check(await queue(today, '11:10') === false && await queue(today, '11:55') === false && await mails() === 1, 'одно письмо в день');
 const lateSale = await sale({ depart_on: day(1), name: 'Поздняя Продажа' });
@@ -311,7 +313,7 @@ check(one.subject === 'Сегодня написать: 1 клиент' && build
 // час письма из настроек
 await db.query(`delete from notify_log where kind = 'reminders'`);
 await setWa('owner', { mail_hour: 9 });
-check(await queue(today, '11:05') === false && await queue(today, '09:10') === true, 'час письма берётся из настроек: 9 → уходит в 09:10, а не в 11');
+check(await queue(today, '08:59') === false && await queue(today, '09:10') === true, 'час письма берётся из настроек: 9 → уходит в 09:10, не дожидаясь 11');
 await setWa('owner', { mail_hour: 11 });
 
 // старое письмо о заявке notify_claim отдаёт по-прежнему

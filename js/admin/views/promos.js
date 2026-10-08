@@ -18,7 +18,7 @@ export function promoState(p) {
 export function promoPreview(p, lang) {
   const t = pickLang(p.i18n, lang);
   const code = p.coupon_code ? h('code', p.coupon_code) : null;
-  const box = h('div.pv', h('div.pv__site'));
+  const box = h('div.ppv', h('div.ppv__site'));
   if (p.kind === 'bar') box.prepend(h('div.pbar.th-' + p.theme, h('span', t.text || 'Текст баннера'), code, t.cta ? h('a', t.cta + ' →') : null, h('span', { style: { marginLeft: 'auto', opacity: .7 } }, '✕')));
   else box.append(h('div.ppop.th-' + p.theme, h('h4', t.title || 'Заголовок'), h('p', t.text || 'Текст поп-апа'), code ? h('p', 'Промокод: ', code) : null, h('span.cta', t.cta || 'Кнопка')));
   return box;
@@ -79,7 +79,10 @@ export default async function promosView(root, ctx, params) {
           h('div.field', h('span', 'Формат'), seg([['bar', 'Полоса сверху'], ['popup', 'Поп-ап']], d.kind, (v) => { d.kind = v; paintEditor(); paintPv(); paintPopup(); })),
           h('div.field', h('span', 'Оформление'), swatches),
           editorBox,
-          h('div.grid2', field('Кнопка ведёт', linkSel), field('Промокод', select([['', '— без кода —'], ...coupons.filter((c) => c.active).map((c) => [c.code, c.code + (c.discount_pct ? ' · −' + c.discount_pct + '%' : c.discount_amt ? ' · −$' + c.discount_amt : '')])], d.coupon_code || '', (v) => { d.coupon_code = v || null; paintPv(); }))),
+          h('div.grid2', field('Кнопка ведёт', linkSel), field('Промокод', select([['', '— без кода —'], ...coupons.filter((c) => c.active).map((c) => [c.code, c.code + (c.discount_pct ? ' · −' + c.discount_pct + '%' : c.discount_amt ? ' · −$' + c.discount_amt : '')]),
+            // the code this promo already carries stays visible when it was switched off or deleted — otherwise the form would keep it silently
+            ...(d.coupon_code && !coupons.some((c) => c.active && c.code === d.coupon_code) ? [[d.coupon_code, d.coupon_code + (coupons.some((c) => c.code === d.coupon_code) ? ' · выключен' : ' · удалён')]] : [])], d.coupon_code || '', (v) => { d.coupon_code = v || null; paintPv(); }),
+            d.coupon_code && !coupons.some((c) => c.active && c.code === d.coupon_code) ? 'Этот код сейчас не действует — выберите другой или «без кода»' : null)),
           customUrl,
           h('div.section-t', 'Когда'),
           h('div.grid2', field('Начать', input(dt(d.starts_at), { type: 'datetime-local', oninput: (v) => { d.starts_at = v ? new Date(v).toISOString() : null; } }), 'Пусто — сразу'),

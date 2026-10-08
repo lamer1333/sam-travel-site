@@ -5,6 +5,8 @@
 // Views only ever talk to this interface.
 // ---------------------------------------------------------------------------
 
+import { refNorm } from './metrics.js';
+
 const PAGE = 500;
 const READONLY = ['created_at', 'updated_at', 'updated_by', 'phone_digits'];
 const clean = (row) => { const r = { ...row }; READONLY.forEach((k) => delete r[k]); if (!r.id) delete r.id; return r; };
@@ -30,7 +32,7 @@ export class LiveApi {
     if (noProfit) r = r.eq('status', 'won').is('profit', null);
     if (depart) r = depart.none ? r.is('depart_on', null) : r.gte('depart_on', depart.from).lte('depart_on', depart.to);
     if (q) {
-      const like = JSON.stringify('%' + q + '%'), digits = q.replace(/\D/g, ''), ref = q.toUpperCase().replace(/[^0-9A-Z]/g, '');
+      const like = JSON.stringify('%' + q + '%'), digits = q.replace(/\D/g, ''), ref = refNorm(q) || '';   // the number typed on the Russian keyboard is found too, as in the demo
       const any = [`name.ilike.${like}`, `message.ilike.${like}`];
       if (/^[\p{L}\p{N}_-]+$/u.test(q)) any.push(`tags.cs.{${q}}`);   // a tag is one word
       if (digits.length >= 3) any.push(`phone_digits.like.%${digits}%`);
@@ -95,13 +97,20 @@ export class LiveApi {
     const rows = must(await this.sb.from('site_settings').select('key,value'));
     return Object.fromEntries(rows.map((r) => [r.key, r.value]));
   }
-  async saveSetting(key, value) { must(await this.sb.from('site_settings').upsert({ key, value })); }
+  // The marketer may UPDATE seo / analytics / stats but not INSERT (the policy of 002_admin.sql),
+  // and an upsert is an INSERT first: so update, and insert only when there was no such row.
+  async saveSetting(key, value) {
+    const rows = must(await this.sb.from('site_settings').update({ value }).eq('key', key).select('key'));
+    if (!rows || !rows.length) must(await this.sb.from('site_settings').insert({ key, value }));
+  }
 
   // ---- analytics / audit ----
   // Every number of the reports is counted by the database (070_whatsapp.sql); the panel only shows it.
   async stats(from, to) { return must(await this.sb.rpc('stats_traffic', { p_from: from.toISOString(), p_to: to.toISOString() })); }
   async sales(from, to) { return must(await this.sb.rpc('stats_sales', { p_from: from.toISOString(), p_to: to.toISOString() })); }
   async couponStats() { return must(await this.sb.rpc('stats_coupons')); }
+  /** «Готовность сайта»: is the daily letter with the flight reminders set up and leaving (owner only; 110_fixes.sql) */
+  async notifyStatus() { return must(await this.sb.rpc('notify_status')); }
   async audit(limit = 300) { return must(await this.sb.from('audit_log').select('*').order('at', { ascending: false }).limit(limit)); }
 
   // ---- files ----
@@ -153,6 +162,9 @@ export function errText(e) {
   if (/bad_review_url/.test(m)) return 'Ссылка для отзыва должна начинаться с https://';
   if (/reminder_not_found/.test(m)) return 'Напоминание не найдено — обновите страницу';
   if (/duplicate key.*wa_templates_kind_lang/i.test(m)) return 'Текст этого напоминания на этом языке уже есть — правьте его';
+  if (/leads_name_check/.test(m)) return 'Имя клиента — от 1 до 120 знаков';
+  if (/leads_phone_check/.test(m)) return 'Телефон — от 5 до 40 знаков';
+  if (/leads_message_check/.test(m)) return 'Текст «Что купили» — не длиннее 2000 знаков';
   if (/ref_invalid/.test(m)) return 'Номер обращения — 5 знаков из конца сообщения клиента, например K7M2X';
   if (/ref_not_found/.test(m)) return 'Обращения с таким номером за последние 90 дней нет. Проверьте номер или внесите продажу без него';
   if (/last_owner/.test(m)) return 'Это последний владелец — сначала назначьте другого';

@@ -14,7 +14,7 @@ handles hashing, email confirmation and password reset.
 |---|---|
 | `supabase/migrations/001_schema.sql` | Tables, roles, consent fields, coupons, Row Level Security. Run first, then the other migrations in order. |
 | `index.html` `#auth` | Sign in / register form, in-page (email/password + Google + Mail.ru). Opened from the burger menu "Sign in". Logic lives in `js/app.js`; strings in `js/pages.js` (`AUI`, all three languages). |
-| `cabinet.html` | Client cabinet (own bookings); staff see all. First-login consent screen. |
+| `cabinet.html` | Client cabinet — the profile only: date of birth and the mailing consent (a switch). First-login screen for Google / Mail.ru users. The page the «Forgot password» link opens: the new password (at least 10 characters) is set here. The site has no request form and no bookings (TZ-BACKEND.md §0 п.20–22). |
 | `js/supabase-config.js` | **Your public keys go here.** |
 | `js/auth.js` | Cabinet logic (the login form is in `js/app.js`). |
 | `supabase/functions/mailru-auth/index.ts` | Mail.ru login bridge (edge function). |
@@ -113,7 +113,7 @@ Sign up once (email or Google), then in SQL Editor find your id and promote:
 select id, email from auth.users;
 update public.profiles set role = 'admin' where id = '<your-uuid>';
 ```
-Roles: `client` (default), `manager` (sees all bookings), `admin` (full).
+Roles: `client` (default), `manager` (sales journal), `marketer`, `content` (SMM), `admin` (owner). After the first owner exists, roles are assigned in the panel — «Клиенты и команда» (see `SETUP-ADMIN.md`); a direct `update` of `role` from the API is refused.
 
 ## 7. Entry point — already wired
 
@@ -137,8 +137,11 @@ the data plumbing is already here:
   tiers, good deliverability). Export the segment or connect via their API.
 - **Unsubscribe link is mandatory** in every mailing — the ESP adds it, and you
   should flip `marketing_consent = false` when someone opts out.
-- **Coupons** live in `coupons` / `coupon_redemptions`. Create a code, mail it to
-  the segment, and redeem it against a booking.
+- **Unsubscribing from the cabinet.** A client switches the mailing off (or back on)
+  in `cabinet.html`; the `set_consent()` RPC keeps `consent_at` / `consent_source`.
+- **Coupons** live in `coupons` (panel → «Промокоды»). A code travels in the client's
+  WhatsApp message; the owner types it in when entering the sale. The old
+  `bookings` / `coupon_redemptions` tables are frozen and not used.
 
 > I don't send the mailings for you — connecting the ESP and sending real email
 > is done from your accounts with your consent. I built everything up to that line.
@@ -151,19 +154,17 @@ the data plumbing is already here:
   testing only, so email confirmation + password-reset links won't reliably reach
   real clients. Connect an SMTP provider (Brevo / Resend — the same ESP you'll use
   for mailings) in Authentication → Emails → SMTP before going live.
-- **Delete the demo user.** `demo@samtravel.am` was created only to verify the
-  flow — remove it in Authentication → Users.
-- **Region.** The project is in Sydney; for Armenian users a European region is
-  much faster. Changing region means recreating the project (re-run this setup).
+- **Region.** The existing project is in Sydney. The launch is a new project in
+  Frankfurt with a clean database (stage 6, TZ-BACKEND.md §8.1) — nothing is moved over.
 - **Promote your admin** (step 6) after you sign up with your real email.
 
 ## Test checklist
 
 - [ ] Register with email → confirm → land in cabinet
 - [ ] Sign out → sign in again
-- [ ] Forgot password → reset link arrives
+- [ ] Forgot password → the link from the email opens the cabinet with the «New password» form → a password shorter than 10 characters is refused → sign in with the new one
 - [ ] Google login → first-login consent screen shows → cabinet
 - [ ] Mail.ru login → cabinet
-- [ ] A client cannot see another client's bookings (RLS)
-- [ ] A `manager`/`admin` sees all bookings
+- [ ] The mailing switch in the cabinet turns the consent off and on; the client leaves / returns to «Подписчики»
+- [ ] A client cannot read another client's profile (RLS)
 - [ ] `marketing_audience` lists only consented users
