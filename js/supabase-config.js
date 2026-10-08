@@ -19,7 +19,8 @@ window.SAM_SUPABASE = {
   anonKey: 'sb_publishable_KC5fmQvydoqsU4pUrWzMNg_jDuKWg7D',
 };
 
-// Loaded from CDN in the page; create the shared client once.
+// supabase-js is served from this site (js/vendor/, see js/vendor/README.md) and loaded by
+// the page before this file; create the shared client once.
 window.sb = window.supabase.createClient(
   window.SAM_SUPABASE.url,
   window.SAM_SUPABASE.anonKey,

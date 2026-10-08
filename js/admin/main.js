@@ -95,7 +95,7 @@ export const ctx = {
   err(e) { console.error(e); toast(errText(e), 'bad'); },
   rerender: () => route(),
 };
-window.__samPanel = ctx;   // handy in the console
+if (DEMO) window.__samPanel = ctx;   // handy in the console — the demo only: the live panel keeps its data out of the page's globals
 
 // ---------- boot ----------
 async function boot() {

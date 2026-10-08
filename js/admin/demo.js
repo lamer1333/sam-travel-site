@@ -59,6 +59,8 @@ export function guardLead(old, row, currency, now = Date.now()) {
     }
   }
   const v = num(n.value), p = num(n.profit);
+  // «не число» — не сумма (the check leads_money_not_nan in 100_security.sql)
+  if (Number.isNaN(v) || Number.isNaN(p)) fail('leads_money_not_nan');
   if (n.status === 'won' && (statusCh || valueCh) && !(v > 0)) fail('sale_needs_value');
   if (valueCh || profitCh || (statusCh && n.status === 'won')) {
     if (v != null && v < 0) fail('value_negative');
@@ -69,15 +71,20 @@ export function guardLead(old, row, currency, now = Date.now()) {
   return n;
 }
 // ------------------------------------------------------------------ reference number of a sale
-// The same rules as wa_ref_lookup() and the leads_attribution trigger in 070_whatsapp.sql.
+// The same rules as wa_ref_lookup() and the leads_attribution trigger (070_whatsapp.sql as
+// 100_security.sql left them): the last click with the number names the visit, and the tags,
+// the tour and the banner's promo code come from the clicks of THAT visit (its sid) only.
 /** the last wa_click with this number in 90 days → what the site knows about that visit, or null */
 export function waRefLookup(events, promos, code, now = Date.now()) {
   const ref = refNorm(code);
   if (!refOk(ref)) return null;
   const since = now - 90 * DAY, t = (e) => new Date(e.ts).getTime();
   // newest first; clicks of one moment — in the order they were written, the last one wins
-  const c = events.map((e, i) => [e, i]).filter(([e]) => e.name === 'wa_click' && e.ref === ref && t(e) > since).sort((a, b) => t(b[0]) - t(a[0]) || b[1] - a[1]).map((x) => x[0]);
-  if (!c.length) return null;
+  const newest = (rows) => rows.sort((a, b) => t(b[0]) - t(a[0]) || b[1] - a[1]).map((x) => x[0]);
+  const clicks = events.map((e, i) => [e, i]).filter(([e]) => e.name === 'wa_click' && t(e) > since);
+  const last = newest(clicks.filter(([e]) => e.ref === ref))[0];
+  if (!last) return null;
+  const c = newest(clicks.filter(([e]) => e.sid === last.sid));
   const e = c[0], withTour = c.find((x) => x.tour);
   const coupon = c.map((x) => x.promo_id && (promos.find((p) => p.id === x.promo_id) || {}).coupon_code).find(Boolean);
   return { ref, ts: iso(t(e)), label: e.label || null, lang: e.lang || null, device: e.device || null,
@@ -97,8 +104,23 @@ export function attributeLead(old, row, lookup) {
   if (!e) fail('ref_not_found');
   return { ...n, source: 'manual', utm_source: e.utm_source, utm_medium: e.utm_medium, utm_campaign: e.utm_campaign, utm_content: e.utm_content, utm_term: null,
     referrer: e.ref_host ? 'https://' + e.ref_host + '/' : null, lang: e.lang || n.lang, device: e.device,
-    tour: String(n.tour || '').trim() || e.tour, coupon_code: String(n.coupon_code || '').trim() || e.coupon_code,
+    // the banner's promo code is NOT filled in: the form shows it as a hint, a person types it
+    tour: String(n.tour || '').trim() || e.tour,
     details: { ...(n.details || {}), ref_at: e.ts, ref_label: e.label } };
+}
+
+/**
+ * The «money» line of the history — the same rule as leads_log() in 100_security.sql: an edit
+ * of the amount or the income leaves «было → стало» when the row was closed OR already had a
+ * value (so it cannot be changed quietly while the sale is taken out of «продано» for a
+ * minute); the first amount of the first sale is not an edit. Returns the meta, or null.
+ */
+export function moneyEdit(old, next) {
+  const closed = CLOSED.includes(old.status), m = {};
+  if (num(next.value) !== num(old.value) && (closed || num(old.value) != null)) m.value = { from: num(old.value), to: num(next.value) };
+  if (num(next.profit) !== num(old.profit) && (closed || num(old.profit) != null)) m.profit = { from: num(old.profit), to: num(next.profit) };
+  if (closed && next.status === old.status && !sameTime(next.closed_at, old.closed_at)) m.closed_at = { from: old.closed_at, to: next.closed_at };
+  return Object.keys(m).length ? m : null;
 }
 
 /** used_count of a promo code = sold leads with it, always recounted (leads_coupon_recount) */
@@ -327,7 +349,8 @@ function generate(REM) {
 export function publicSnapshot(st) {
   const now = Date.now(), today = yv(now).toISOString().slice(0, 10);
   return {
-    settings: { ...st.settings, company: (({ margin_pct, currency, ...pub }) => pub)(st.settings.company || {}) },
+    // company: only what the page prints — the keys are listed, as in public_site() (100_security.sql)
+    settings: { ...st.settings, company: (({ licence, insurance, legal_name }) => JSON.parse(JSON.stringify({ licence, insurance, legal_name })))(st.settings.company || {}) },
     tours: st.tours.filter((t) => t.published && (!t.hot_until || t.hot_until >= today)).sort((a, b) => a.sort - b.sort)
       .map(({ slug, photo_url, photo_hero_url, photo_class, tags, price_from, currency, i18n }) => ({ slug, photo_url, photo_hero_url: photo_hero_url || null, photo_class, tags, price_from, currency, i18n })),
     reviews: st.reviews.filter((r) => r.published).sort((a, b) => (b.featured - a.featured) || (a.sort - b.sort))
@@ -350,7 +373,16 @@ const ROLE_OK = {
 const TABLE_WRITE = { tours: 'write_content', reviews: 'write_content', reels: 'write_content', promos: 'write_marketing', campaigns: 'write_marketing', coupons: 'write_marketing', team: 'write_team', wa_templates: 'write_owner' };
 export const CONTENT_TABLES = ['tours', 'reviews', 'reels', 'team'];
 export const TOUR_TAGS = ['beach', 'city', 'nature', 'family'];   // tours_tags_known
-const REEL_RE = /^https:\/\/(www\.)?instagram\.com\/(reel|p)\/[A-Za-z0-9_-]+\/?/;   // the check on reels.url
+const REEL_RE = /^https:\/\/(www\.)?instagram\.com\/(reel|p)\/[A-Za-z0-9_-]+\/?$/;   // the check on reels.url
+// 100_security.sql: what a tour, a review and a team card may hold
+const PHOTO_CLASSES = ['p-sea', 'p-desert', 'p-lagoon', 'p-snow', 'p-island', 'p-jungle', 'p-ocean', 'p-city'];   // tours_photo_class_known
+/** media_url_ok: a file of the bucket — in the demo, a photo of the demo «bucket» */
+const photoOk = (u) => u == null || (typeof u === 'string' && /^demo-media:[a-z0-9]{1,40}$/.test(u));
+/** tours_inc_ok: «Что входит» is a list of strings, each up to 200 characters */
+export const incOk = (i18n) => !!i18n && typeof i18n === 'object' && !Array.isArray(i18n) && Object.values(i18n).every((l) => !l || typeof l !== 'object' || l.inc == null
+  || (Array.isArray(l.inc) && l.inc.every((x) => typeof x === 'string' && x.length <= 200)));
+const ROLE_LABEL = { admin: 'Владелец', manager: 'Менеджер', marketer: 'Маркетолог', content: 'Контент', client: 'Клиент' };   // role_label()
+const TEAM_FREE = ['photo_url', 'updated_at', 'updated_by'];   // team_content_guard: what the content role may change in `team`
 // what «Вернуть эту версию» never touches: see restore_version()
 const RESTORE_KEEPS = ['id', 'created_at', 'updated_at', 'updated_by', 'sort', 'published'];
 
@@ -421,7 +453,8 @@ export class DemoApi {
   events_() {
     let mine = [];
     try { mine = JSON.parse(localStorage.getItem(WA_KEY) || '[]'); } catch (e) {}
-    return mine.length ? this.st.events.concat(mine.filter((e) => e && e.name === 'wa_click' && refOk(e.ref))) : this.st.events;
+    // the number is counted from the visit id, as track() does — what the click itself says is not read
+    return mine.length ? this.st.events.concat(mine.filter((e) => e && e.name === 'wa_click' && /^[a-z0-9]{8,40}$/.test(e.sid || '')).map((e) => ({ ...e, ref: refOf(e.sid) }))) : this.st.events;
   }
   /** wa_ref(code): what the site knows about the visit with this reference number — owner and manager */
   async waRef(code) { this.guard('leads'); return this.wait(waRefLookup(this.events_(), this.st.promos, code), 120); }
@@ -468,14 +501,8 @@ export class DemoApi {
     const old = { ...l }, next = guardLead(old, attributeLead(old, this.REM.tripGuard(old, { ...l, ...patch }), this.lookup_()), this.currency);
     if (next.status !== old.status) this.logAct(id, 'status', next.status, { from: old.status, to: next.status });
     if ((next.assigned_to || null) !== (old.assigned_to || null)) this.logAct(id, 'assign', null, { to: next.assigned_to });
-    // the row was already closed and stays closed: every money edit leaves «было → стало»
-    if (CLOSED.includes(old.status) && CLOSED.includes(next.status)) {
-      const m = {};
-      if (num(next.value) !== num(old.value)) m.value = { from: num(old.value), to: num(next.value) };
-      if (num(next.profit) !== num(old.profit)) m.profit = { from: num(old.profit), to: num(next.profit) };
-      if (next.status === old.status && !sameTime(next.closed_at, old.closed_at)) m.closed_at = { from: old.closed_at, to: next.closed_at };
-      if (Object.keys(m).length) this.logAct(id, 'money', null, m);
-    }
+    const m = moneyEdit(old, next);
+    if (m) this.logAct(id, 'money', null, m);
     Object.assign(l, next);
     this.REM.syncReminders(this.st.reminders, old, l, this.today, uuid);
     this.recount(old.coupon_code, next.coupon_code);
@@ -502,6 +529,8 @@ export class DemoApi {
   }
   async addActivity(lead_id, kind, body, meta) {
     this.guard('leads'); await this.saleActivity(lead_id);
+    // «system», «status», «assign» and «money» are written by the rules above, never by hand (the policy on lead_activity)
+    if (!['note', 'call', 'whatsapp', 'email'].includes(kind)) throw new Error('row-level security: lead_activity');
     this.logAct(lead_id, kind, body, meta);
     this.persist(); return this.wait(this.st.activity[lead_id].slice(-1)[0], 40);
   }
@@ -580,6 +609,17 @@ export class DemoApi {
     if (table === 'coupons' && list.some((x) => x.code.toUpperCase() === String(row.code).toUpperCase() && x.id !== row.id)) throw new Error('duplicate key code');
     if (table === 'tours' && list.some((x) => x.slug === row.slug && x.id !== row.id)) throw new Error('duplicate key slug');
     if (table === 'tours' && (row.tags || []).some((t) => !TOUR_TAGS.includes(t))) throw new Error('violates check constraint "tours_tags_known"');
+    if (table === 'tours' && !incOk(row.i18n || {})) throw new Error('violates check constraint "tours_inc_ok"');
+    if (table === 'tours' && row.photo_class != null && !PHOTO_CLASSES.includes(row.photo_class)) throw new Error('violates check constraint "tours_photo_class_known"');
+    if (['tours', 'reviews', 'team'].includes(table) && !(photoOk(row.photo_url) && photoOk(row.photo_hero_url))) throw new Error('violates check constraint "' + table + '_photo_url_ok"');
+    if (table === 'campaigns' && !(Number(row.spend || 0) >= 0)) throw new Error('violates check constraint "campaigns_spend_ok"');
+    // the content role changes only the photo of a team member (team_content_guard)
+    if (table === 'team' && this.st.role === 'content') {
+      const cur = row.id && list.find((x) => x.id === row.id);
+      if (!cur) throw new Error('row-level security: team');
+      const rest = (o) => JSON.stringify(Object.keys({ ...cur, ...row }).filter((k) => !TEAM_FREE.includes(k)).sort().map((k) => [k, o[k] ?? null]));
+      if (rest({ ...cur, ...row }) !== rest(cur)) throw new Error('team_photo_only');
+    }
     if (table === 'reels' && !REEL_RE.test(row.url || '')) throw new Error('violates check constraint "reels_url_check"');
     if (table === 'wa_templates' && row.kind && list.some((x) => x.kind === row.kind && x.lang === row.lang && x.id !== row.id)) throw new Error('duplicate key wa_templates_kind_lang_idx');
     const now = iso(Date.now());
@@ -595,13 +635,16 @@ export class DemoApi {
     if (table === 'coupons') n.used_count = couponUsed(this.st.leads, n.code);
     list.push(n); this.audit_(table, 'insert', null, n); this.persist(); return this.wait(n, 80);
   }
+  /** the content role's only write to `team` — see LiveApi.saveTeamPhoto */
+  async saveTeamPhoto(id, url) { return this.save('team', { id, photo_url: url || null }); }
   async remove(table, id) {
     if (TABLE_WRITE[table]) this.guard(TABLE_WRITE[table]);
+    if (table === 'team' && this.st.role === 'content') throw new Error('row-level security: team');
     const cur = this.st[table].find((x) => x.id === id);
     this.st[table] = this.st[table].filter((x) => x.id !== id);
     this.audit_(table, 'delete', cur, null); this.persist();
   }
-  async reorder(table, ids) { if (TABLE_WRITE[table]) this.guard(TABLE_WRITE[table]); ids.forEach((id, i) => { const r = this.st[table].find((x) => x.id === id); if (r) r.sort = i; }); this.persist(); }
+  async reorder(table, ids) { if (TABLE_WRITE[table]) this.guard(TABLE_WRITE[table]); if (table === 'team' && this.st.role === 'content') throw new Error('team_photo_only'); ids.forEach((id, i) => { const r = this.st[table].find((x) => x.id === id); if (r) r.sort = i; }); this.persist(); }
 
   async settings() { return this.wait(this.st.role === 'content' ? {} : this.st.settings, 60); }
 
@@ -612,7 +655,8 @@ export class DemoApi {
   }
   async history(table, id) {
     this.contentGuard_(table);
-    const name = (a) => { const u = this.st.users.find((x) => x.id === a); return u ? (u.full_name || u.email) : null; };
+    // the author's name, else the role — never the e-mail (row_history in 100_security.sql)
+    const name = (a) => { const u = this.st.users.find((x) => x.id === a); return u ? (String(u.full_name || '').trim() || ROLE_LABEL[u.role] || null) : null; };
     return this.wait(this.st.audit.filter((a) => a.table_name === table && a.row_id === id && a.action !== 'delete')
       .sort((a, b) => String(b.at).localeCompare(String(a.at)))
       .slice(0, 100).map((a) => ({ id: a.id, at: a.at, action: a.action, actor: a.actor, actor_name: name(a.actor), version: a.after })), 120);
@@ -633,6 +677,7 @@ export class DemoApi {
     } else {
       const before = JSON.parse(JSON.stringify(cur));
       RESTORE_KEEPS.forEach((k) => delete snap[k]);
+      if (a.table_name === 'team' && this.st.role === 'content' && Object.keys(snap).some((k) => !TEAM_FREE.includes(k) && JSON.stringify(snap[k] ?? null) !== JSON.stringify(cur[k] ?? null))) throw new Error('team_photo_only');
       Object.assign(cur, snap, { updated_at: now, updated_by: this.st.me });
       this.audit_(a.table_name, 'update', before, cur);
     }
@@ -667,7 +712,8 @@ export class DemoApi {
   async couponStats() { this.guard('stats'); return this.wait(couponStats(this.st.coupons, this.st.leads), 100); }
   async audit() { this.guard('audit'); return this.wait(this.st.audit, 100); }
   async upload(file) {
-    if (!['admin', 'manager', 'marketer', 'content'].includes(this.st.role)) throw new Error('permission denied (media)');
+    // the bucket is written by the owner, the marketer and the content role — not by a manager (100_security.sql)
+    if (!['admin', 'marketer', 'content'].includes(this.st.role)) throw new Error('permission denied (media)');
     const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
     const id = uuid().replace(/-/g, '').slice(0, 12);
     this.media[id] = data;

@@ -314,11 +314,12 @@ await setWa('owner', { mail_hour: 9 });
 check(await queue(today, '11:05') === false && await queue(today, '09:10') === true, 'час письма берётся из настроек: 9 → уходит в 09:10, а не в 11');
 await setWa('owner', { mail_hour: 11 });
 
-// старое письмо о заявке notify_claim отдаёт по-прежнему
+// Этап 10 (100_security.sql, AUDIT D2): письма о заявке больше нет — запись с источником «form»
+// задания не получает, и notify_claim такие письма не отдаёт (раньше здесь проверялось обратное).
 await db.query(`delete from notify_log`);
-const siteLead = (await db.query(`insert into leads(name, phone, source) values ('С сайта', '+374 91 777000', 'form') returning id`)).rows[0].id;
+await db.query(`insert into leads(name, phone, source) values ('С сайта', '+374 91 777000', 'form')`);
 const jobs = await val(`select public.notify_claim()`);
-check(jobs.length === 1 && jobs[0].kind === 'lead' && jobs[0].lead.id === siteLead && !('digest' in jobs[0]), 'notify_claim: письмо о заявке с сайта — как раньше');
+check(jobs.length === 0 && await val(`select count(*)::int from notify_log`) === 0, 'notify_claim: письма о заявке с сайта больше нет');
 
 // единственная точка будущей автоотправки сейчас ничего не шлёт
 const sr = await val(`select public.send_reminder($1)`, [bonId]);

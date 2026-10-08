@@ -1,7 +1,9 @@
 -- ============================================================================
 -- SAM TRAVEL — backend for the owner / marketing panels  (migration #2)
 -- ============================================================================
--- Migration 002 (was supabase/admin.sql). Run AFTER 001_schema.sql. Safe to re-run.
+-- Migration 002 (was supabase/admin.sql). Run AFTER 001_schema.sql.
+-- Only as part of the whole set, in order: after re-running this file alone, re-run every
+-- later migration too — on its own it brings back what the later files closed (AUDIT.md, D6).
 --
 -- What it adds:
 --   • role "marketer" + role helpers (is_owner / is_marketing / is_team)

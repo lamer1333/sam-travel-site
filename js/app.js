@@ -144,6 +144,19 @@
     georgia:  { meta: 'Georgia · Dec–Mar', title: 'Gudauri', text: 'Skiing five hours from Yerevan by car. Ski-in hotels, lift passes, instructors for first-timers, and khachapuri after.', photo: 'p-snow', inc: ['Car transfer from Yerevan', 'Ski-in hotel and lift pass', 'Instructor and gear rental on request', 'Manager on the line during the trip'] }
   };
   var sheet = $('#sheet'), scrim = $('#scrim'), openId = null;
+  /* «What's included»: the lines come from the panel (tours.i18n.<lang>.inc), so they are
+     written as text, never as markup — a line like <img onerror=…> stays a line of text */
+  function fillInc(ul, inc) {
+    var NS = 'http://www.w3.org/2000/svg';
+    ul.textContent = '';
+    (Array.isArray(inc) ? inc : []).forEach(function (s) {
+      if (typeof s !== 'string' || !s) return;
+      var li = document.createElement('li'), svg = document.createElementNS(NS, 'svg'), use = document.createElementNS(NS, 'use');
+      use.setAttribute('href', '#i-check'); svg.appendChild(use);
+      li.appendChild(svg); li.appendChild(document.createTextNode(s));
+      ul.appendChild(li);
+    });
+  }
   function openTour(key) {
     var t = tours[key];
     var loc = (window.SAM_TOURS_I18N || {})[cur]; if (loc && loc[key]) t = loc[key];
@@ -163,7 +176,7 @@
       tg.textContent = ''; tg.hidden = !(t.tags && t.tags.length);
       (t.tags || []).forEach(function (s) { var el = document.createElement('span'); el.textContent = s; tg.appendChild(el); });
     }
-    $('#sheet-inc').innerHTML = t.inc.map(function (s) { return '<li><svg><use href="#i-check"/></svg>' + s + '</li>'; }).join('');
+    fillInc($('#sheet-inc'), t.inc);
     sheet.scrollTop = 0; sheet.style.transform = '';
     /* the main button of the description: «Написать про {тур}» */
     $('#sheet-wa').setAttribute('data-wa-tour', key); paintWa();
@@ -304,9 +317,11 @@
   }
   /* a QR scanned at the office deep-links straight to one checklist */
   function applyDeepLink(parts) {
-    if (!parts[1] || !P.CDATA[parts[1]]) return;
+    /* own keys only: «#checklist/constructor» must not pass as a destination */
+    var own = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
+    if (!parts[1] || !own(P.CDATA, parts[1])) return;
     cDest = parts[1];
-    cType = (parts[2] && P.CDATA[cDest].types[parts[2]]) ? parts[2] : Object.keys(P.CDATA[cDest].types)[0];
+    cType = (parts[2] && own(P.CDATA[cDest].types, parts[2])) ? parts[2] : Object.keys(P.CDATA[cDest].types)[0];
   }
 
   function paint(root, attr, dict) {
@@ -574,7 +589,8 @@
   var saved = 'en', qlang = null;
   try {
     qlang = new URLSearchParams(location.search).get('lang');
-    saved = (qlang === 'en' || (qlang && I18N[qlang])) ? qlang : (localStorage.getItem('sam-lang') || 'en');
+    /* own keys only: «?lang=constructor» is not a language */
+    saved = (qlang === 'en' || (qlang && Object.prototype.hasOwnProperty.call(I18N, qlang))) ? qlang : (localStorage.getItem('sam-lang') || 'en');
   } catch (err) {}
   /* an explicit ?lang=en is applied too, so it replaces a previously saved language */
   if (saved !== 'en' || qlang === 'en') applyLang(saved); else paintWa();
@@ -740,7 +756,9 @@
           if (isNaN(age) || age < 0 || age > 120) { err(f, t.errBirth, birthEl); return; }
           if (age < 16) { err(f, t.errBirthAge, birthEl); return; }
         }
-        if (pass.length < 6) { err(f, t.errPass, passEl); return; }
+        /* a new password is at least 10 characters (AUDIT.md S8); signing in only needs one —
+           the server decides. The text of the message lives in js/pages.js and still says «6». */
+        if (pass.length < (isSignup ? 10 : 1)) { err(f, String(t.errPass || '').replace(/\b6\b/, '10'), passEl); return; }
 
         submitBtn.disabled = true;
         var done = function () { submitBtn.disabled = false; };

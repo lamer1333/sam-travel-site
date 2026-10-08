@@ -3,6 +3,8 @@
 // toasts, modal / drawer / confirm, form controls, tables, CSV.
 // ---------------------------------------------------------------------------
 
+import { csvText } from './csv.js';
+
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
@@ -397,9 +399,7 @@ export function download(name, content, type = 'text/plain;charset=utf-8') {
 }
 /** columns: [[header, row => value]] — UTF-8 BOM so Excel opens Cyrillic/Armenian correctly */
 export function csv(name, rows, columns) {
-  const q = (v) => { const s = v == null ? '' : String(v); return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-  const out = [columns.map((c) => q(c[0])).join(',')].concat(rows.map((r) => columns.map((c) => q(c[1](r))).join(','))).join('\n');
-  download(name, '﻿' + out, 'text/csv;charset=utf-8');
+  download(name, '﻿' + csvText(rows, columns), 'text/csv;charset=utf-8');
   toast('Выгружено: ' + rows.length + ' ' + plural(rows.length, 'строка', 'строки', 'строк'));
 }
 

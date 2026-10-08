@@ -30,6 +30,16 @@
         "8951"
       ],
       "port": 8951
+    },
+    {
+      "name": "sam-fake-backend",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "supabase/test/fake-site.mjs",
+        "8957"
+      ],
+      "port": 8957,
+      "url": "http://127.0.0.1:8957"
     }
   ]
 }

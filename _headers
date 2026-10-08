@@ -33,8 +33,16 @@
 /favicon.ico
   Cache-Control: public, max-age=604800
 
-# панель и кабинет — не для поисковиков
+# панель и кабинет — не для поисковиков. Cloudflare Pages отдаёт страницу и без «.html»
+# (/admin, /cabinet), и правило для /admin.html на такой адрес не действует — поэтому оба
+# вида адреса, и кеш у них тот же, что у остальных страниц.
 /admin.html
   X-Robots-Tag: noindex, nofollow
+/admin
+  X-Robots-Tag: noindex, nofollow
+  Cache-Control: public, max-age=0, must-revalidate
 /cabinet.html
   X-Robots-Tag: noindex, nofollow
+/cabinet
+  X-Robots-Tag: noindex, nofollow
+  Cache-Control: public, max-age=0, must-revalidate

@@ -28,7 +28,17 @@
   function L(o) { var l = lang(); if (!o) return null; return o[l] || o.en || o.ru || o.hy || null; }
   function Ls(o, k) { var l = lang(); return (o && ((o[l] && o[l][k]) || (o.en && o.en[k]))) || ''; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function cssUrl(u) { return /^(https:\/\/|data:image\/)/.test(u || '') ? 'url("' + String(u).replace(/["\\\n\r]/g, encodeURIComponent) + '") center / cover no-repeat' : ''; }
+  /* A photo address goes into CSS, so only two kinds are let through: a file of this project's
+     `media` bucket, made of characters that have nothing to break, and — in the demo only — a
+     picture the demo panel keeps in this browser. Anything else is «no photo». */
+  function mediaUrl(u) {
+    u = String(u == null ? '' : u);
+    var base = String((window.SAM_SUPABASE || {}).url || '').replace(/\/+$/, '') + '/storage/v1/object/public/media/';
+    if (base.indexOf('https://') === 0 && u.indexOf(base) === 0 && /^[A-Za-z0-9._\/-]{1,200}$/.test(u.slice(base.length))) return u;
+    if (DEMO && /^data:image\/(jpeg|png|webp|avif);base64,[A-Za-z0-9+\/=]+$/.test(u)) return u;
+    return '';
+  }
+  function cssUrl(u) { u = mediaUrl(u); return u ? 'url("' + u + '") center / cover no-repeat' : ''; }
   function safeHref(u) { u = String(u || ''); return /^(#[\w/-]*|https:\/\/)/.test(u) ? u : '#'; }
   function toast(m) { if (window.SAM_TOAST) window.SAM_TOAST(m); }
 
@@ -152,9 +162,8 @@
   window.SAM_CMS_TOURS = function (key, l) {
     var t = data && (data.tours || []).filter(function (x) { return x.slug === key; })[0]; if (!t) return null;
     /* the head of the description has its own frame (16 : 9); a tour saved before that has one photo for both places */
-    var ok = function (u) { return /^(https:|data:image)/.test(u || '') ? u : ''; };
     return { meta: T(t.i18n, 'meta', l), title: T(t.i18n, 'title', l), text: T(t.i18n, 'text', l), inc: T(t.i18n, 'inc', l), photo: t.photo_class || 'p-sea',
-      photoUrl: ok(t.photo_hero_url) || ok(t.photo_url), tags: typeLabels(t.tags, l) };
+      photoUrl: mediaUrl(t.photo_hero_url) || mediaUrl(t.photo_url), tags: typeLabels(t.tags, l) };
   };
 
   /* ---------- reviews ---------- */

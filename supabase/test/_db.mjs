@@ -13,7 +13,7 @@
 //   as(who, sql, params)        запрос от имени 'anon' | 'owner' | 'mkt' | 'mgr' | 'cli'
 //   ok(msg) / bad(msg)          отметить проверку; bad делает код выхода 1
 //   expectErr(who, sql, params, label)   запрос обязан упасть
-//   formBack()                  вернуть гостям submit_lead — для тестов формы заявки (см. ниже)
+//   formBack()                  вернуть форму заявки и письмо о ней — для тестов этапов 0–5 (см. ниже)
 import { PGlite } from '@electric-sql/pglite';
 import fs from 'node:fs';
 
@@ -70,5 +70,20 @@ export async function expectErr(who, sql, params, label) {
 // Этап 7 (070_whatsapp.sql) отозвал submit_lead у гостей: формы заявки на сайте нет. Сама
 // функция, её лимиты и письмо о заявке остаются в базе «на случай возврата формы», и тесты
 // этапов 0–5 продолжают их проверять. Для этого тест делает то же, что сделала бы миграция,
-// возвращающая форму, — одну строку grant.
-export const formBack = () => db.exec(`grant execute on function public.submit_lead(jsonb) to anon`);
+// возвращающая форму.
+// Этап 10 (100_security.sql, AUDIT D2) закрыл остальное: право вызова у вошедших, триггер,
+// который ставил письмо о заявке, и выдачу таких писем в notify_claim(). Возврат формы —
+// это право гостям и вошедшим, триггер из 050 и notify_claim() из 090 (её текст берётся
+// прямо из файла миграции, чтобы не держать вторую копию).
+export const formBack = async () => {
+  const sql090 = fs.readFileSync(new URL('090_reminders.sql', MIGRATIONS), 'utf8');
+  const claim = /create or replace function public\.notify_claim\([\s\S]*?\nend; \$\$;/.exec(sql090);
+  if (!claim) throw new Error('formBack(): в 090_reminders.sql не найдена notify_claim()');
+  await db.exec(`
+    grant execute on function public.submit_lead(jsonb) to anon, authenticated;
+    drop trigger if exists leads_notify_ai on public.leads;
+    create trigger leads_notify_ai after insert on public.leads for each row execute function public.leads_notify_ai();
+    ${claim[0]}
+    revoke all on function public.notify_claim(uuid, int) from public, anon, authenticated;
+  `);
+};

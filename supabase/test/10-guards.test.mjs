@@ -121,7 +121,13 @@ check(s.status === 'won' && near(s.closed_at, yesterday, 1), 'присланна
 check(s.currency === 'USD', 'валюта продажи — серверная, присланная отброшена', s.currency);
 check(Number(s.value) === 2000 && Number(s.profit) === 240, 'сумма и доход записаны');
 check((await used()) === 1, 'промокод: использован 1');
-check((await acts(siteId, 'money')).length === 0, 'сама продажа — запись о статусе, не денежная правка');
+// Этап 10 (100_security.sql, AUDIT D4): у записи уже стояла сумма предложения (1500), и продажа
+// закрыта с другой — это правка суммы, она оставляет след. Раньше здесь ждали ноль записей:
+// так сумму можно было сменить без следа, выведя продажу из «продано» и вернув обратно.
+{
+  const m = await acts(siteId, 'money');
+  check(m.length === 1 && Number(m[0].meta.value.from) === 1500 && Number(m[0].meta.value.to) === 2000 && !m[0].meta.profit, 'продажа с суммой, отличной от прежней, — запись «было → стало»; первый ввод дохода — не правка', m.map((x) => x.meta));
+}
 
 await as('mgr', `update leads set closed_at = now() + interval '2 minutes' where id = $1`, [siteId]);
 s = await lead(siteId);

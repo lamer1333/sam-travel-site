@@ -19,6 +19,8 @@ const TOUR_FIELDS = [
 /** the texts a tour cannot go without in a language: the card and the description */
 const TOUR_MUST = ['card_title', 'card_text', 'title', 'text'];
 const GRADIENTS = ['p-sea', 'p-desert', 'p-lagoon', 'p-snow', 'p-island', 'p-jungle', 'p-ocean', 'p-city'];
+// photo_class goes into a selector of h(): only a built-in background gets there
+const grad = (c) => (GRADIENTS.includes(c) ? c : 'p-sea');
 /** the tour type: a fixed list (tours_tags_known in 080_content.sql); the site prints it in the visitor's language (js/cms.js) */
 export const TOUR_TYPES = [
   ['beach', { ru: 'Пляж', en: 'Beach', hy: 'Լողափ' }], ['city', { ru: 'Город', en: 'City', hy: 'Քաղաք' }],
@@ -228,7 +230,7 @@ async function tours(box, ctx, isNew) {
       const ru = pickLang(t.i18n, 'ru'), expired = t.hot_until && t.hot_until < today;
       list.appendChild(h('div.item', { draggable: 'true', dataset: { id: t.id } },
         h('span.item__grip', { title: 'Перетащите' }, icon('grip')),
-        h('div.item__thumb.item__thumb--card' + (t.photo_url ? '' : '.' + t.photo_class), { style: { backgroundImage: bg(ctx, t.photo_url) } }),
+        h('div.item__thumb.item__thumb--card' + (t.photo_url ? '' : '.' + grad(t.photo_class)), { style: { backgroundImage: bg(ctx, t.photo_url) } }),
         h('div.item__main', { style: { cursor: 'pointer' }, onclick: () => edit(t) },
           h('b', ru.card_title || ru.title || t.slug),
           h('small', [ru.dates, ru.meta, t.price_from ? 'от ' + fmt.money(t.price_from, t.currency) : null, (t.tags || []).map((k) => typeName(k)).join(', ') || null].filter(Boolean).join(' · '))),
@@ -251,12 +253,12 @@ async function tours(box, ctx, isNew) {
       const types = (d.tags || []).length ? h('div.ttags', d.tags.map((k) => h('span', typeName(k, lang)))) : null;
       mount(pv, h('div.langtabs', LANGS.map(([l, lab]) => h('button', { type: 'button', 'aria-pressed': String(l === lang), onclick: () => { lang = l; paintPv(); } }, lab))),
         h('div.pv__cap', 'Карточка в карусели · 2 : 3'),
-        h('div.tprev' + (card ? '' : '.' + d.photo_class), { style: { backgroundImage: card } },
+        h('div.tprev' + (card ? '' : '.' + grad(d.photo_class)), { style: { backgroundImage: card } },
           h('span.tprev__wa', { 'aria-hidden': 'true' }, icon('wa')), T('season') ? h('span.tprev__season', T('season')) : null,
           h('div.tprev__b', types, h('h4', T('card_title') || T('title') || 'Заголовок карточки'), h('p', T('card_text') || 'Короткое описание'),
             h('div.tprev__f', h('span', T('dates') || ''), h('b', d.price_from ? ({ ru: 'от ', en: 'from ', hy: '' }[lang]) + fmt.money(d.price_from, d.currency) + (lang === 'hy' ? '-ից' : '') + ' →' : ASK[lang])))),
         h('div.pv__cap', 'Шапка описания · 16 : 9', !d.photo_hero_url && d.photo_url ? h('span.pv__warn', ' — кадра нет, сайт обрежет фото карточки сам') : null),
-        h('div.hprev', h('div.hprev__hero' + (hero ? '' : '.' + d.photo_class), { style: { backgroundImage: hero } }),
+        h('div.hprev', h('div.hprev__hero' + (hero ? '' : '.' + grad(d.photo_class)), { style: { backgroundImage: hero } }),
           h('div.hprev__b', h('small', T('meta') || ''), h('h4', T('title') || 'Заголовок в подробностях'), (d.tags || []).length ? h('div.ttags.ttags--ink', d.tags.map((k) => h('span', typeName(k, lang)))) : null,
             h('p', T('text') || 'Рассказ о направлении'), h('ul', (T('inc') || []).filter(Boolean).map((x) => h('li', x))))));
     }
@@ -382,17 +384,20 @@ async function team(box, ctx) {
   let rows = await ctx.api.list('team');
   const F = [{ key: 'name', label: 'Имя', max: 40 }, { key: 'role', label: 'Специализация и стаж', max: 50, placeholder: 'Пляжи и острова · 8 лет' }];
   const list = h('div.list');
-  box.append(h('div.toolbar', h('span.muted', 'Менеджеры в блоке «О нас». Фото с лицом повышают доверие сильнее любых слов.'), h('span', { style: { flex: 1 } }), h('button.btn.btn--primary', { onclick: () => edit({}) }, icon('plus'), 'Добавить')), list);
-  sortable(list, async (ids) => { try { await ctx.api.reorder('team', ids); toast('Порядок сохранён'); } catch (e) { ctx.err(e); } });
+  // The role «Контент» changes only the photo of a team member: it does not add, remove,
+  // rename, reorder or hide anybody (team_content_guard in 100_security.sql).
+  const photoOnly = !ctx.can('team');
+  box.append(h('div.toolbar', h('span.muted', photoOnly ? 'Менеджеры в блоке «О нас». Вы меняете фото; имя, должность и состав команды правит владелец.' : 'Менеджеры в блоке «О нас». Фото с лицом повышают доверие сильнее любых слов.'), h('span', { style: { flex: 1 } }), photoOnly ? null : h('button.btn.btn--primary', { onclick: () => edit({}) }, icon('plus'), 'Добавить')), list);
+  if (!photoOnly) sortable(list, async (ids) => { try { await ctx.api.reorder('team', ids); toast('Порядок сохранён'); } catch (e) { ctx.err(e); } });
   function paint() {
     clear(list);
     rows.slice().sort((a, b) => a.sort - b.sort).forEach((m) => {
       const ru = pickLang(m.i18n, 'ru');
-      list.appendChild(h('div.item', { draggable: 'true', dataset: { id: m.id } }, h('span.item__grip', icon('grip')),
+      list.appendChild(h('div.item', { draggable: photoOnly ? 'false' : 'true', dataset: { id: m.id } }, photoOnly ? null : h('span.item__grip', icon('grip')),
         h('div.item__thumb.item__thumb--person' + (m.photo_url ? '' : '.p-city'), { style: { backgroundImage: bg(ctx, m.photo_url) } }),
         h('div.item__main', { style: { cursor: 'pointer' }, onclick: () => edit(m) }, h('b', ru.name || '—'), h('small', ru.role || '')),
         !m.photo_url ? h('span.badge.badge--warn', 'нет фото') : null, langDots(m.i18n, F),
-        toggle(m.published, null, async (on, el) => { try { const u = await ctx.api.save('team', { ...m, published: on }); Object.assign(m, u); } catch (e) { el.checked = !on; ctx.err(e); } })));
+        photoOnly ? (m.published ? null : h('span.badge.badge--plain', 'скрыт')) : toggle(m.published, null, async (on, el) => { try { const u = await ctx.api.save('team', { ...m, published: on }); Object.assign(m, u); } catch (e) { el.checked = !on; ctx.err(e); } })));
     });
     if (!rows.length) list.appendChild(h('div.card', h('div.empty', h('b', 'В команде никого'), 'Сайт показывает свои исходные карточки')));
   }
@@ -404,14 +409,15 @@ async function team(box, ctx) {
       title: m.id ? pickLang(m.i18n, 'ru').name : 'Новый менеджер',
       onClose: () => { if (!saved) ses.cancel(); },
       body: () => h('div.stack', h('div.field', h('span', 'Фото'), photoSlot(ctx, ses, FRAMES.person, d.photo_url, (u) => { d.photo_url = u; }, { label: 'Фото сотрудника' })),
-        i18nEditor(d.i18n, F, (v) => { d.i18n = v; }),
-        field('Личный WhatsApp (необязательно)', input(d.whatsapp, { placeholder: '37455957585', oninput: (v) => { d.whatsapp = v.replace(/\D/g, ''); } })),
-        toggle(d.published, 'Показывать на сайте', (v) => { d.published = v; })),
+        photoOnly ? h('p.muted', (pickLang(m.i18n, 'ru').role || '') + ' · имя, должность и WhatsApp меняет владелец') : [
+          i18nEditor(d.i18n, F, (v) => { d.i18n = v; }),
+          field('Личный WhatsApp (необязательно)', input(d.whatsapp, { placeholder: '37455957585', oninput: (v) => { d.whatsapp = v.replace(/\D/g, ''); } })),
+          toggle(d.published, 'Показывать на сайте', (v) => { d.published = v; })]),
       footer: (api) => h('div.btns', { style: { width: '100%', justifyContent: 'space-between' } },
-        m.id ? h('div.btns', h('button.btn.btn--danger.btn--ghost', { 'aria-label': 'Убрать из команды', onclick: async () => { if (!(await confirmDlg('Убрать из команды?', { sub: 'Удалённую запись вернёт только владелец из журнала.' }))) return; try { await ctx.api.remove('team', m.id); rows = rows.filter((x) => x.id !== m.id); api.close(); paint(); } catch (e) { ctx.err(e); } } }, icon('trash')),
+        m.id && !photoOnly ? h('div.btns', h('button.btn.btn--danger.btn--ghost', { 'aria-label': 'Убрать из команды', onclick: async () => { if (!(await confirmDlg('Убрать из команды?', { sub: 'Удалённую запись вернёт только владелец из журнала.' }))) return; try { await ctx.api.remove('team', m.id); rows = rows.filter((x) => x.id !== m.id); api.close(); paint(); } catch (e) { ctx.err(e); } } }, icon('trash')),
           historyBtn(() => historyDlg(ctx, 'team', m, pickLang(m.i18n, 'ru').name || 'сотрудник', (v) => [pickLang(v.i18n, 'ru').name, pickLang(v.i18n, 'ru').role, v.photo_url ? 'с фото' : 'без фото'].filter(Boolean).join(' · '),
             (row, before) => { Object.assign(m, row); dropLeftPhotos(ctx, before, row); api.close(); paint(); }))) : h('span'),
-        h('button.btn.btn--primary', { onclick: async () => { try { const u = await ctx.api.save('team', d); saved = true; await ses.commit([u.photo_url]); if (m.id) Object.assign(m, u); else rows.push(u); toast('Сохранено'); api.close(); paint(); } catch (e) { ctx.err(e); } } }, 'Сохранить')),
+        h('button.btn.btn--primary', { onclick: async () => { try { const u = photoOnly ? await ctx.api.saveTeamPhoto(m.id, d.photo_url) : await ctx.api.save('team', d); saved = true; await ses.commit([u.photo_url]); if (m.id) Object.assign(m, u); else rows.push(u); toast('Сохранено'); api.close(); paint(); } catch (e) { ctx.err(e); } } }, 'Сохранить')),
     });
   }
   paint();

@@ -168,10 +168,11 @@ export function createSale(ctx, after) {
   depIn.addEventListener('change', () => { retIn.min = depIn.value; });
   const langSel = select(CLIENT_LANGS, d.lang, (v) => { d.lang = v; });
   const LANG_HINT = 'На этом языке будет текст напоминания', langHint = h('span', LANG_HINT);
+  const COUPON_HINT = 'Если клиент назвал код', couponHint = h('span', COUPON_HINT);
   const note = (kind, text) => mount(refNote, text ? h('div.note' + (kind ? '.note--' + kind : ''), { style: { marginTop: '8px' } }, icon(kind === 'warn' ? 'alert' : 'check'), h('span', text)) : null);
   const check = debounce(async () => {
     const ref = refNorm(refIn.value) || '';
-    d.ref = ref; found = null; srcSel.disabled = false; langSel.disabled = false; langHint.textContent = LANG_HINT;
+    d.ref = ref; found = null; srcSel.disabled = false; langSel.disabled = false; langHint.textContent = LANG_HINT; couponHint.textContent = COUPON_HINT;
     if (!ref) { checked = ''; note(); return; }
     if (!refOk(ref)) { checked = ''; note('warn', 'Номер — пять знаков после «№» в конце сообщения клиента, например K7M2X. Букв O, I, L и цифр 0, 1 в нём не бывает.'); return; }
     try {
@@ -184,7 +185,12 @@ export function createSale(ctx, after) {
       // the database takes the language of the visit, exactly as it takes the advert tags
       if (CLIENT_LANGS.some((x) => x[0] === e.lang)) { d.lang = e.lang; langSel.value = e.lang; langSel.disabled = true; langHint.textContent = 'По номеру обращения: на этом языке клиент смотрел сайт. Изменить можно в карточке продажи'; }
       if (e.tour && !touched.tour && tours.some((t) => t[0] === e.tour)) { d.tour = e.tour; tourSel.value = e.tour; }
-      if (e.coupon_code && !touched.coupon) { d.coupon_code = e.coupon_code; couponIn.value = e.coupon_code; }
+      // The promo code of the banner the visitor clicked is a hint, not a fact: the code counts as
+      // used only when a person puts it into the sale (the database no longer fills it in — 100_security.sql).
+      if (e.coupon_code && d.coupon_code !== e.coupon_code) {
+        mount(couponHint, 'На сайте клиент взял с баннера код ', h('b.mono', e.coupon_code), '. Назвал его? ',
+          h('button.btn.btn--ghost.btn--sm', { type: 'button', onclick: (ev) => { ev.preventDefault(); d.coupon_code = e.coupon_code; couponIn.value = e.coupon_code; touched.coupon = true; couponHint.textContent = COUPON_HINT; } }, 'Подставить'));
+      }
     } catch (x) { ctx.err(x); }
   }, 300);
   refIn.addEventListener('input', check);
@@ -201,7 +207,7 @@ export function createSale(ctx, after) {
       sf.el,
       h('div.grid2', field('Дата вылета', depIn, 'Накануне панель напомнит пожелать хорошего полёта'), field('Дата возвращения', retIn, 'На следующий день — написать «с возвращением»')),
       h('div.grid2', field('Язык клиента', langSel, langHint), h('div.field', h('span', 'Согласие'), toggle(false, OPT_IN, (v) => { d.wa_opt_in = v; }), h('small', OPT_IN_HINT))),
-      h('div.grid2', field('Промокод', couponIn, 'Если клиент назвал код'),
+      h('div.grid2', field('Промокод', couponIn, couponHint),
         team.length > 1 ? field('Кто внёс', select(team.map((u) => [u.id, u.full_name || u.email]), d.assigned_to, (v) => (d.assigned_to = v))) : null)),
     actions: [{ label: 'Отмена' }, { label: 'Записать продажу', kind: 'primary', onClick: async () => {
       if (!d.name.trim() || d.phone.replace(/\D/g, '').length < 6) { toast('Нужны имя и телефон клиента', 'bad'); return false; }

@@ -1,7 +1,9 @@
 -- ============================================================================
 -- SAM TRAVEL — the panel's numbers are counted by the database  (migration 030, этап 3)
 -- ============================================================================
--- Run AFTER 020_limits.sql. Safe to re-run. ТЗ: §5 (словарь метрик), §6, §4.6.
+-- Run AFTER 020_limits.sql. ТЗ: §5 (словарь метрик), §6, §4.6.
+-- Only as part of the whole set, in order: after re-running this file alone, re-run every
+-- later migration too — on its own it brings back what the later files closed (AUDIT.md, D6).
 --
 -- What it adds:
 --   • lead_channel()   — THE definition of a lead's channel, for every report:

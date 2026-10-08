@@ -68,9 +68,11 @@ ok('тип тура: можно несколько из списка');
 const rev = (await as('smm', `insert into reviews(author, body, published) values ('Ани', '{"ru":"Отлично"}', true) returning id`)).rows[0].id;
 const reel = (await as('smm', `insert into reels(url) values ('https://www.instagram.com/reel/Cabc123_-x/') returning id`)).rows[0].id;
 await expectErr('smm', `insert into reels(url) values ('https://youtube.com/watch?v=1')`, [], 'рилс: не ссылка Instagram отклонена');
-const member = (await as('smm', `insert into team(i18n, photo_url) values ('{"ru":{"name":"Анна"}}', $1) returning id`, [MEDIA + 'content/anna.webp'])).rows[0].id;
-check(!!rev && !!reel && !!member, 'создаёт отзыв, рилс и сотрудника');
-check((await as('smm', `update team set published = false where id = $1`, [member])).affectedRows === 1, 'правит команду');
+// Этап 10 (100_security.sql, AUDIT D9, решение заказчика 2): в «Команде» роль «Контент» меняет
+// только фото — сотрудника заводит владелец. Запреты проверяет 100-security.test.mjs.
+const member = (await as('owner', `insert into team(i18n, photo_url, published) values ('{"ru":{"name":"Анна"}}', $1, false) returning id`, [MEDIA + 'content/anna.webp'])).rows[0].id;
+check(!!rev && !!reel && !!member, 'создаёт отзыв и рилс; сотрудника заводит владелец');
+check((await as('smm', `update team set photo_url = $2 where id = $1`, [member, MEDIA + 'content/anna-2.webp'])).affectedRows === 1, 'меняет фото сотрудника');
 check((await as('mkt', `update team set published = true where id = $1`, [member])).affectedRows === 0, 'маркетолог команду по-прежнему не правит');
 check((await as('mgr', `update tours set published = false where id = $1`, [tour.id])).affectedRows === 0, 'менеджер туры по-прежнему не правит');
 check((await as('smm', `delete from reels where id = $1`, [reel])).affectedRows === 1, 'удаляет рилс');

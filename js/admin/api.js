@@ -49,11 +49,9 @@ export class LiveApi {
   // (070_whatsapp.sql) fills the advert tags, tour, language and device from the reference
   // number. One request, and the database answers with the row as it really is — or with an
   // error errText() below translates.
-  async createSale(row) {
-    const l = must(await this.sb.from('leads').insert(clean(row)).select().single());
-    await this.addActivity(l.id, 'system', 'Продажа внесена').catch(() => {});
-    return l;
-  }
+  // The first line of the history («Продажа внесена») is written by the database
+  // (leads_log_insert in 100_security.sql): the panel may not insert `system` lines.
+  async createSale(row) { return must(await this.sb.from('leads').insert(clean(row)).select().single()); }
   async updateSale(id, patch) { return must(await this.sb.from('leads').update(clean(patch)).eq('id', id).select().single()); }
   async deleteSale(id) { must(await this.sb.from('leads').delete().eq('id', id)); }
   async addActivity(lead_id, kind, body, meta = {}) {
@@ -85,6 +83,8 @@ export class LiveApi {
     return must(await q);
   }
   async save(table, row) { return must(await this.sb.from(table).upsert(clean(row)).select().single()); }
+  /** the role «Контент» changes only the photo of a team member — an update of one column, never an upsert */
+  async saveTeamPhoto(id, url) { return must(await this.sb.from('team').update({ photo_url: url || null }).eq('id', id).select().single()); }
   async remove(table, id) { must(await this.sb.from(table).delete().eq('id', id)); }
   async reorder(table, ids) {
     await Promise.all(ids.map((id, i) => this.sb.from(table).update({ sort: i }).eq('id', id).then(must)));
@@ -112,8 +112,8 @@ export class LiveApi {
     return this.sb.storage.from('media').getPublicUrl(path).data.publicUrl;
   }
 
-  /** the address to put into <img> / background-image (the demo keeps its photos elsewhere, see DemoApi.src) */
-  src(url) { return url || ''; }
+  /** the address to put into <img> / background-image (the demo keeps its photos elsewhere, see DemoApi.src); '' for anything that is not a file of our bucket */
+  src(url) { return mediaUrlOk(url, (window.SAM_SUPABASE || {}).url) ? url : ''; }
   /** Delete files of the `media` bucket by their public addresses — the photos a newer one replaced. Addresses that are not ours are skipped. */
   async removeFiles(urls) {
     const paths = (urls || []).map(mediaPath).filter(Boolean);
@@ -130,6 +130,16 @@ export class LiveApi {
   publish() {}
 }
 
+/**
+ * Is this the public address of a file of OUR `media` bucket? The address goes into CSS
+ * (background-image), so nothing else is let through: another host, a path with quotes or
+ * brackets. The database keeps the same rule (media_url_ok in 100_security.sql).
+ */
+export function mediaUrlOk(url, base) {
+  const u = String(url == null ? '' : url), b = String(base || '').replace(/\/+$/, '') + '/storage/v1/object/public/media/';
+  return b.startsWith('https://') && u.startsWith(b) && /^[A-Za-z0-9._/-]{1,200}$/.test(u.slice(b.length));
+}
+
 /** 'https://…/storage/v1/object/public/media/content/a.webp' → 'content/a.webp'; null for anything that is not a file of the bucket */
 export function mediaPath(url) {
   const m = /\/storage\/v1\/object\/public\/media\/([^?#]+)/.exec(String(url || ''));
@@ -142,6 +152,13 @@ export function errText(e) {
   if (/invalid login credentials/i.test(m)) return 'Неверный email или пароль';
   if (/forbidden|permission denied|row-level security/i.test(m)) return 'Недостаточно прав для этого действия';
   if (/bad_month/.test(m)) return 'Месяц — число от 1 до 12';
+  if (/team_photo_only/.test(m)) return 'В «Команде» вы меняете только фото. Имя, должность и состав команды правит владелец';
+  if (/rate_limited/.test(m)) return 'Слишком много попыток подряд — подождите минуту';
+  if (/leads_money_not_nan|campaigns_spend_ok/.test(m)) return 'Сумма должна быть числом не меньше нуля';
+  if (/tours_inc_ok/.test(m)) return '«Что входит» — список строк, каждая не длиннее 200 знаков';
+  if (/photo_(hero_)?url_ok/.test(m)) return 'Фото должно быть загружено через панель — ссылки на другие сайты не принимаются';
+  if (/tours_photo_class_known/.test(m)) return 'Фон тура выбирается из восьми встроенных';
+  if (/profiles_(full_name|phone)_len|profiles_consent_source_known/.test(m)) return 'Слишком длинное имя или телефон в профиле';
   if (/sale_needs_value/.test(m)) return 'У продажи должна быть сумма больше нуля';
   if (/profit_out_of_range/.test(m)) return 'Доход агентства — от нуля до суммы продажи; сначала укажите сумму';
   if (/value_negative/.test(m)) return 'Сумма не может быть отрицательной';

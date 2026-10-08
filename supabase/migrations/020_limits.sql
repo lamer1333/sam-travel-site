@@ -1,7 +1,9 @@
 -- ============================================================================
 -- SAM TRAVEL — limits for the public RPCs and event retention  (migration 020)
 -- ============================================================================
--- Stage 2 of TZ-STAGES.md (TZ-BACKEND.md §4.1, §4.2, §8). Safe to re-run.
+-- Stage 2 of TZ-STAGES.md (TZ-BACKEND.md §4.1, §4.2, §8).
+-- Only as part of the whole set, in order: after re-running this file alone, re-run every
+-- later migration too — on its own it brings back what the later files closed (AUDIT.md, D6).
 --
 -- What it adds:
 --   • track()        — sid format check, max 200 events per sid, max 600 events a minute

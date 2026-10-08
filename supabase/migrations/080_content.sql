@@ -1,6 +1,8 @@
 -- ============================================================================
 -- SAM TRAVEL — stage 8: the panel for the SMM specialist (TZ-CONTENT.md §7–§9)
--- Run after 070_whatsapp.sql. Safe to re-run.
+-- Run after 070_whatsapp.sql.
+-- Only as part of the whole set, in order: after re-running this file alone, re-run every
+-- later migration too — on its own it brings back what the later files closed (AUDIT.md, D6).
 --
 --   • role `content`   — sees and edits one thing: tours, reviews, reels and the team
 --                        photos, plus the files of the `media` bucket. No sales, clients,

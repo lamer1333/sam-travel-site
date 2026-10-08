@@ -2,7 +2,8 @@
 -- SAM TRAVEL — auth & client base schema (Supabase / Postgres)
 -- ============================================================================
 -- Migration 001 (was supabase/schema.sql). Run first, before 002_admin.sql.
--- It is idempotent-ish: safe to re-run, but review before running on prod data.
+-- Only as part of the whole set, in order: after re-running this file alone, re-run every
+-- later migration too — on its own it brings back what the later files closed (AUDIT.md, D6).
 --
 -- What it sets up:
 --   • profiles           — one row per auth user (role, marketing consent, lang)

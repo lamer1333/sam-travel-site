@@ -60,10 +60,12 @@ check(await evCount('sidlimit03') === 200 && await evCount('sidlimit04') === 3, 
 // lead_submit от сервера тоже строка этого sid, поэтому счёт идёт по всем строкам
 await age('events', 'ts', '1 hour');
 
-// ---------------------------------------------------------------- track: 600 событий в минуту
-await db.exec(`insert into events (sid, name) select 'filler' || lpad(g::text, 6, '0'), 'page_view' from generate_series(1, 590) g`);
+// ---------------------------------------------------------------- track: 3000 событий в минуту
+// Этап 10 (100_security.sql, AUDIT D3) поднял общий потолок с 600 до 3000: первым теперь
+// срабатывает лимит на отправителя, его проверяет 100-security.test.mjs.
+await db.exec(`insert into events (sid, name) select 'filler' || lpad(g::text, 6, '0'), 'page_view' from generate_series(1, 2990) g`);
 await track(JSON.stringify(Array.from({ length: 30 }, (_, i) => ({ sid: 'minute' + String(i).padStart(4, '0'), name: 'page_view' }))));
-check(await num(`select count(*) from events where sid like 'minute%'`) === 10, 'track: до потолка 600 в минуту дошли 10 событий из 30', await num(`select count(*) from events where sid like 'minute%'`));
+check(await num(`select count(*) from events where sid like 'minute%'`) === 10, 'track: до потолка 3000 в минуту дошли 10 событий из 30', await num(`select count(*) from events where sid like 'minute%'`));
 check(await evCount('minute0009') === 1 && await evCount('minute0010') === 0, 'track: приняты первые по порядку');
 await track(ev('overflow01', 5));
 check(await evCount('overflow01') === 0, 'track: сверх потолка в минуту отброшено всё');

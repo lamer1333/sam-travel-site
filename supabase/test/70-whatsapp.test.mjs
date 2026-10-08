@@ -126,7 +126,10 @@ const REF = M.refOf(visit.sid);
   ])]);
   const rows = (await db.query(`select name, ref, tour, label from events order by id`)).rows;
   check(rows.filter((r) => r.ref === REF).length === 2 && rows.filter((r) => r.name === 'tel_click')[0].ref === null, 'track: номер обращения записан у обоих wa_click, у tel_click — нет', rows);
-  check(rows.filter((r) => r.name === 'wa_click').length === 5 && rows.filter((r) => r.ref !== null && r.ref !== REF).length === 0, 'track: клик с номером неправильного вида принят как клик, но без номера');
+  // Этап 10 (100_security.sql, AUDIT D7): номер считает база из sid визита, присланный не читается —
+  // поэтому у чужого визита свой номер, какой бы он ни прислал.
+  const other = rows.filter((r) => r.ref !== null && r.ref !== REF);
+  check(rows.filter((r) => r.name === 'wa_click').length === 5 && other.length === 3 && other.every((r) => r.ref === M.refOf('visitbbbb002')), 'track: присланный номер не читается — у клика номер его собственного визита', other);
 
   const r = (await as('owner', `select public.wa_ref($1) r`, [REF])).rows[0].r;
   check(r && r.ref === REF && r.utm_source === 'instagram' && r.utm_campaign === 'sharm_oct' && r.utm_medium === 'paid_social' && r.utm_content === 'reels_v2'
@@ -161,13 +164,15 @@ const campaign = async () => (await as('mkt', `select public.stats_traffic($1, $
   const before = await campaign();
   check(before.visits === 1 && before.contacts === 3 && before.won === 0, 'кампания до продажи: 1 посещение, 3 обращения (2 WhatsApp + звонок), 0 продаж', before);
   const used0 = Number(await val(`select used_count from coupons where code = 'AUTUMN7'`));
-  // владелец вписывает номер так, как видит в чате; источник выбирает неверно — база поправит
-  const s = (await as('owner', `insert into leads (name, phone, source, status, value, profit, ref) values ('Гаяне', '+374 91 555001', 'phone', 'won', 2000, 250, $1) returning *`, [' № ' + REF.toLowerCase()])).rows[0];
+  // владелец вписывает номер так, как видит в чате; источник выбирает неверно — база поправит.
+  // Этап 10 (AUDIT D7): промокод с баннера база в продажу больше не подставляет — форма показывает
+  // его подсказкой, и вписывает его человек (что без него код не появляется, проверяет 100-security).
+  const s = (await as('owner', `insert into leads (name, phone, source, status, value, profit, ref, coupon_code) values ('Гаяне', '+374 91 555001', 'phone', 'won', 2000, 250, $1, 'AUTUMN7') returning *`, [' № ' + REF.toLowerCase()])).rows[0];
   check(s.ref === REF && s.source === 'manual' && s.utm_source === 'instagram' && s.utm_medium === 'paid_social' && s.utm_campaign === 'sharm_oct' && s.utm_content === 'reels_v2',
     'продажа с номером обращения: источник WhatsApp, метки рекламы — из визита', [s.ref, s.source, s.utm_campaign]);
-  check(s.tour === 'sharm' && s.lang === 'hy' && s.device === 'mobile' && s.coupon_code === 'AUTUMN7' && s.details.ref_label === 'topbar' && !!s.details.ref_at, 'тур, язык, устройство и промокод с баннера подставлены; в карточке — когда и где нажали', [s.tour, s.lang, s.device, s.coupon_code, s.details]);
+  check(s.tour === 'sharm' && s.lang === 'hy' && s.device === 'mobile' && s.coupon_code === 'AUTUMN7' && s.details.ref_label === 'topbar' && !!s.details.ref_at, 'тур, язык и устройство подставлены, вписанный промокод сохранён; в карточке — когда и где нажали', [s.tour, s.lang, s.device, s.coupon_code, s.details]);
   check((await val(`select public.lead_channel(l) c from leads l where id = $1`, [s.id])) === 'instagram' && M.leadChannel(s) === 'instagram', 'канал продажи с номером — канал визита (в базе и в панели)');
-  check(Number(await val(`select used_count from coupons where code = 'AUTUMN7'`)) === used0 + 1, 'промокод с баннера засчитан как использованный');
+  check(Number(await val(`select used_count from coupons where code = 'AUTUMN7'`)) === used0 + 1, 'вписанный промокод засчитан как использованный');
   const after = await campaign();
   check(after.won === before.won + 1 && near(after.revenue, 2000) && near(after.profit_total, 250) && after.estimated === false, 'у кампании +1 продажа, выручка и доход', after);
   const k = (await as('owner', `select public.stats_sales($1, $2) s`, range)).rows[0].s;
@@ -178,7 +183,7 @@ const campaign = async () => (await as('mkt', `select public.stats_traffic($1, $
   // то же в демо-режиме
   const evRows = (await db.query(`select * from events order by id`)).rows, promos = (await db.query(`select * from promos`)).rows;
   const lookup = (ref) => D.waRefLookup(evRows, promos, ref);
-  const js = D.attributeLead(null, { name: 'Гаяне', source: 'phone', ref: ' № ' + REF.toLowerCase(), details: {} }, lookup);
+  const js = D.attributeLead(null, { name: 'Гаяне', source: 'phone', ref: ' № ' + REF.toLowerCase(), coupon_code: 'AUTUMN7', details: {} }, lookup);
   check(['ref', 'source', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'tour', 'lang', 'device', 'coupon_code', 'referrer'].every((f) => (js[f] ?? null) === (s[f] ?? null)), 'демо-режим подставляет в продажу то же самое', js);
 
   // тур и промокод, вписанные руками, важнее

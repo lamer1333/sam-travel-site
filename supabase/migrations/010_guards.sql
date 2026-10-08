@@ -1,7 +1,9 @@
 -- ============================================================================
 -- SAM TRAVEL — права и правила продажи  (migration 010, этап 1)
 -- ============================================================================
--- Run AFTER 002_admin.sql. Safe to re-run. ТЗ: §2, §4.3, §4.4, §4.5.
+-- Run AFTER 002_admin.sql. ТЗ: §2, §4.3, §4.4, §4.5.
+-- Only as part of the whole set, in order: after re-running this file alone, re-run every
+-- later migration too — on its own it brings back what the later files closed (AUDIT.md, D6).
 --
 -- What it changes:
 --   • profiles      — a manager can no longer promote themselves: `role` changes only
