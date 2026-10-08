@@ -253,7 +253,7 @@ window.SAM_I18N = {
     "Choose a direction": "Ընտրեք ուղղությունը", "Browse the cards or hot tours — or just tell us the month and the mood.": "Թերթեք քարտերը կամ թեժ առաջարկները, կամ պարզապես ասեք ամիսը և տրամադրությունը։",
     "WhatsApp or a call. A real person, within the hour on working days.": "WhatsApp կամ զանգ։ Իրական մարդ, մեկ ժամվա ընթացքում աշխատանքային օրերին։",
     "We arrange everything": "Մենք ամեն ինչ կազմակերպում ենք", "Flights, hotel, transfer, insurance, visa if needed — one confirmation, no surprises.": "Չվերթ, հյուրանոց, տրանսֆեր, ապահովագրություն, անհրաժեշտության դեպքում՝ վիզա. մեկ հաստատում, առանց անակնկալների։",
-    "Fly": "Թռեք", "Your manager stays on the line for the whole trip.": "Ձեր մենեջերը կապի մեջ է ամբողջ ճամփորդության ընթացքում։",
+    "Fly": "Մեկնեք", "Your manager stays on the line for the whole trip.": "Ձեր մենեջերը կապի մեջ է ամբողջ ճամփորդության ընթացքում։",
     "photo · palms, soft blur": "լուսանկար · արմավենիներ, թեթև մշուշ", "Travel checklist": "Ճամփորդի ստուգացանկ",
     "Documents, insurance, what to pack — the list our managers send before every trip.": "Փաստաթղթեր, ապահովագրություն, ինչ վերցնել՝ ցուցակը, որ մեր մենեջերներն ուղարկում են յուրաքանչյուր ուղևորությունից առաջ։",
     "photo · ocean, soft blur": "լուսանկար · օվկիանոս, թեթև մշուշ", "Get a price on WhatsApp": "Իմանալ գինը WhatsApp-ով",
