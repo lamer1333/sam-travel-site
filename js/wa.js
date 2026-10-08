@@ -19,10 +19,10 @@
   };
   /* what a service button asks about (data-wa-topic in index.html) */
   var TOPICS = {
-    visa:      { en: 'visa support', ru: 'визовая поддержка', hy: 'վիզայի աջակցություն' },
+    visa:      { en: 'visa support', ru: 'визовая поддержка', hy: 'վիզային աջակցություն' },
     insurance: { en: 'travel insurance', ru: 'страховка для поездки', hy: 'ճամփորդական ապահովագրություն' },
-    group:     { en: 'a group trip', ru: 'групповая поездка', hy: 'խմբային ուղևորություն' },
-    corporate: { en: 'corporate travel', ru: 'корпоративные поездки', hy: 'կորպորատիվ ուղևորություններ' },
+    group:     { en: 'a group trip', ru: 'групповая поездка', hy: 'խմբային տուր' },
+    corporate: { en: 'corporate travel', ru: 'корпоративные поездки', hy: 'կորպորատիվ տուրեր' },
     documents: { en: 'documents for a trip', ru: 'документы для поездки', hy: 'ուղևորության փաստաթղթեր' }
   };
   function dict(lang) { return T[lang] || T.en; }

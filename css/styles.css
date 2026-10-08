@@ -622,6 +622,8 @@
   .svc:nth-child(4) { --card: #0F2547; --i: 3; }
   .svc h3 { font-size: clamp(2.6rem, 6.5vw, 5rem); line-height: 1.04; font-weight: 700; letter-spacing: -0.02em; color: #fff; }
   .svc h3 span { display: block; color: rgba(255,255,255,0.5); }
+  /* Russian and Armenian headings have longer words: scale down so they never break mid-word */
+  html[lang="ru"] .svc h3, html[lang="hy"] .svc h3 { font-size: clamp(1.6rem, 7.4vw, 5rem); }
   .svc__chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
   .svc__chip { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; padding: 7px 14px;
     border-radius: 999px; background: rgba(255,255,255,0.13); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.22); }
