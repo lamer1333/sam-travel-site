@@ -26,11 +26,14 @@
     documents: { en: 'documents for a trip', ru: 'документы для поездки', hy: 'ուղևորության փաստաթղթեր' }
   };
   function dict(lang) { return T[lang] || T.en; }
+  /* a function, not a string: in a replacement string «$&», «$1», «$$» are commands, and a
+     tour called «Дубай за $999» would come out mangled */
+  function put(tpl, key, value) { return tpl.replace(key, function () { return value; }); }
   /** the lines every message ends with: the promo code the visitor took, then the reference number */
   function tail(lang, o) {
     o = o || {};
     var out = [];
-    if (o.coupon) out.push(dict(lang).coupon.replace('{c}', o.coupon));
+    if (o.coupon) out.push(put(dict(lang).coupon, '{c}', o.coupon));
     if (o.ref) out.push('№ ' + o.ref);
     return out;
   }
@@ -42,13 +45,13 @@
     o = o || {};
     var d = dict(lang), first;
     if (kind === 'custom' && o.body) first = o.body;
-    else if (kind === 'tour' && o.tour) first = d.tour.replace('{t}', o.tour);
-    else if (kind === 'service' && o.topic) first = d.service.replace('{s}', (TOPICS[o.topic] && (TOPICS[o.topic][lang] || TOPICS[o.topic].en)) || o.topic);
+    else if (kind === 'tour' && o.tour) first = put(d.tour, '{t}', o.tour);
+    else if (kind === 'service' && o.topic) first = put(d.service, '{s}', (TOPICS[o.topic] && (TOPICS[o.topic][lang] || TOPICS[o.topic].en)) || o.topic);
     else first = d.general;
     return [first].concat(tail(lang, o)).join('\n');
   }
   /** the main button of a tour description: «Написать про {тур}» */
-  function label(lang, tour) { return dict(lang).write.replace('{t}', tour); }
+  function label(lang, tour) { return put(dict(lang).write, '{t}', tour); }
 
   root.SAM_WA = { text: text, tail: tail, label: label };
 })(typeof window !== 'undefined' ? window : globalThis);

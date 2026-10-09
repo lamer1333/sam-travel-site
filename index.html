@@ -65,7 +65,7 @@
 }
 </script>
 
-<link rel="stylesheet" href="css/styles.css?v=20261008a">
+<link rel="stylesheet" href="css/styles.css?v=20261009a">
 </head>
 <body>
 <svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
@@ -313,25 +313,25 @@
       </div>
       <div class="svc-stack rv">
         <article class="svc">
-          <h3>Visa <span>Support</span></h3>
+          <h3 data-i18n-ctx="svc-visa">Visa <span>Support</span></h3>
           <div class="svc__chips"><span class="svc__chip">Schengen</span><span class="svc__chip">UAE</span><span class="svc__chip">UK</span><span class="svc__chip">US</span><span class="svc__chip">Appointments</span><span class="svc__chip">Filled forms</span></div>
           <p>✳ Document checklists, appointment booking, filled forms — we walk you through every embassy requirement so nothing is missing on the day.</p>
           <a class="svc__cta flow flow--light" href="https://wa.me/37455957585" target="_blank" rel="noopener" data-wa="service" data-wa-topic="visa"><svg class="flow__arr flow__arr--in" aria-hidden="true"><use href="#i-arrow"/></svg><span class="flow__text">Ask about a visa</span><span class="flow__circle" aria-hidden="true"></span><svg class="flow__arr flow__arr--out" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         </article>
         <article class="svc">
-          <h3>Travel <span>Insurance</span></h3>
+          <h3 data-i18n-ctx="svc-ins">Travel <span>Insurance</span></h3>
           <div class="svc__chips"><span class="svc__chip">Medical cover</span><span class="svc__chip">Cancellation</span><span class="svc__chip">Issued in minutes</span><span class="svc__chip">Whole itinerary</span></div>
           <p>✳ Medical and cancellation cover, issued in minutes, valid for the whole itinerary — one document for every country you cross.</p>
           <a class="svc__cta flow flow--light" href="https://wa.me/37455957585" target="_blank" rel="noopener" data-wa="service" data-wa-topic="insurance"><svg class="flow__arr flow__arr--in" aria-hidden="true"><use href="#i-arrow"/></svg><span class="flow__text">Get covered</span><span class="flow__circle" aria-hidden="true"></span><svg class="flow__arr flow__arr--out" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         </article>
         <article class="svc">
-          <h3>Group <span>Trips</span></h3>
+          <h3 data-i18n-ctx="svc-group">Group <span>Trips</span></h3>
           <div class="svc__chips"><span class="svc__chip">6 – 60 people</span><span class="svc__chip">Families</span><span class="svc__chip">Classmates</span><span class="svc__chip">One manager</span></div>
           <p>✳ Friends, families, classmates — from 6 to 60 people, one manager for the whole group and one chat where everything gets decided.</p>
           <a class="svc__cta flow flow--light" href="https://wa.me/37455957585" target="_blank" rel="noopener" data-wa="service" data-wa-topic="group"><svg class="flow__arr flow__arr--in" aria-hidden="true"><use href="#i-arrow"/></svg><span class="flow__text">Plan a group</span><span class="flow__circle" aria-hidden="true"></span><svg class="flow__arr flow__arr--out" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         </article>
         <article class="svc" id="b2b">
-          <h3>Corporate <span>Travel</span></h3>
+          <h3 data-i18n-ctx="svc-corp">Corporate <span>Travel</span></h3>
           <div class="svc__chips"><span class="svc__chip">Business trips</span><span class="svc__chip">Team retreats</span><span class="svc__chip">Conferences</span><span class="svc__chip">Invoicing</span></div>
           <p>✳ Business trips, team retreats, conferences — invoicing, reporting, and a dedicated line for your office.</p>
           <a class="svc__cta flow flow--light" href="https://wa.me/37455957585" target="_blank" rel="noopener" data-wa="service" data-wa-topic="corporate"><svg class="flow__arr flow__arr--in" aria-hidden="true"><use href="#i-arrow"/></svg><span class="flow__text">Talk to us</span><span class="flow__circle" aria-hidden="true"></span><svg class="flow__arr flow__arr--out" aria-hidden="true"><use href="#i-arrow"/></svg></a>
@@ -449,15 +449,15 @@
       <div class="reels rv-group">
         <div class="reel">
           <blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/reel/DceFC3aCMGX/" data-instgrm-version="14"><a href="https://www.instagram.com/reel/DceFC3aCMGX/" target="_blank" rel="noopener">View this reel on Instagram</a></blockquote>
-          <div class="reel__ph photo p-sea"><span class="ph">reel · paste link</span></div>
+          <div class="reel__ph photo p-sea"><span class="ph">Instagram</span></div>
         </div>
         <div class="reel">
           <blockquote class="instagram-media" data-instgrm-permalink="" data-instgrm-version="14"><a href="" target="_blank" rel="noopener">View this reel on Instagram</a></blockquote>
-          <div class="reel__ph photo p-desert"><span class="ph">reel · paste link</span></div>
+          <div class="reel__ph photo p-desert"><span class="ph">Instagram</span></div>
         </div>
         <div class="reel">
           <blockquote class="instagram-media" data-instgrm-permalink="" data-instgrm-version="14"><a href="" target="_blank" rel="noopener">View this reel on Instagram</a></blockquote>
-          <div class="reel__ph photo p-jungle"><span class="ph">reel · paste link</span></div>
+          <div class="reel__ph photo p-jungle"><span class="ph">Instagram</span></div>
         </div>
       </div>
       <script async defer src="https://www.instagram.com/embed.js"></script>
@@ -533,7 +533,10 @@
 <!-- ================= PAGE · GET A PRICE ================= -->
 <section class="page page--sky" id="plan" role="dialog" aria-modal="true" aria-labelledby="prices-title">
   <div class="page__bar page__bar--solo">
-    <span class="page__logo"><svg viewBox="0 0 889.1 81.4"><use href="#wm"/></svg></span>
+    <a class="page__home" href="#top" data-page-close aria-label="SAM TRAVEL — home">
+      <svg class="page__home-arrow" aria-hidden="true"><use href="#i-chev-l"/></svg>
+      <span class="page__logo"><svg viewBox="0 0 889.1 81.4" aria-hidden="true"><use href="#wm"/></svg></span>
+    </a>
   </div>
   <div class="page__scroll" data-lenis-prevent>
     <div class="pcard pcard--centred">
@@ -830,7 +833,7 @@
       <!-- ===== English ===== -->
       <div data-lng="en">
         <h1>Privacy Policy</h1>
-        <p class="legal__meta">Last updated: 6 October 2026</p>
+        <p class="legal__meta">Last updated: 8 October 2026</p>
         <p>SAM TRAVEL (“we”, “us”) operates this website and arranges travel services. This policy explains what personal data we collect, why we use it, and the choices you have.</p>
 
         <h2>Who we are</h2>
@@ -840,6 +843,9 @@
         <ul>
           <li><b>Details you send us</b> — your name, phone number or WhatsApp, and the trip details you describe — by phone or in messaging apps.</li>
           <li><b>Account details</b> — if you create an account: your name, email and date of birth. We ask for the date of birth to confirm that you are at least 16 and, if you agreed to receive our offers, to send you a birthday greeting with a discount. Only the agency owner and the marketing specialist see it; you can change it in your account.</li>
+          <li><b>Sign-in with Google or Mail.ru</b> — if you choose this way to sign in, that service confirms who you are and passes us your name and email address. We never receive your password.</li>
+          <li><b>Our own visit statistics</b> — the site counts visits itself, without cookies and without storing your IP address: which blocks were viewed and which buttons were pressed, the device type, the language, and the advert or website you came from. A visit is not tied to your name or account.</li>
+          <li><b>Reference number in WhatsApp</b> — when you press a WhatsApp button, the prepared message ends with a short number of the visit (for example “№ K7M2X”). By it we see which page and which advert the message came from, and a promo code you took from a banner. You can delete the number before sending.</li>
           <li><b>Usage data</b> — with your consent, analytics cookies collect anonymous statistics about how the site is used (pages viewed, device type, approximate region).</li>
         </ul>
 
@@ -856,6 +862,7 @@
           <li><b>Meta Pixel</b> (Meta / Facebook) — measuring visits from our social media and ads.</li>
         </ul>
         <p>You can withdraw consent at any time by clearing this site’s data in your browser; the banner will ask again on your next visit.</p>
+        <p>Our own visit statistics described above use no cookies and do not depend on the banner.</p>
 
         <h2>Who we share it with</h2>
         <p>We share data only as far as needed to provide the service: travel suppliers (airlines, hotels, insurers, embassies) to arrange your booking, and the messaging and analytics providers named above when you use them or consent to them. We do not sell your personal data.</p>
@@ -873,7 +880,7 @@
       <!-- ===== Русский ===== -->
       <div data-lng="ru">
         <h1>Политика конфиденциальности</h1>
-        <p class="legal__meta">Обновлено: 6 октября 2026</p>
+        <p class="legal__meta">Обновлено: 8 октября 2026</p>
         <p>SAM TRAVEL («мы») ведёт этот сайт и организует туристические услуги. Здесь описано, какие персональные данные мы собираем, зачем и какие у вас есть права.</p>
 
         <h2>Кто мы</h2>
@@ -883,6 +890,9 @@
         <ul>
           <li><b>Данные, которые вы отправляете</b> — имя, телефон или WhatsApp и детали поездки, которые вы описываете, — по телефону или в мессенджерах.</li>
           <li><b>Данные аккаунта</b> — если вы регистрируетесь: имя, email и дата рождения. Дату рождения мы просим, чтобы убедиться, что вам есть 16 лет, и — если вы согласились получать наши акции — поздравить вас с днём рождения скидкой. Её видят только владелец агентства и маркетолог; изменить дату можно в личном кабинете.</li>
+          <li><b>Вход через Google или Mail.ru</b> — если вы выбираете такой вход, этот сервис подтверждает, кто вы, и передаёт нам ваше имя и адрес почты. Ваш пароль мы не получаем.</li>
+          <li><b>Собственная статистика посещений</b> — сайт сам считает посещения, без cookie и без хранения IP-адреса: какие блоки просмотрены и какие кнопки нажаты, тип устройства, язык, реклама или сайт, с которого вы пришли. Посещение не связывается с вашим именем или аккаунтом.</li>
+          <li><b>Номер обращения в WhatsApp</b> — когда вы нажимаете кнопку WhatsApp, готовое сообщение заканчивается коротким номером посещения (например, «№ K7M2X»). По нему мы видим, с какой страницы и с какой рекламы пришло сообщение, и промокод, который вы взяли с баннера. Номер можно стереть перед отправкой.</li>
           <li><b>Данные об использовании</b> — с вашего согласия аналитические cookie собирают анонимную статистику о том, как используется сайт (просмотры страниц, тип устройства, примерный регион).</li>
         </ul>
 
@@ -899,6 +909,7 @@
           <li><b>Meta Pixel</b> (Meta / Facebook) — измерение переходов из наших соцсетей и рекламы.</li>
         </ul>
         <p>Вы можете отозвать согласие в любой момент, очистив данные этого сайта в браузере; при следующем визите баннер спросит снова.</p>
+        <p>Собственная статистика посещений, описанная выше, cookie не использует и от баннера не зависит.</p>
 
         <h2>Кому мы передаём данные</h2>
         <p>Мы передаём данные только в объёме, нужном для услуги: поставщикам услуг (авиакомпании, отели, страховые, посольства) для оформления брони и указанным выше сервисам мессенджеров и аналитики, когда вы ими пользуетесь или даёте согласие. Мы не продаём ваши персональные данные.</p>
@@ -916,7 +927,7 @@
       <!-- ===== Հայերեն ===== -->
       <div data-lng="hy">
         <h1>Գաղտնիության քաղաքականություն</h1>
-        <p class="legal__meta">Թարմացվել է՝ 2026 թ. հոկտեմբերի 6</p>
+        <p class="legal__meta">Թարմացվել է՝ 2026 թ. հոկտեմբերի 8</p>
         <p>SAM TRAVEL-ը («մենք») շահագործում է այս կայքը և կազմակերպում ճամփորդական ծառայություններ։ Այս քաղաքականությունը բացատրում է, թե ինչ անձնական տվյալներ ենք հավաքում, ինչու և ինչ իրավունքներ ունեք դուք։</p>
 
         <h2>Ովքեր ենք մենք</h2>
@@ -926,6 +937,9 @@
         <ul>
           <li><b>Ձեր ուղարկած տվյալները</b>՝ անունը, հեռախոսը կամ WhatsApp-ը և ճամփորդության մանրամասները, որ նկարագրում եք՝ հեռախոսով կամ մեսենջերներով։</li>
           <li><b>Հաշվի տվյալները</b>՝ եթե գրանցվում եք՝ անունը, էլ. փոստը և ծննդյան ամսաթիվը։ Ծննդյան ամսաթիվը խնդրում ենք՝ համոզվելու, որ ձեր 16 տարին լրացել է, և, եթե համաձայնել եք ստանալ մեր ակցիաները, ձեր ծննդյան օրը զեղչով շնորհավորելու համար։ Այն տեսնում են միայն գործակալության սեփականատերը և մարքեթոլոգը. ամսաթիվը կարող եք փոխել անձնական էջում։</li>
+          <li><b>Մուտք Google-ով կամ Mail.ru-ով</b>՝ եթե ընտրում եք մուտքի այս եղանակը, այդ ծառայությունը հաստատում է ձեր ինքնությունը և մեզ է փոխանցում ձեր անունը և էլ. փոստի հասցեն։ Ձեր գաղտնաբառը մենք չենք ստանում։</li>
+          <li><b>Այցերի մեր սեփական վիճակագրությունը</b>՝ կայքն ինքն է հաշվում այցերը՝ առանց cookie-ների և առանց IP հասցեն պահելու. որ բլոկներն են դիտվել և որ կոճակներն են սեղմվել, սարքի տեսակը, լեզուն, գովազդը կամ կայքը, որտեղից եկել եք։ Այցը չի կապվում ձեր անվան կամ հաշվի հետ։</li>
+          <li><b>Դիմումի համարը WhatsApp-ում</b>՝ երբ սեղմում եք WhatsApp-ի կոճակը, պատրաստի հաղորդագրությունն ավարտվում է այցի կարճ համարով (օրինակ՝ «№ K7M2X»)։ Դրանով տեսնում ենք, թե որ էջից և որ գովազդից է եկել հաղորդագրությունը, ինչպես նաև բաններից վերցրած պրոմոկոդը։ Ուղարկելուց առաջ համարը կարող եք ջնջել։</li>
           <li><b>Օգտագործման տվյալները</b>՝ ձեր համաձայնությամբ վերլուծական cookie-ները հավաքում են անանուն վիճակագրություն այն մասին, թե ինչպես է օգտագործվում կայքը (դիտված էջեր, սարքի տեսակ, մոտավոր տարածաշրջան)։</li>
         </ul>
 
@@ -942,6 +956,7 @@
           <li><b>Meta Pixel</b> (Meta / Facebook)՝ մեր սոցցանցերից և գովազդից այցերի չափում։</li>
         </ul>
         <p>Համաձայնությունը կարող եք ցանկացած պահի հետ վերցնել՝ բրաուզերում այս կայքի տվյալները մաքրելով. հաջորդ այցի ժամանակ բաները նորից կհարցնի։</p>
+        <p>Վերը նկարագրված այցերի մեր սեփական վիճակագրությունը cookie-ներ չի օգտագործում և բաներից կախված չէ։</p>
 
         <h2>Ում ենք փոխանցում</h2>
         <p>Տվյալները փոխանցում ենք միայն ծառայության համար անհրաժեշտ չափով՝ ճամփորդական մատակարարներին (ավիաընկերություններ, հյուրանոցներ, ապահովագրողներ, դեսպանատներ) ամրագրումը կազմակերպելու համար, ինչպես նաև վերը նշված մեսենջերի և վերլուծության ծառայություններին, երբ դրանք օգտագործում եք կամ համաձայնություն եք տալիս։ Մենք չենք վաճառում ձեր անձնական տվյալները։</p>
@@ -967,17 +982,11 @@
 <div class="sheet" id="sheet" data-lenis-prevent role="dialog" aria-modal="true" aria-labelledby="sheet-title">
   <div class="sheet__grip" id="grip"><span></span></div>
   <button class="sheet__close" type="button" aria-label="Close" data-close="sheet"><svg><use href="#i-x"/></svg></button>
-  <div class="sheet__hero photo p-sea" id="sheet-photo"><span class="ph">photo gallery · to choose</span></div>
+  <div class="sheet__hero photo p-sea" id="sheet-photo"></div>
   <div class="sheet__body">
-    <div><span class="eyebrow" id="sheet-meta">Egypt · Oct–May</span><h3 id="sheet-title">Sharm El Sheikh</h3><div class="tour-tags" id="sheet-tags" hidden></div></div>
-    <p id="sheet-text">Warm sea all winter, the best reef diving four hours from home, and hotels where nothing has to be decided after breakfast.</p>
-    <ul class="inc" id="sheet-inc">
-      <li><svg><use href="#i-check"/></svg>Direct flight from Yerevan</li>
-      <li><svg><use href="#i-check"/></svg>Hotel by your budget — we shortlist three</li>
-      <li><svg><use href="#i-check"/></svg>Transfer, insurance, visa on arrival</li>
-      <li><svg><use href="#i-check"/></svg>Manager on the line during the trip</li>
-    </ul>
-    <p style="font-size:.9rem">Reviews from travellers who went here appear in this block <em class="ph ph--dark">to add</em></p>
+    <div><span class="eyebrow" id="sheet-meta"></span><h3 id="sheet-title"></h3><div class="tour-tags" id="sheet-tags" hidden></div></div>
+    <p id="sheet-text"></p>
+    <ul class="inc" id="sheet-inc"></ul>
     <div class="sheet__cta">
       <a class="btn btn--wa btn--lg" id="sheet-wa" href="https://wa.me/37455957585" target="_blank" rel="noopener" data-wa="tour" data-track-label="sheet" data-wa-tour="sharm"><svg aria-hidden="true"><use href="#i-wa"/></svg><span data-wa-label></span></a>
       <a class="btn btn--ghost btn--lg" href="tel:+37455957585"><svg aria-hidden="true"><use href="#i-phone"/></svg>Call us</a>
@@ -990,12 +999,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
 <script src="js/vendor/supabase-js-2.117.2.js"></script>
 <script src="js/supabase-config.js"></script>
-<script src="js/i18n.js?v=20261008a"></script>
-<script src="js/pages.js?v=20261008a"></script>
-<script src="js/track.js?v=20261008a"></script>
-<script src="js/wa.js?v=20261008a"></script>
-<script src="js/app.js?v=20261008a"></script>
-<script src="js/cms.js?v=20261008a"></script>
+<script src="js/i18n.js?v=20261009a"></script>
+<script src="js/pages.js?v=20261009a"></script>
+<script src="js/track.js?v=20261009a"></script>
+<script src="js/wa.js?v=20261009a"></script>
+<script src="js/app.js?v=20261009a"></script>
+<script src="js/cms.js?v=20261009a"></script>
 <script src="js/shader.js"></script>
 <script defer src="js/analytics.js"></script>
 </body>

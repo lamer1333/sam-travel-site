@@ -1,14 +1,24 @@
 // Launch readiness: the panel checks the site's own data for placeholders,
 // missing translations and missing IDs — and links to the fix. The site has no request
 // form (§4.11), so there is nothing about requests or letters here.
-import { h, icon, pageHead } from '../ui.js';
+import { h, icon, pageHead, plural, fmt } from '../ui.js';
 import { ring } from '../charts.js';
 import { isFilled, LANGS } from '../ui.js';
 
 export default async function healthView(root, ctx) {
-  const [s, tours, reviews, team, reels, tpl, users] = await Promise.all([
+  const [s, tours, reviews, team, reels, tpl, users, ns] = await Promise.all([
     ctx.settings(true), ctx.api.list('tours'), ctx.api.list('reviews'), ctx.api.list('team'), ctx.api.list('reels'), ctx.api.list('wa_templates'), ctx.users(true),
+    ctx.api.notifyStatus().catch(() => null),
   ]);
+  // the daily letter «Сегодня написать: …» (§4.12): is it set up, and does it leave
+  const rm = (ns && ns.reminders) || null;
+  const mailWhy = !rm ? 'База не ответила на notify_status() — накатите миграции из supabase/migrations/.'
+    : !rm.mail_to ? 'Не указана почта агентства — письму некуда идти.'
+    : !rm.secrets ? 'В Supabase Vault нет адреса функции почты и секрета (lead_mail_url, lead_mail_secret) — см. SETUP-ADMIN.md.'
+    : !rm.schedule ? 'Не стоит расписание reminders-mail: включите pg_cron и накатите миграции ещё раз.'
+    : +rm.failed_7d ? 'За неделю не доставлено писем: ' + rm.failed_7d + '. Причина: ' + (rm.last_error || 'неизвестна') + '.'
+    : '';
+  const mailOk = !!rm && (!rm.enabled || !mailWhy);
   const co = s.company || {}, seo = s.seo || {}, an = s.analytics || {}, wa = (s.contacts || {}).whatsapp || '';
   const pubT = tours.filter((t) => t.published), pubR = reviews.filter((r) => r.published), pubTeam = team.filter((m) => m.published);
   const F4 = [{ key: 'card_title' }, { key: 'card_text' }, { key: 'title' }, { key: 'text' }];
@@ -20,14 +30,14 @@ export default async function healthView(root, ctx) {
     [3, co.licence && co.licence !== '23-1057-2023' && co.insurance && co.insurance !== 'TRV-2026-0412', 'Настоящие номера лицензии и страховки', 'Сейчас на сайте номера-образцы из макета — это видят клиенты и проверяющие.', 'contacts', 'bad'],
     [3, pubR.length >= 3, 'Минимум 3 настоящих отзыва', pubR.length ? `Опубликовано ${pubR.length}.` : 'Пока на сайте шаблонные «Sample review».', 'content/reviews', 'bad'],
     [2, pubTeam.length >= 1 && pubTeam.every((m) => m.photo_url && isFilled(m.i18n.ru, [{ key: 'name' }])), 'Менеджеры с фото и именами', pubTeam.length ? pubTeam.filter((m) => !m.photo_url).length + ' без фото.' : 'На сайте «Manager name» и пустые фото.', 'content/team', 'bad'],
-    [2, pubT.length >= 3, 'В «Горящих турах» есть что показать', `Сейчас на сайте ${pubT.length} ${pubT.length === 1 ? 'тур' : 'туров'}.`, 'content/tours', 'warn'],
+    [2, pubT.length >= 3, 'В «Горящих турах» есть что показать', `Сейчас на сайте ${pubT.length} ${plural(pubT.length, 'тур', 'тура', 'туров')}.`, 'content/tours', 'warn'],
     [2, pubT.every((t) => t.photo_url), 'Фото у всех горящих туров', pubT.filter((t) => !t.photo_url).length + ' с градиентом вместо фото.', 'content/tours', 'warn'],
     [2, !untranslated.length, 'Туры переведены на все три языка', untranslated.length ? 'Нет перевода: ' + untranslated.map((t) => t.slug).join(', ') : '', 'content/tours', 'warn'],
     [1, reels.filter((r) => r.published).length >= 3, 'Три рилса в блоке «Перед поездкой»', reels.filter((r) => r.published).length + ' из 3 слотов заполнено.', 'content/reels', 'warn'],
     [2, ['ru', 'hy'].every((l) => seo[l] && seo[l].title && seo[l].description), 'SEO-тексты на русском и армянском', 'Без них Google показывает английский текст всем.', 'm/seo', 'warn'],
     [2, !!(an.ga4 && an.pixel), 'Подключены Google Analytics и Meta Pixel', 'Нужны для рекламных кабинетов и ретаргетинга.', 'm/seo', 'warn'],
     [3, /^\d{10,15}$/.test(wa), 'Номер WhatsApp указан', 'Все кнопки сайта ведут в WhatsApp. Номер — цифрами с кодом страны, без «+».', 'contacts', 'bad'],
-    [2, !users.some((u) => u.email === 'demo@samtravel.am'), 'Удалён тестовый пользователь', 'demo@samtravel.am создавался для проверки входа — удалите в Supabase → Authentication.', 'people', 'bad'],
+    [2, mailOk, rm && !rm.enabled ? 'Напоминания о вылетах выключены — письмо не нужно' : 'Письмо с напоминаниями настроено и уходит' + (rm && rm.last_sent_at ? ' (последнее — ' + fmt.dt(rm.last_sent_at) + ')' : ''), mailWhy, 'contacts', 'bad'],
     [1, owners.length >= 2, 'Второй человек с правами владельца', 'Если единственный владелец потеряет доступ, назначить роли будет некому.', 'people', 'warn'],
     [1, ['ru', 'hy', 'en'].every((l) => replies.some((t) => t.lang === l)), 'Шаблоны ответов на всех языках', 'Есть языки: ' + Array.from(new Set(replies.map((t) => t.lang))).join(', ').toUpperCase(), 'templates', 'warn'],
     [1, !/@(gmail|mail|yandex|yahoo)\./i.test((s.contacts || {}).email || ''), 'Почта на своём домене', 'info@samtravel.am выглядит солиднее, чем gmail, и реже попадает в спам.', 'contacts', 'warn'],

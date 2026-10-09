@@ -1,12 +1,36 @@
 // Helpers shared by several views.
-import { yv, ymd, median } from '../metrics.js';
+import { yv, ymd } from '../metrics.js';
 
-export { yv, ymd, median };   // Asia/Yerevan (UTC+4)
+export { yv, ymd };   // Asia/Yerevan (UTC+4)
+/** a calendar day picked in a form → the moment that day starts / ends in Yerevan */
+export const dayStartIso = (day) => new Date(day + 'T00:00:00+04:00').toISOString();
+export const dayEndIso = (day) => new Date(day + 'T23:59:59+04:00').toISOString();
 /** a sale date picked in a form → timestamp: today keeps the real time, a past day lands at noon in Yerevan */
 export const saleIso = (day) => day === ymd(Date.now()) ? new Date().toISOString() : new Date(day + 'T12:00:00+04:00').toISOString();
-export const minutesBetween = (a, b) => (new Date(b) - new Date(a)) / 60e3;
 export const sum = (arr, f = (x) => x) => arr.reduce((a, x) => a + (+f(x) || 0), 0);
-export const inRange = (d, from, to) => { const t = new Date(d).getTime(); return t >= from.getTime() && t < to.getTime(); };
+
+/** why a promo code would not work today: [kind, text] — or null when it is fine. The same four states as the «Промокоды» list. */
+export function couponState(c, now = Date.now()) {
+  if (!c.active) return ['off', 'Выключен'];
+  if (c.valid_from && new Date(c.valid_from) > now) return ['warn', 'Ещё не начался'];
+  if (c.valid_until && new Date(c.valid_until) <= now) return ['off', 'Истёк'];
+  if (c.max_uses != null && c.used_count >= c.max_uses) return ['off', 'Исчерпан'];
+  return ['ok', 'Действует'];
+}
+/**
+ * What to tell the person who types a promo code into a sale. The database does not refuse a
+ * sale because of the code — the owner may have promised the discount — so this only warns.
+ * `coupons` = the «Промокоды» list, or null when it could not be read.
+ */
+export function couponWarning(coupons, code) {
+  const k = String(code || '').trim().toUpperCase();
+  if (!k || !coupons) return '';
+  const c = coupons.find((x) => String(x.code).toUpperCase() === k);
+  if (!c) return 'Промокода ' + k + ' нет в списке «Промокоды» — проверьте, как клиент его написал. Продажу можно записать и так.';
+  const [kind, text] = couponState(c);
+  if (kind === 'ok') return '';
+  return 'Промокод ' + k + ': ' + ({ 'Выключен': 'выключен', 'Ещё не начался': 'ещё не начал действовать', 'Истёк': 'срок истёк', 'Исчерпан': 'лимит использований исчерпан' }[text]) + '. Продажу можно записать и так — решите, давать ли скидку.';
+}
 
 export function waLink(phone, text) {
   const d = String(phone || '').replace(/\D/g, '');
@@ -42,7 +66,8 @@ export const birthDate = (d) => d ? new Date(d.slice(0, 10) + 'T00:00:00Z').toLo
 /** a flight or return day, '2026-10-08' → '8 окт., чт'. A plain date has no time zone: print the day as written. */
 export const tripDay = (d) => d ? new Date(String(d).slice(0, 10) + 'T00:00:00Z').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', weekday: 'short', timeZone: 'UTC' }) : '—';
 /** where on the page a WhatsApp link was pressed (events.label) */
-export const WA_PLACE = { sheet: 'описание тура', 'carou-stage': 'карточка тура', contacts_cta: 'блок контактов', contacts: 'блок контактов', services: 'услуги', b2b: 'услуги', topbar: 'шапка сайта', menu: 'меню', plan: 'подбор тура', 'c-send': 'чек-лист документов', top: 'общая кнопка' };
+export const WA_PLACE = { sheet: 'описание тура', 'carou-stage': 'карточка тура', contacts_cta: 'блок контактов', contacts: 'блок контактов', services: 'услуги', b2b: 'услуги', topbar: 'шапка сайта', menu: 'меню', plan: 'подбор тура', 'c-send': 'чек-лист документов', checklist: 'чек-лист документов', top: 'общая кнопка',
+  fab: 'плавающая кнопка', footer: 'подвал', promo_bar: 'баннер', promo_popup: 'поп-ап', hot_empty: 'карточка «Спросите нас»', hot: 'горящие туры' };
 export const LANG_NAME = { ru: 'Русский', hy: 'Армянский', en: 'Английский', '?': '—' };
 
 /** Downscale an image before upload: max 1600px, JPEG/WebP ~0.82 — keeps the site fast */

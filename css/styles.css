@@ -157,7 +157,7 @@
     [data-parallax-layer="3"] { animation-name: px-3; }
     [data-parallax-layer="4"] { animation-name: px-4; }
     [data-parallax-layer="5"] { animation-name: px-5; }
-    .scroll-cue { animation: px-cue linear both; animation-timeline: --hero; animation-range: exit 0% exit 15%; }
+
   }
   @keyframes px-1 { to { transform: translateY(70%); } }
   @keyframes px-2 { to { transform: translateY(50%); } }
@@ -216,7 +216,7 @@
   /* Armenian compounds run long; without this they set a min-content width no grid or
      flex track can shrink below, and the whole page gains a horizontal scrollbar. */
   h1, h2, h3 { margin: 0; text-wrap: balance; overflow-wrap: break-word; }
-  p, li, .tile, .step, .post, .card, .review { min-width: 0; overflow-wrap: break-word; }
+  p, li, .step, .card, .review { min-width: 0; overflow-wrap: break-word; }
   h2 { font-size: clamp(1.9rem, 4.2vw, 3.2rem); line-height: 1.05; letter-spacing: -0.025em; font-weight: 700; }
   h3 { font-size: 1.15rem; line-height: 1.25; letter-spacing: -0.01em; font-weight: 600; }
   p { margin: 0; }
@@ -239,23 +239,22 @@
   /* ---------- placeholder chip: marks everything the client will replace ---------- */
   .ph { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255,255,255,0.85); background: rgba(0,0,0,0.35); border: 1px dashed rgba(255,255,255,0.55); border-radius: 999px; padding: 4px 10px; backdrop-filter: blur(6px); }
   .ph::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--brand); }
-  .ph--dark { color: var(--ink-2); background: rgba(11,13,18,0.04); border-color: rgba(11,13,18,0.3); }
 
   /* ---------- buttons ---------- */
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 0 22px; border-radius: 999px; font-weight: 600; font-size: 0.98rem; letter-spacing: -0.005em; transition: transform 160ms var(--ease-out), background-color 200ms ease, color 200ms ease, box-shadow 200ms ease; will-change: transform; }
   .btn:active { transform: scale(0.97); }
   .btn svg { width: 18px; height: 18px; flex: none; }
   .btn--brand { background: var(--brand); color: var(--on-brand); }
-  .btn--ink { background: var(--ink); color: #fff; }
+
   .btn--ghost { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line-ink); }
-  .btn--glass { background: rgba(255,255,255,0.14); color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35); backdrop-filter: blur(12px) saturate(160%); }
+
   .btn--wa { background: #25D366; color: #06230f; }
   .btn--lg { min-height: 56px; padding: 0 28px; font-size: 1.05rem; }
   @media (hover: hover) and (pointer: fine) {
     .btn--brand:hover { background: #79b4f4; }
-    .btn--ink:hover { background: #22262e; }
+
     .btn--ghost:hover { box-shadow: inset 0 0 0 1.5px var(--ink); }
-    .btn--glass:hover { background: rgba(255,255,255,0.22); }
+
     .btn--wa:hover { background: #3ddc76; }
   }
 
@@ -460,40 +459,21 @@
   .trust div { display: flex; flex-direction: column; gap: 4px; }
   .trust { --trust-num: clamp(1.8rem, 3.4vw, 2.6rem); }
   .trust b { font-size: var(--trust-num); font-weight: 600; letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; color: #fff; }
-  /* ∞ is drawn near the math axis, not on the baseline, so matching the digits takes
-     two corrections, both measured from the font's ink metrics:
-     1.426x brings its ink to 84% of the digits' cap height (equal height would
-     optically dominate — it is a much wider, heavier shape);
-     line-height 1/1.426 keeps its box exactly as tall as the numbers' so the labels
-     below stay on one row; the nudge drops its ink centre onto theirs. */
-  .trust b.trust__inf {
-    font-size: calc(var(--trust-num) * 1.426);
-    line-height: 0.701;
-    letter-spacing: 0;
-    transform: translateY(calc(var(--trust-num) * -0.091));
-  }
+
   .trust span { font-size: 0.86rem; color: rgba(255,255,255,0.55); }
   .trust .ph { margin-top: 8px; align-self: flex-start; }
   @media (max-width: 720px) { .trust { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-
 
   /* ---------- the two main actions, flanking the round logo ----------
      Placed here because they were otherwise at screen 2 and screen 7; this costs no
      page height, it fills room the black section already had. */
   .logorow { display: flex; align-items: center; justify-content: center; gap: clamp(18px, 4vw, 64px); flex-wrap: wrap; width: 100%; }
   .logorow .logo { flex: none; }
-  /* A bare label inside a flex button is an anonymous item with min-width:auto, so a long
-     Armenian string refuses to wrap and pushes the button past the screen. Wrapping it in
-     a span that is allowed to shrink lets it break onto two lines instead. */
-  .logorow__a { flex: none; min-height: 52px; height: auto; padding: 12px 24px; max-width: min(340px, 84vw); min-width: 0; }
-  .logorow__a > span { min-width: 0; text-align: center; line-height: 1.25; }
-  .btn--onblack { background: transparent; color: #fff; box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.5); }
-  @media (hover: hover) and (pointer: fine) { .btn--onblack:hover { background: rgba(255,255,255,0.12); box-shadow: inset 0 0 0 1.5px #fff; } }
-  /* stacked: brand first, then the two asks, then the proof below */
+
   @media (max-width: 860px) {
     .logorow { flex-direction: column; gap: 18px; }
     .logorow .logo { order: -1; }
-    .logorow__a { width: min(340px, 84vw); }
+
   }
 
   /* ---------- scroll reveal ---------- */
@@ -510,7 +490,7 @@
   .photo::after { content: ""; position: absolute; inset: 0; opacity: 0.12; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); mix-blend-mode: overlay; pointer-events: none; }
   .photo > * { position: relative; }
   .p-sea    { --photo: radial-gradient(120% 80% at 20% 10%, #cfe7f4 0%, transparent 55%), radial-gradient(90% 70% at 80% 30%, #4aa3c9 0%, transparent 60%), linear-gradient(180deg, #0b6f9b 0%, #063e5e 60%, #032538 100%); }
-  .p-palms  { --photo: radial-gradient(70% 60% at 75% 20%, #ffe6a3 0%, transparent 55%), radial-gradient(90% 80% at 20% 80%, #0f5a3a 0%, transparent 60%), linear-gradient(180deg, #8dc4d6 0%, #2b7a5b 55%, #103a2a 100%); }
+
   .p-ocean  { --photo: radial-gradient(90% 60% at 50% 0%, #ffd0a8 0%, transparent 55%), radial-gradient(80% 60% at 30% 90%, #0a4d7a 0%, transparent 60%), linear-gradient(180deg, #f0a06a 0%, #2c6e9e 50%, #0a2f4d 100%); }
   .p-jungle { --photo: radial-gradient(80% 60% at 30% 20%, #b8e08a 0%, transparent 55%), radial-gradient(90% 70% at 80% 80%, #06301f 0%, transparent 60%), linear-gradient(180deg, #4e9a4a 0%, #1f5e35 55%, #0a2a19 100%); }
   .p-desert { --photo: radial-gradient(90% 60% at 60% 10%, #fff1cc 0%, transparent 55%), linear-gradient(180deg, #f2c57c 0%, #c97d3e 55%, #5a3418 100%); }
@@ -518,7 +498,6 @@
   .p-snow   { --photo: radial-gradient(90% 60% at 30% 10%, #ffffff 0%, transparent 55%), linear-gradient(180deg, #cfe3f5 0%, #7ea6c9 55%, #2e4a66 100%); }
   .p-lagoon { --photo: radial-gradient(90% 60% at 40% 0%, #e7fbff 0%, transparent 55%), linear-gradient(180deg, #5fd3e0 0%, #1e9fb5 55%, #0b4c62 100%); }
   .p-island { --photo: radial-gradient(90% 60% at 60% 0%, #fff4d6 0%, transparent 55%), linear-gradient(180deg, #7fc8d8 0%, #2e8f8a 55%, #0d3f3d 100%); }
-  .p-antique{ --photo: radial-gradient(90% 60% at 50% 10%, #fde6c8 0%, transparent 55%), linear-gradient(180deg, #d9b48a 0%, #8a5a3a 55%, #3b2416 100%); }
 
   /* ---------- photo bands (statement sections between content) ---------- */
   .band { min-height: clamp(360px, 56vh, 620px); display: grid; place-items: center; color: #fff; text-align: center; padding: 80px var(--gutter); --photo-blur: 18px; }
@@ -532,29 +511,20 @@
     @keyframes band-drift { from { transform: translateY(-6%) scale(1.02); } to { transform: translateY(6%) scale(1.02); } }
   }
 
-  /* ---------- destinations ---------- */
-  .filters { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip { min-height: 40px; padding: 0 16px; border-radius: 999px; font-size: 0.9rem; font-weight: 500; color: var(--ink-2); background: var(--paper-2); transition: background-color 160ms ease, color 160ms ease, transform 160ms var(--ease-out); }
   .chip:active { transform: scale(0.96); }
   .chip[aria-pressed="true"] { background: var(--ink); color: #fff; }
-  .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-  @media (max-width: 1024px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-  @media (max-width: 720px)  { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }
+
   .card { position: relative; display: flex; flex-direction: column; justify-content: flex-end; aspect-ratio: 4 / 5; border-radius: 16px; overflow: hidden; color: #fff; text-align: left; padding: 18px; isolation: isolate; cursor: pointer; transition: transform 160ms var(--ease-out); }
   .card:active { transform: scale(0.98); }
   .card::before { inset: -6%; }
   .card .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.62) 100%); z-index: 0; }
-  .card__meta { font-size: 0.78rem; color: rgba(255,255,255,0.75); margin-bottom: 4px; }
+
   .card h3 { font-size: 1.25rem; color: #fff; }
   .card .ph { position: absolute; top: 12px; left: 12px; }
-  .card.is-hidden { display: none; }
+
   @media (hover: hover) and (pointer: fine) { .card:hover::before { transform: scale(1.06); } }
 
-  /* ---------- carousel rail (hot tours, reviews) ---------- */
-  /* The rail is a scroll container, but its cards still extended the document's scroll
-     width in RU and HY, so the whole page could be dragged sideways. Clip at the wrapper
-     — not at the root, which would disable the hero's view() timelines. */
-  .rail-wrap { position: relative; overflow-x: clip; }
   .rail { display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: var(--gutter); padding-inline: var(--gutter); padding-block: 4px 12px; margin-inline: calc(-1 * var(--gutter)); scrollbar-width: none; -webkit-overflow-scrolling: touch; cursor: grab; }
   .rail::-webkit-scrollbar { display: none; }
   .rail.is-dragging { cursor: grabbing; scroll-snap-type: none; }
@@ -631,37 +601,9 @@
     .svc { top: calc(72px + var(--i, 0) * 10px); height: auto; min-height: 66svh; padding: 24px 20px; border-radius: 20px; }
   }
 
-  /* ---------- quick actions (travelexpert-style entry buttons) ---------- */
-  .quick { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px; }
-  .quick a { position: relative; display: flex; flex-direction: column; justify-content: flex-end; gap: 8px; min-height: 260px; padding: 28px; border-radius: 20px; color: #fff; overflow: hidden; isolation: isolate; transition: transform 160ms var(--ease-out); --photo-blur: 10px; }
-  .quick a:active { transform: scale(0.985); }
-  .quick a .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.6)); z-index: 0; }
-  .quick h3 { font-size: 1.6rem; color: #fff; }
-  .quick p { color: rgba(255,255,255,0.8); max-width: 40ch; }
-  .quick .arrow { position: absolute; top: 24px; right: 24px; width: 44px; height: 44px; border-radius: 999px; background: rgba(255,255,255,0.16); backdrop-filter: blur(10px); display: grid; place-items: center; transition: transform 220ms var(--ease-out), background-color 200ms ease; }
-  .quick .arrow svg { width: 20px; height: 20px; }
-  .quick .ph { position: absolute; top: 24px; left: 24px; }
-  @media (hover: hover) and (pointer: fine) { .quick a:hover .arrow { transform: translate(3px, -3px); background: rgba(255,255,255,0.28); } .quick a:hover::before { transform: scale(1.05); } }
-  @media (max-width: 720px) { .quick { grid-template-columns: minmax(0, 1fr); } .quick a { min-height: 200px; } }
-
-  /* ---------- services ---------- */
-  .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-  .tile { background: #fff; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 1px 0 var(--line-ink); min-height: 200px; }
-  .tile svg { width: 28px; height: 28px; color: var(--brand-deep); }
-  .tile p { color: var(--ink-2); font-size: 0.95rem; }
-  .tile a { margin-top: auto; color: var(--brand-deep); font-weight: 600; font-size: 0.92rem; display: inline-flex; align-items: center; gap: 6px; }
-  .tile a svg { width: 16px; height: 16px; transition: transform 200ms var(--ease-out); }
-  @media (hover: hover) and (pointer: fine) { .tile a:hover svg { transform: translateX(3px); } }
-  @media (max-width: 1024px) { .tiles { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
-  @media (max-width: 520px) { .tiles { grid-template-columns: minmax(0, 1fr); } }
-
   /* ---------- about ---------- */
   .about { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 48px; align-items: start; }
-  .facts { display: grid; gap: 12px; margin-top: 28px; }
-  .fact { display: flex; gap: 14px; align-items: flex-start; padding: 16px 18px; background: #fff; border-radius: 12px; box-shadow: 0 1px 0 var(--line-ink); }
-  .fact svg { width: 22px; height: 22px; flex: none; color: var(--brand-deep); margin-top: 2px; }
-  .fact b { display: block; font-weight: 600; }
-  .fact span { color: var(--ink-2); font-size: 0.92rem; }
+
   .team { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; max-width: 700px; }
   .person { text-align: left; }
   .person .photo { aspect-ratio: 3 / 4; border-radius: 14px; margin-bottom: 10px; --photo: linear-gradient(160deg, #d6dde8, #9aa7b8); }
@@ -742,15 +684,6 @@
   @media (max-width: 1000px) { .tcols { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tcol--lg { display: none; } }
   @media (max-width: 640px) { .tcols { grid-template-columns: minmax(0, 1fr); max-height: 540px; } .tcol--md { display: none; } }
 
-  /* ---------- blog ---------- */
-  .posts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-  .post { display: flex; flex-direction: column; gap: 12px; text-align: left; }
-  .post .photo { aspect-ratio: 16 / 10; border-radius: 16px; --photo-blur: 0px; }
-  .post .photo .ph { position: absolute; top: 12px; left: 12px; }
-  .post small { color: var(--ink-2); font-size: 0.82rem; }
-  .post p { color: var(--ink-2); font-size: 0.95rem; }
-  @media (max-width: 860px) { .posts { grid-template-columns: minmax(0, 1fr); } }
-
   /* ---------- contacts ---------- */
   .contact { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; }
   .contact dl { display: grid; gap: 18px; margin: 28px 0 0; }
@@ -762,14 +695,7 @@
   .field input, .field textarea { font: inherit; font-size: 16px; padding: 12px 14px; border-radius: 10px; border: 1.5px solid var(--line-ink); background: var(--paper); color: var(--ink); transition: border-color 160ms ease, box-shadow 160ms ease; }
   .field input:focus, .field textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px rgba(99,167,242,0.22); }
   .field small { color: var(--ink-2); font-size: 0.8rem; }
-  .form__ok { display: none; gap: 10px; justify-items: start; }
-  .form.is-sent .form__ok { display: grid; }
-  .form__ok-h { display: flex; align-items: center; gap: 10px; margin: 0; color: #1c7c3e; font-weight: 600; font-size: 1.05rem; }
-  .form__ok-t { margin: 0; color: var(--ink-2); font-size: 0.92rem; line-height: 1.5; }
-  .form__wa { margin-top: 6px; max-width: 100%; padding-block: 10px; line-height: 1.25; }
-  @media (max-width: 480px) { .form__wa { width: 100%; justify-content: center; padding-inline: 14px; } }
-  .form.is-sent .btn, .form.is-sent .flow { display: none; }
-  .form.is-sent .form__wa { display: inline-flex; }   /* the one button that appears after sending */
+
   @media (max-width: 860px) { .contact { grid-template-columns: minmax(0, 1fr); } }
 
   /* ---------- Contacts: quiet corporate panel ---------- */
@@ -858,18 +784,10 @@
   .modal.is-open { transform: translate(-50%, -50%) scale(1); opacity: 1; visibility: visible; transition: transform 240ms var(--ease-out), opacity 200ms ease, visibility 0s; }
   .modal h3 { font-size: 1.4rem; letter-spacing: -0.02em; margin-bottom: 6px; }
   .modal p { color: var(--ink-2); font-size: 0.95rem; }
-  .seg { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); background: var(--paper-2); border-radius: 10px; padding: 3px; margin: 18px 0 14px; position: relative; }
-  .seg button { position: relative; z-index: 1; padding: 8px; border-radius: 8px; font-size: 0.9rem; font-weight: 600; color: var(--ink-2); transition: color 160ms ease; }
-  .seg button[aria-pressed="true"] { color: var(--ink); }
-  .seg::before { content: ""; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); transition: transform 220ms var(--ease-out); }
-  .seg[data-i="1"]::before { transform: translateX(100%); }
+
   .modal .field { margin-bottom: 14px; }
   .modal .btn { width: 100%; }
-  .modal__step { display: none; }
-  .modal__step.is-on { display: block; }
-  .codes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
-  .codes input { text-align: center; font-size: 1.4rem; font-weight: 600; padding: 12px 0; border-radius: 10px; border: 1.5px solid var(--line-ink); background: var(--paper); font-variant-numeric: tabular-nums; }
-  .codes input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px rgba(99,167,242,0.22); }
+
   .modal__close { position: absolute; top: 12px; right: 12px; width: 40px; height: 40px; border-radius: 999px; display: grid; place-items: center; color: var(--ink-2); }
   .modal__close svg { width: 18px; height: 18px; }
   .modal .link { color: var(--brand-deep); font-weight: 600; font-size: 0.9rem; }
@@ -929,7 +847,7 @@
   .page__scroll { flex: 1; overflow: auto; overscroll-behavior: contain; padding: 8px var(--gutter) calc(40px + env(safe-area-inset-bottom, 0px)); -webkit-overflow-scrolling: touch; }
   .pcard { --ink: #0B0D12; width: min(100%, 560px); margin: 0 auto; background: #fff; color: var(--ink); border-radius: 24px; padding: clamp(24px, 4vw, 36px); box-shadow: 0 40px 90px -40px rgba(0,0,0,0.6); display: grid; gap: 22px; opacity: 0; transform: translateY(16px); transition: opacity 420ms var(--ease-out) 120ms, transform 520ms var(--ease-out) 120ms; }
   .page.is-open .pcard { opacity: 1; transform: none; }
-  .pcard__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+
   .pcard__title { font-size: clamp(1.6rem, 3.4vw, 2.1rem); letter-spacing: -0.025em; font-weight: 700; line-height: 1.1; }
   .pcard__lede { color: var(--ink-2); margin-top: 8px; font-size: 0.98rem; }
   .pfield { display: grid; gap: 10px; }
@@ -952,13 +870,9 @@
   .dates input:focus { outline: none; }
   .dates label:focus-within { box-shadow: inset 0 0 0 1.5px var(--brand); }
   .pcard__cta { width: 100%; }
-  .pcard__actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
-  .modal--list h3 { padding: 0 24px 12px; font-size: 1.1rem; }
-  @media (hover: hover) and (pointer: fine) { .dirlist button:hover { background: var(--paper); } }
-  @media (hover: hover) and (pointer: fine) { .cl-item:hover { background: var(--paper); } }
-  @media (max-width: 520px) { .pcard__actions { grid-template-columns: minmax(0, 1fr); } .page__logo { width: 104px; } }
-  @media (prefers-reduced-motion: reduce) { .page, .pcard { transition-duration: 1ms; transform: none; } }
 
+      @media (max-width: 520px) { .page__logo { width: 104px; } }
+  @media (prefers-reduced-motion: reduce) { .page, .pcard { transition-duration: 1ms; transform: none; } }
 
   /* ================= Plan your trip · Checklist =================
      Ported from the Travel Expert pages: same fields, same flow, same copy.
@@ -969,8 +883,8 @@
   .pcard__cta { width: 100%; min-width: 0; height: auto; padding-block: 12px; }
   .pcard__cta > span { min-width: 0; text-align: center; }
   .pcard--centred { text-align: left; }
-  .pcard--centred .pcard__title, .pcard--centred .pcard__lede, .pcard--wide .clhero { text-align: center; }
-  .pcard--wide { width: min(100%, 620px); }
+  .pcard--centred .pcard__title, .pcard--centred .pcard__lede { text-align: center; }
+
   .pcard__title i { font-style: normal; color: var(--brand-deep); }
 
   .pinput, .pcard input[type="number"] {
@@ -1026,23 +940,6 @@
 
   /* the Plan-your-trip page: a bar-less full split screen — checklist left, prices right */
   #prices .page__scroll { display: flex; padding: 0; }
-  .hub { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0; width: 100%; flex: 1; }
-  .hubhalf { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 14px;
-    padding: clamp(28px, 5vw, 64px); color: #fff;
-    background: rgba(11,13,18,0.22);
-    transition: background-color 220ms ease; }
-  .hubhalf + .hubhalf { box-shadow: inset 1px 0 0 rgba(255,255,255,0.35); }
-  @media (hover: hover) { .hubhalf:hover { background: rgba(11,13,18,0.05); } }
-  .hubhalf:active { background: rgba(11,13,18,0.02); }
-  .hubhalf__ic { width: 48px; height: 48px; color: #fff; }
-  .hubhalf h2 { color: #fff; font-size: clamp(1.6rem, 3.2vw, 2.4rem); text-shadow: 0 2px 16px rgba(0,0,0,0.35); }
-  .hubhalf p { color: rgba(255,255,255,0.88); max-width: 34ch; font-size: 0.95rem; line-height: 1.5; text-shadow: 0 1px 10px rgba(0,0,0,0.3); }
-  .hubhalf .btn { margin-top: 10px; }
-  @media (max-width: 760px) {
-    .hub { grid-template-columns: minmax(0, 1fr); }
-    .hubhalf { min-height: 50svh; }
-    .hubhalf + .hubhalf { box-shadow: inset 0 1px 0 rgba(255,255,255,0.35); }
-  }
 
   .clhero { display: grid; gap: 6px; }
   .cltag { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--brand-deep); }
@@ -1124,7 +1021,6 @@
     .dsheet__panel, .dsheet__scrim { transition-duration: 1ms; }
   }
 
-
   /* ================= Sign in / Sign up =================
      Ported from the auth-switch component: the two panels, the sliding forms and the
      big circle that sweeps across. Purple gradient swapped for the brand blues, and
@@ -1172,7 +1068,6 @@
   .aform [data-only="signup"] { display: none; }
   .aform--signup [data-only="signup"] { display: grid; }
 
-  .amethod { width: 100%; max-width: 300px; margin: 0 0 14px; }
   /* pill field, keeping the component's shape */
   .ifield { max-width: 340px; width: 100%; background: var(--paper); margin: 7px 0; min-height: 54px;
     border-radius: 999px; display: grid; grid-template-columns: 52px minmax(0, 1fr); align-items: center;
@@ -1228,10 +1123,6 @@
   .amsg[data-kind="ok"] { background: rgba(46,160,102,0.12); color: #1E7A4B; }
   .amsg[data-kind="err"] { background: rgba(195,64,47,0.10); color: #C3402F; }
   .asent { font-size: 0.92rem; color: var(--ink-2); text-align: center; margin-bottom: 14px; max-width: 320px; }
-  /* a text input's min-content is ~20 characters wide, and grid items default to
-     min-width:auto — so `1fr` refuses to shrink and the four boxes burst the card */
-  .codes { width: 100%; max-width: 280px; margin-bottom: 4px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .codes input { min-width: 0; width: 100%; }
 
   .auth__panels { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .apanel { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; text-align: center; z-index: 6; }
@@ -1250,8 +1141,6 @@
 
   .astub { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px;
     max-width: 900px; width: 100%; text-align: center; font-size: 0.84rem; color: rgba(255,255,255,0.72); }
-  .btn--auth { color: #fff; box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.4); }
-  @media (hover: hover) and (pointer: fine) { .btn--auth:hover { box-shadow: inset 0 0 0 1.5px #fff; } }
 
   /* the component's own breakpoint: panels stack above and below the form */
   @media (max-width: 870px) {
@@ -1277,7 +1166,6 @@
   @media (prefers-reduced-motion: reduce) {
     .auth::before, .auth__slider, .aform, .apanel__content { transition-duration: 1ms !important; transition-delay: 0ms !important; }
   }
-
 
   /* ================= Hot tours carousel =================
      Port of the stacked drag carousel. Kept linear on your note: no tilt and no arc,
@@ -1356,32 +1244,9 @@
   #hot .carou__dots button { background: rgba(255,255,255,0.24); }
   #hot .carou__dots button[aria-selected="true"] { background: var(--brand); }
 
-
   /* --- How it works background: options under review --- */
   #how { position: relative; }
   #how > .wrap { position: relative; z-index: 1; }
-  #how.how-photo::before, #how.how-tint::before { content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none; }
-
-  /* A — whitish blurred sky. The section's hairline, rings and grey captions all sit on
-     light-on-light, so the photo needs a heavy white veil and the type needs to darken
-     or the whole thing goes muddy. */
-  #how.how-photo::before {
-    background: var(--ararat-sky, linear-gradient(180deg,#cfe0f2,#eef3f8)) center 34% / cover no-repeat;
-    filter: blur(30px) saturate(72%); transform: scale(1.08);
-  }
-  #how.how-photo::after { content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
-    background: linear-gradient(180deg, rgba(248,250,252,0.90) 0%, rgba(248,250,252,0.84) 50%, rgba(248,250,252,0.93) 100%); }
-    /* the accommodations a photo forces: darker captions, a line you can still see */
-  #how.how-photo .step p { color: #3F4653; }
-  #how.how-photo .steps::before { background-color: rgba(11,13,18,0.18); }
-  #how.how-photo .step i { box-shadow: inset 0 0 0 2px var(--brand-deep), 0 2px 10px rgba(11,13,18,0.10); }
-
-  /* B — no photograph, just a cooler paper with a soft light in one corner */
-  #how.how-tint::before {
-    background: radial-gradient(70% 55% at 22% 0%, #FFFFFF 0%, transparent 60%),
-                radial-gradient(60% 50% at 88% 100%, #E4EDF7 0%, transparent 60%),
-                linear-gradient(180deg, #EFF3F8 0%, #E9EEF5 100%);
-  }
 
   /* ---------- animated shader band (WebGL "Waves"; CSS gradient is the fallback) ---------- */
   .band--shader { --photo-blur: 26px; }
@@ -1495,18 +1360,6 @@
     .band--duo .band__half { background: rgba(10,22,40,0.82); -webkit-backdrop-filter: none; backdrop-filter: none; }
   }
 
-  /* ---------- palms band: client photo, blurred ---------- */
-  .p-palms-photo { --photo: url("../img/band-sea.webp") center / cover no-repeat; }
-  /* the palm crown sits right of centre in the frame — follow it when the crop tightens
-     (longhand after the `background` shorthand in `.photo::before`, so it wins) */
-  .p-palms-photo::before { background-position: 62% center; }
-  @media (orientation: portrait) { .p-palms-photo::before { background-position: 72% center; } }
-  .band--dim::after {
-    z-index: 1; opacity: 1; mix-blend-mode: normal; background-image: none;
-    background: linear-gradient(180deg, rgba(6,18,12,0.42) 0%, rgba(6,18,12,0.24) 45%, rgba(6,18,12,0.52) 100%);
-  }
-  .band--dim > div { position: relative; z-index: 2; }
-
   .parallax__header::after { content: ""; position: absolute; inset: 0 0 auto 0; height: 160px; background: linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0)); z-index: 35; pointer-events: none; }
 
   /* ============ privacy policy page (#privacy) ============ */
@@ -1558,18 +1411,6 @@
   /* on phones let the banner span the row but keep the WhatsApp FAB tappable */
   @media (max-width: 560px) { .cc { left: 12px; right: 12px; width: auto; margin-right: 70px; } }
 
-/* ==========================================================================
-   Blocks driven by the owner / marketing panels (js/cms.js)
-   ========================================================================== */
-/* lead form: honeypot (off-screen, not display:none — some bots skip hidden fields) */
-.hp { position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden; }
-.field--coupon summary { cursor: pointer; font-size: 0.84rem; font-weight: 500; color: var(--brand-deep); list-style: none; width: max-content; }
-.field--coupon summary::-webkit-details-marker { display: none; }
-.field--coupon summary::after { content: " +"; }
-.field--coupon[open] summary::after { content: " −"; }
-.field--coupon[open] summary { margin-bottom: 6px; }
-.field--coupon input { width: 100%; text-transform: uppercase; letter-spacing: 0.06em; }
-
 /* promo bar: sits above the fixed top bar and pushes it down */
 .promo-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 955; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px 14px;
   min-height: 40px; padding: 8px 52px; font: 600 14px/1.35 var(--font-ui); text-align: center; box-shadow: 0 6px 20px -12px rgba(0,0,0,0.5); }
@@ -1617,6 +1458,14 @@ html.has-promo-bar .topbar { top: var(--promo-h, 0px); }
 .carou .tour .ph { left: 68px; top: 24px; }
 .carou .tour__wa { top: 14px; left: 14px; opacity: 0; transition: opacity 240ms var(--ease-out), transform 160ms var(--ease-out), background 160ms var(--ease-out); }
 .carou .tour.is-current .tour__wa { opacity: 1; }
+/* the side cards' buttons are invisible — they must not take a tap either */
+.carou .tour:not(.is-current) .tour__wa { pointer-events: none; }
+/* no published tours: one card that leads to WhatsApp (js/cms.js, askCard) */
+a.tour.tour--ask { color: inherit; text-decoration: none; cursor: pointer; }
+.tour--ask span.tour__wa { pointer-events: none; }
+#hot.is-single .rail-nav, #hot.is-single .carou__dots { display: none; }
+/* nobody published in «Команда»: the photos go, the text takes the whole panel */
+.about-panel.about-panel--solo { grid-template-columns: minmax(0, 1fr); }
 @media (prefers-reduced-motion: reduce) { .tour__wa, .carou .tour__wa { transition: none; } }
 
 /* contacts: instead of the request form — write on WhatsApp or call */

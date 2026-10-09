@@ -1,14 +1,6 @@
 // Coupons: generator (one code or a batch), limits, validity, usage in sales.
 import { h, mount, icon, fmt, toast, modal, confirmDlg, field, input, select, toggle, table, csv, copyText, pageHead, plural } from '../ui.js';
-
-function stateOf(c) {
-  const now = Date.now();
-  if (!c.active) return ['off', 'Выключен'];
-  if (c.valid_from && new Date(c.valid_from) > now) return ['warn', 'Ещё не начался'];
-  if (c.valid_until && new Date(c.valid_until) <= now) return ['off', 'Истёк'];
-  if (c.max_uses != null && c.used_count >= c.max_uses) return ['off', 'Исчерпан'];
-  return ['ok', 'Действует'];
-}
+import { couponState as stateOf, ymd, dayStartIso, dayEndIso } from './common.js';
 const ALPH = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // no 0/O, 1/I — codes get read out over the phone
 const rand = (n) => Array.from(crypto.getRandomValues(new Uint32Array(n)), (x) => ALPH[x % ALPH.length]).join('');
 
@@ -30,10 +22,10 @@ export default async function couponsView(root, ctx, params) {
         { key: 'description', label: 'Для чего', render: (c) => h('span.dim', c.description || '—') },
         { key: 'disc', label: 'Скидка', align: 'r', sort: (c) => c.discount_pct || c.discount_amt || 0, render: (c) => c.discount_pct ? '−' + c.discount_pct + '%' : c.discount_amt ? '−' + fmt.money(c.discount_amt) : '—' },
         { key: 'valid_until', label: 'Срок', sort: (c) => c.valid_until || '9999', render: (c) => (c.valid_from && new Date(c.valid_from) > Date.now() ? 'с ' + fmt.date(c.valid_from) + ' ' : '') + (c.valid_until ? 'до ' + fmt.date(c.valid_until) : 'бессрочно') },
-        { key: 'used_count', label: 'Использован', align: 'r', sort: true, render: (c) => h('span', { title: 'Продажи с этим кодом — считает база; по ним работает лимит. Возврат освобождает код' }, fmt.num(c.used_count) + (c.max_uses != null ? ' / ' + c.max_uses : '')) },
+        { key: 'used_count', label: 'Использован', align: 'r', sort: true, render: (c) => h('span', { title: 'Сколько продаж внесено с этим кодом — считает база. Лимит и срок продажу не запрещают: при внесении панель предупредит, что код исчерпан, истёк или выключен. Возврат освобождает код' }, fmt.num(c.used_count) + (c.max_uses != null ? ' / ' + c.max_uses : '')) },
         { key: 'leads', label: 'Возвраты', align: 'r', sort: (c) => { const x = inLeads[c.code.toUpperCase()]; return x ? x.leads - x.sales : 0; }, render: (c) => { const x = inLeads[c.code.toUpperCase()]; return usage ? h('span', { title: 'Продажи с этим кодом, по которым оформлен возврат' }, String(x ? x.leads - x.sales : 0)) : h('span.muted', '—'); } },
         { key: 'st', label: 'Статус', render: (c) => { const [k, l] = stateOf(c); return h('span.badge.badge--' + k, l); } },
-        { key: 'active', label: '', render: (c) => h('div.row', { style: { flexWrap: 'nowrap', justifyContent: 'flex-end' } },
+        { key: 'active', label: '', mlabel: 'Включён', render: (c) => h('div.row', { style: { flexWrap: 'nowrap', justifyContent: 'flex-end' } },
           toggle(c.active, null, async (on, el) => { try { const u = await ctx.api.save('coupons', { ...c, active: on }); Object.assign(c, u); paint(); } catch (e) { el.checked = !on; ctx.err(e); } }),
           h('button.btn.btn--ghost.btn--sm', { 'aria-label': 'Удалить', onclick: async () => { if (!(await confirmDlg('Удалить код ' + c.code + '?', { sub: 'В уже внесённых продажах он останется текстом.' }))) return; try { await ctx.api.remove('coupons', c.id); rows = rows.filter((x) => x.id !== c.id); paint(); } catch (e) { ctx.err(e); } } }, icon('trash'))) },
       ],
@@ -42,7 +34,7 @@ export default async function couponsView(root, ctx, params) {
 
   function gen() {
     let maxIn;
-    const d = { mode: 'one', code: '', prefix: 'SAM', count: 20, len: 5, type: 'pct', pct: 5, amt: 50, description: '', valid_from: new Date().toISOString().slice(0, 10), valid_until: '', max_uses: '' };
+    const d = { mode: 'one', code: '', prefix: 'SAM', count: 20, len: 5, type: 'pct', pct: 5, amt: 50, description: '', valid_from: ymd(Date.now()), valid_until: '', max_uses: '' };
     const preview = h('div.utm-out');
     const paintPv = () => { preview.textContent = d.mode === 'one' ? (d.code || 'SAM-AB3K9').toUpperCase() : Array.from({ length: Math.min(4, d.count) }, () => (d.prefix ? d.prefix.toUpperCase() + '-' : '') + rand(d.len)).join('  ') + (d.count > 4 ? '  … ещё ' + (d.count - 4) : ''); };
     const oneBox = h('div', field('Код', input('', { placeholder: 'WINTER10', oninput: (v) => { d.code = v.replace(/[^A-Za-z0-9-]/g, '').toUpperCase(); paintPv(); } }), 'Латиница и цифры. Короткий и понятный — для рекламы и баннера'));
@@ -67,7 +59,7 @@ export default async function couponsView(root, ctx, params) {
         const codes = d.mode === 'one' ? [d.code] : Array.from({ length: d.count }, () => (d.prefix ? d.prefix.toUpperCase() + '-' : '') + rand(d.len));
         if (!codes[0] || codes[0].length < 3) { toast('Код слишком короткий', 'bad'); return false; }
         const base = { description: d.description || null, discount_pct: d.type === 'pct' ? d.pct : null, discount_amt: d.type === 'amt' ? d.amt : null,
-          valid_from: new Date(d.valid_from || Date.now()).toISOString(), valid_until: d.valid_until ? new Date(d.valid_until + 'T23:59:59').toISOString() : null,
+          valid_from: d.valid_from ? dayStartIso(d.valid_from) : new Date().toISOString(), valid_until: d.valid_until ? dayEndIso(d.valid_until) : null,   // the days are Yerevan days
           max_uses: d.max_uses === '' || d.max_uses == null ? null : Number(d.max_uses), used_count: 0, active: true };
         try {
           const made = [];

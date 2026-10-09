@@ -72,7 +72,9 @@ export const ctx = {
   api: null, me: null, role: null, demo: DEMO,
   period: { days: 30 },
   cache: {},
-  go(route) { location.hash = '#/' + route; },
+  // a command of the palette may lead to the address already open («Внести продажу» twice):
+  // the hash does not change then, so the page is drawn by hand
+  go(r) { if (location.hash === '#/' + r) route(); else location.hash = '#/' + r; },
   async users(force) { if (force || !ctx.cache.users) ctx.cache.users = await ctx.api.users(); return ctx.cache.users; },
   async settings(force) { if (force || !ctx.cache.settings) ctx.cache.settings = await ctx.api.settings(); return ctx.cache.settings; },
   // «Написать сегодня» (TZ-BACKEND.md §4.12): the flight reminders owed today. One answer
@@ -162,14 +164,13 @@ function renderShell() {
       ctx.period.days = d; $$('button', periodSeg).forEach((b) => b.setAttribute('aria-pressed', String(b === e.currentTarget))); route();
     } }, l)));
   const top = h('header.top',
-    h('button.btn.btn--ghost.btn--icon.top__burger', { 'aria-label': 'Меню', onclick: () => toggleSide(side) }, icon('menu')),
     title, h('div.top__spacer'), periodSeg,
     h('button.search', { type: 'button', onclick: openPalette, 'aria-label': 'Поиск и команды' }, icon('search'), h('span', 'Поиск и команды'), h('kbd', navigator.platform.includes('Mac') ? '⌘K' : 'Ctrl K')),
     h('a.btn.btn--ghost.btn--icon', { href: DEMO ? 'index.html?cms=demo' : 'index.html', target: '_blank', rel: 'noopener', title: 'Открыть сайт', 'aria-label': 'Открыть сайт' }, icon('external')),
     h('button.btn.btn--ghost.btn--icon', { title: 'Тема', 'aria-label': 'Сменить тему', onclick: toggleTheme }, icon(isDark() ? 'sun' : 'moon')));
   const page = h('main.page', { id: 'page', tabindex: '-1' });
   const demoBar = DEMO ? h('div.demo-bar', h('b', 'Демо-режим.'), h('span', 'Данные сгенерированы, изменения остаются в этом браузере.'),
-    h('label', 'Смотреть как: ', h('select', { onchange: (e) => { ctx.api.switchRole(e.target.value); location.hash = ''; location.reload(); } },
+    h('label', 'Смотреть как: ', h('select', { onchange: (e) => { ctx.api.switchRole(e.target.value); history.replaceState(null, '', location.pathname + location.search); location.reload(); } },
       [['admin', 'Владелец'], ['manager', 'Менеджер'], ['marketer', 'Маркетолог'], ['content', 'Контент']].map(([v, l]) => h('option', { value: v, selected: v === role }, l)))),
     h('button', { onclick: () => { ctx.api.reset(); location.reload(); } }, 'Сбросить демо')) : null;
   // phones: four sections under the thumb, the rest behind «Меню» (css: .tabbar)
@@ -219,9 +220,10 @@ function paintSide() {
       h('button.btn.btn--ghost.btn--sm', { style: { justifyContent: 'flex-start' }, onclick: async () => { await ctx.api.signOut(); location.href = DEMO ? 'admin.html' : 'admin.html'; } }, icon('logout'), h('span', DEMO ? 'Выйти из демо' : 'Выйти'))));
   const flat = NAV[ws].flatMap(([, items]) => items.filter((it) => it[3].includes(role)));
   const short = (l) => l.split(' ')[0];
+  // «Меню» is always there: behind it are the rest of the sections, the name of the account and «Выйти»
   mount(els.tabbar,
-    flat.slice(0, flat.length > 5 ? 4 : 5).map(([r, label, ic]) => h('a', { href: '#/' + r, dataset: { route: r } }, h('i', icon(ic)), h('span.lbl', short(label)))),
-    flat.length > 5 || both ? h('button', { type: 'button', onclick: () => toggleSide(els.side) }, h('i', icon('menu')), h('span.lbl', 'Меню')) : null);
+    flat.slice(0, 4).map(([r, label, ic]) => h('a', { href: '#/' + r, dataset: { route: r } }, h('i', icon(ic)), h('span.lbl', short(label)))),
+    h('button', { type: 'button', 'aria-label': 'Меню: все разделы и выход', onclick: () => toggleSide(els.side) }, h('i', icon('menu')), h('span.lbl', 'Меню')));
   markCurrent(); paintCount();
 }
 /** how many clients are waiting for a message today — next to «Сводка», where the list is */
@@ -287,7 +289,7 @@ function openPalette() {
   if ($('.cmdk')) return;
   const inp = h('input', { placeholder: ctx.can('sales') ? 'Раздел, действие, имя, телефон или номер обращения…' : 'Раздел или действие…', 'aria-label': 'Поиск', autocomplete: 'off' });
   const list = h('ul', { role: 'listbox' });
-  const ov = h('div.overlay.is-open');
+  const ov = h('div.overlay.overlay--cmdk.is-open');
   const box = h('div.cmdk', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Поиск и команды' }, inp, list);
   let items = [], sel = 0;
   function close() { ov.remove(); box.remove(); document.removeEventListener('keydown', key, true); }

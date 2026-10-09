@@ -98,7 +98,7 @@ const tourRu = (await db.query(`select i18n -> 'ru' ->> 'title' t from tours whe
 m.to.length === 1 && m.to[0] === agency ? ok('получатель — почта агентства из site_settings: ' + agency) : bad('получатель ' + JSON.stringify(m.to));
 m.from === ENV.MAIL_FROM && m.headers.Authorization === 'Bearer mail-key' ? ok('отправитель и ключ — из переменных окружения') : bad('from/ключ');
 for (const [what, s] of [['имя', 'Анна'], ['телефон', L1.phone], ['тур', tourRu], ['сообщение', 'Дубай в ноябре, двое'], ['промокод', 'AUTUMN7'],
-  ['ссылка «Написать в WhatsApp»', 'https://wa.me/' + L1.phone_digits], ['ссылка «Открыть в панели»', 'https://samtravel.am/admin.html#/leads/' + L1.id]]) {
+  ['ссылка «Написать в WhatsApp»', 'https://wa.me/' + L1.phone_digits], ['ссылка «Открыть в панели»', 'https://samtravel.am/admin.html#/sales/' + L1.id]]) {
   m.html.includes(s) && m.text.includes(s) ? ok('в письме есть ' + what) : bad('в письме нет: ' + what + ' (' + s + ')');
 }
 m.html.includes('Написать в WhatsApp') && m.html.includes('Открыть в панели') ? ok('подписи кнопок в письме') : bad('подписи кнопок');

@@ -2,7 +2,7 @@
 // WhatsApp and phone clicks → sales → ROMI, over the campaign's whole life. Everything comes
 // ready from stats_traffic(); a sale belongs to a campaign by its reference number (§4.11).
 import { h, $, mount, clear, icon, fmt, toast, drawer, confirmDlg, field, input, textarea, select, table, copyText, slug, pageHead, card, csv, currency } from '../ui.js';
-import { CHANNELS } from './common.js';
+import { CHANNELS, ymd } from './common.js';
 
 const PRESETS = [
   ['instagram_ads', 'Instagram — реклама', 'instagram', 'instagram', 'paid_social'],
@@ -25,7 +25,7 @@ export function buildUrl(c, lang) {
   return (c.base || BASE) + (p.toString() ? '?' + p.toString() : '') + (c.landing || '');
 }
 function status(c) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = ymd(Date.now());   // the Yerevan day, not the UTC one
   if (c.archived) return ['off', 'В архиве'];
   if (c.starts_on && c.starts_on > today) return ['warn', 'Запланирована'];
   if (c.ends_on && c.ends_on < today) return ['off', 'Завершена'];
@@ -56,7 +56,7 @@ export default async function campaignsView(root, ctx, params) {
   // the spend was typed in one currency, the sales are counted in another: ROMI of such a campaign is wrong
   const foreign = rows.filter((c) => !c.archived && +c.spend > 0 && c.currency && c.currency !== currency());
   if (foreign.length) root.append(h('div.note.note--warn', { style: { marginBottom: '14px' } }, icon('alert'),
-    h('span', 'Валюта панели сменилась на ' + currency() + ', а расход этих кампаний введён в другой валюте и не пересчитывается: ', foreign.map((c, i) => [i ? ', ' : '', h('b', c.name), ' (' + c.currency + ')']), '. Впишите расход заново в ' + currency() + ' — иначе цена заявки и ROMI неверны.')));
+    h('span', 'Валюта панели сменилась на ' + currency() + ', а расход этих кампаний введён в другой валюте и не пересчитывается: ', foreign.map((c, i) => [i ? ', ' : '', h('b', c.name), ' (' + c.currency + ')']), '. Впишите расход заново в ' + currency() + ' — иначе цена обращения и ROMI неверны.')));
 
   root.append(h('div.row', { style: { marginBottom: '12px' } }, h('span.muted', { style: { fontSize: '12.5px', marginRight: 'auto' } }, 'Обращения — клики в WhatsApp и по телефону с метками кампании. Продажи, выручка и доход — продажи, внесённые с номером обращения посетителя этой кампании. ROMI считается от дохода агентства: комиссия, указанная в продаже; где не указана — ' + 'выручка × маржа ' + marginPct + '%' + (ctx.can('owner') ? ' (меняется в «Контакты и реквизиты»)' : ' (задаёт владелец)') + '. «≈» — в доходе есть такая оценка.'), h('label.switch', h('input', { type: 'checkbox', onchange: (e) => { showArchived = e.target.checked; paint(); } }), h('i'), h('span', 'Показать архив'))), tableBox);
 
@@ -81,7 +81,7 @@ export default async function campaignsView(root, ctx, params) {
         { key: 'revenue', label: 'Выручка', align: 'r', sort: true, render: (r) => r.revenue ? fmt.money(r.revenue) : '—' },
         { key: 'cpl', label: 'Цена обращения', align: 'r', sort: (r) => r.cpl ?? 1e9, render: (r) => fmt.money(r.cpl) },
         { key: 'romi', label: 'ROMI', align: 'r', sort: (r) => r.romi ?? -1e9, render: (r) => r.romi == null ? '—' : h('b', { style: { color: r.romi >= 0 ? 'var(--ok)' : 'var(--bad)' }, title: '(доход агентства − расход) ÷ расход. Доход: ' + fmt.money(r.profit) + (r.estimated ? ' — часть оценена по марже' : '') }, (r.estimated ? '≈ ' : '') + (r.romi > 0 ? '+' : '') + fmt.pct(r.romi, 0)) },
-        { key: 'link', label: '', render: (r) => h('button.btn.btn--ghost.btn--sm', { title: 'Скопировать ссылку', onclick: () => copyText(buildUrl(r), 'Ссылка скопирована') }, icon('link')) },
+        { key: 'link', label: '', mlabel: 'Ссылка', render: (r) => h('button.btn.btn--ghost.btn--sm', { title: 'Скопировать ссылку', onclick: () => copyText(buildUrl(r), 'Ссылка скопирована') }, icon('link')) },
       ],
       foot: () => h('tr', h('td', 'Итого'), h('td'), h('td.r.num', fmt.money(tot.spend)), h('td.r.num', fmt.num(tot.visits)), h('td.r.num', fmt.num(tot.contacts)), h('td.r.num', fmt.pct(tot.visits ? tot.contacts / tot.visits : null, 1)),
         h('td.r.num', fmt.num(tot.won)), h('td.r.num', fmt.money(tot.revenue)), h('td.r.num', fmt.money(tot.contacts ? tot.spend / tot.contacts : null)),
@@ -103,7 +103,7 @@ export default async function campaignsView(root, ctx, params) {
 
   // ---------- builder / editor ----------
   function edit(c) {
-    const d = { channel: 'instagram', utm_source: 'instagram', utm_medium: 'paid_social', utm_campaign: '', utm_content: '', landing: '#hot', spend: 0, currency: currency(), name: '', starts_on: new Date().toISOString().slice(0, 10), ends_on: '', notes: '', archived: false, ...c };
+    const d = { channel: 'instagram', utm_source: 'instagram', utm_medium: 'paid_social', utm_campaign: '', utm_content: '', landing: '#hot', spend: 0, currency: currency(), name: '', starts_on: ymd(Date.now()), ends_on: null, notes: '', archived: false, ...c };
     let lang = '', campTouched = !!c.id;
     const out = h('div.utm-out'), qr = h('div.qr'), note = h('small.muted');
     const camp = input(d.utm_campaign, { placeholder: 'dubai_nov', oninput: (v) => { campTouched = true; d.utm_campaign = slug(v); upd(); } });
@@ -153,7 +153,8 @@ export default async function campaignsView(root, ctx, params) {
         h('div.btns', h('button.btn', { onclick: () => api.close() }, 'Отмена'), h('button.btn.btn--primary', { onclick: async () => {
           if (!d.name.trim() || !d.utm_campaign || !d.utm_source || !d.utm_medium) { toast('Нужны название, utm_source, utm_medium и utm_campaign', 'bad'); return; }
           try {
-            const { base, ...row } = d;
+            // an empty date is «no date»: the database takes null, not ''
+            const { base, ...row } = { ...d, starts_on: d.starts_on || null, ends_on: d.ends_on || null };
             const u = await ctx.api.save('campaigns', row);
             if (c.id) Object.assign(c, u); else rows.push(u);
             toast('Кампания сохранена'); api.close(); paint();

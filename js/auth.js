@@ -8,6 +8,9 @@
 //   my_profile()               own profile, including the date of birth
 //   finish_onboarding(d, c)    first-login screen: date of birth + mailing consent
 //   set_birth_date(d)          change the date of birth
+//   set_consent(c)             switch the mailing consent on or off (110_fixes.sql)
+// «Forgot password» on the site sends a link that opens this page: the new password is
+// asked for here, before the cabinet (PASSWORD_RECOVERY).
 // The cabinet is the profile only (TZ-BACKEND.md §0 п.22): the site has no request form,
 // so there is no list of requests here.
 // ---------------------------------------------------------------------------
@@ -16,6 +19,14 @@
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.prototype.slice.call(root.querySelectorAll(sel));
   const AUTH_URL = 'index.html#auth';   // where an unauthenticated visitor is sent
+
+  // The recovery link carries its mark in the address; supabase-js removes it once the session
+  // is read, and may announce PASSWORD_RECOVERY before the page is ready — so both are caught here.
+  const inUrl = (re) => re.test(location.hash) || re.test(location.search);
+  let recovery = inUrl(/[#&?]type=recovery(&|$)/);
+  const linkError = inUrl(/[#&?]error(_code|_description)?=/);
+  let onRecovery = null;
+  if (sb) sb.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') { recovery = true; if (onRecovery) onRecovery(); } });
 
   function show(el) { if (el) el.hidden = false; }
   function hide(el) { if (el) el.hidden = true; }
@@ -34,7 +45,14 @@
       profileErr: 'Could not load your account. Refresh the page or sign in again.',
       months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
       date: (y, m, d, mo) => d + ' ' + mo[m] + ' ' + y,
-      roles: { client: 'client', manager: 'manager', marketer: 'marketer', admin: 'owner' },
+      consentLabel: 'Deals and discounts by email', consentOn: 'Subscribed', consentOff: 'Not subscribed',
+      consentNote: 'Offers, discounts and promo codes. You can switch it off at any time.',
+      recTitle: 'New password', recText: 'Choose a new password for your account — at least 10 characters.',
+      recPass: 'New password', recPass2: 'Repeat the password', recSave: 'Save the password',
+      recShort: 'The password must be at least 10 characters.', recDiff: 'The two passwords do not match.',
+      recSame: 'The new password must differ from the old one.', recDone: 'The password has been changed.',
+      recExpired: 'This link has expired or was already used. Ask for a new one: Sign in → Forgot password.',
+      roles: { client: 'client', manager: 'manager', marketer: 'marketer', content: 'content', admin: 'owner' },
     },
     ru: {
       signOut: 'Выйти', panel: 'Панель управления', hi: 'Привет', lead: 'Ваши данные — ниже.',
@@ -48,7 +66,14 @@
       profileErr: 'Не удалось загрузить кабинет. Обновите страницу или войдите заново.',
       months: ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'],
       date: (y, m, d, mo) => d + ' ' + mo[m] + ' ' + y,
-      roles: { client: 'клиент', manager: 'менеджер', marketer: 'маркетолог', admin: 'владелец' },
+      consentLabel: 'Акции и скидки на email', consentOn: 'Вы подписаны', consentOff: 'Вы не подписаны',
+      consentNote: 'Предложения, скидки и промокоды. Отключить можно в любой момент.',
+      recTitle: 'Новый пароль', recText: 'Придумайте новый пароль для своего аккаунта — не короче 10 символов.',
+      recPass: 'Новый пароль', recPass2: 'Повторите пароль', recSave: 'Сохранить пароль',
+      recShort: 'Пароль должен быть не короче 10 символов.', recDiff: 'Пароли не совпадают.',
+      recSame: 'Новый пароль должен отличаться от прежнего.', recDone: 'Пароль изменён.',
+      recExpired: 'Ссылка устарела или уже использована. Запросите новую: «Вход» → «Забыли пароль?».',
+      roles: { client: 'клиент', manager: 'менеджер', marketer: 'маркетолог', content: 'контент', admin: 'владелец' },
     },
     hy: {
       signOut: 'Դուրս գալ', panel: 'Կառավարման վահանակ', hi: 'Բարև', lead: 'Ձեր տվյալները՝ ստորև։',
@@ -62,7 +87,14 @@
       profileErr: 'Չհաջողվեց բեռնել անձնական էջը։ Թարմացրեք էջը կամ նորից մուտք գործեք։',
       months: ['հունվարի', 'փետրվարի', 'մարտի', 'ապրիլի', 'մայիսի', 'հունիսի', 'հուլիսի', 'օգոստոսի', 'սեպտեմբերի', 'հոկտեմբերի', 'նոյեմբերի', 'դեկտեմբերի'],
       date: (y, m, d, mo) => y + ' թ. ' + mo[m] + ' ' + d,
-      roles: { client: 'հաճախորդ', manager: 'մենեջեր', marketer: 'մարքեթոլոգ', admin: 'սեփականատեր' },
+      consentLabel: 'Ակցիաներ և զեղչեր էլ. փոստով', consentOn: 'Դուք բաժանորդագրված եք', consentOff: 'Դուք բաժանորդագրված չեք',
+      consentNote: 'Առաջարկներ, զեղչեր և պրոմոկոդեր։ Կարող եք անջատել ցանկացած պահի։',
+      recTitle: 'Նոր գաղտնաբառ', recText: 'Ընտրեք նոր գաղտնաբառ ձեր հաշվի համար՝ առնվազն 10 նիշ։',
+      recPass: 'Նոր գաղտնաբառ', recPass2: 'Կրկնեք գաղտնաբառը', recSave: 'Պահպանել գաղտնաբառը',
+      recShort: 'Գաղտնաբառը պետք է լինի առնվազն 10 նիշ։', recDiff: 'Գաղտնաբառերը չեն համընկնում։',
+      recSame: 'Նոր գաղտնաբառը պետք է տարբերվի նախորդից։', recDone: 'Գաղտնաբառը փոխված է։',
+      recExpired: 'Հղումը ժամկետանց է կամ արդեն օգտագործվել է։ Պահանջեք նորը՝ «Մուտք» → «Մոռացե՞լ եք գաղտնաբառը»։',
+      roles: { client: 'հաճախորդ', manager: 'մենեջեր', marketer: 'մարքեթոլոգ', content: 'բովանդակություն', admin: 'սեփականատեր' },
     },
   };
   let cur = 'en';
@@ -138,6 +170,9 @@
     const badge = $('#role-badge');
     if (badge) { badge.textContent = T().roles[profile.role] || profile.role; badge.hidden = false; }
     const bv = $('#birth-value'); if (bv) bv.textContent = fmtBirth(profile.birth_date);
+    const cv = $('#consent-value'), ct = $('#consent-toggle');
+    if (cv) cv.textContent = profile.marketing_consent ? T().consentOn : T().consentOff;
+    if (ct) ct.checked = !!profile.marketing_consent;
   }
   function paintOnboardText() {
     const p = $('#onboard [data-i18n="onbText"]');
@@ -152,7 +187,12 @@
     applyLang(cur);   // paint static strings immediately
 
     const { data: { session } } = await sb.auth.getSession();
+    // a recovery link that has expired brings an error instead of a session: say so, do not just bounce
+    if (!session && linkError) { pageErr = 'recExpired'; paintPageErr(); return; }
     if (!session) { location.replace(AUTH_URL); return; }
+    // came by the link from the «Forgot password» email: the new password first
+    if (recovery) await runRecovery();
+    else onRecovery = runRecovery;
 
     const out = $('#btn-logout');
     if (out) out.addEventListener('click', async () => {
@@ -170,8 +210,9 @@
 
     paintProfile();
     // the team (owner, managers, marketer) get a door into admin.html
-    if (['admin', 'manager', 'marketer'].includes(profile.role)) show($('#btn-panel'));
+    if (['admin', 'manager', 'marketer', 'content'].includes(profile.role)) show($('#btn-panel'));
     wireBirthEdit();
+    wireConsent();
     show($('#cabinet'));
   }
 
@@ -230,10 +271,50 @@
     });
   }
 
-  function escapeHtml(s) {
-    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
-      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-    ));
+  // the mailing consent: the switch saves at once and goes back if the database refused
+  function wireConsent() {
+    const t = $('#consent-toggle'), msg = $('#consent-msg');
+    if (!t) return;
+    t.addEventListener('change', async () => {
+      setMsg(msg, '');
+      t.disabled = true;
+      const { data, error } = await sb.rpc('set_consent', { p_consent: t.checked });
+      t.disabled = false;
+      if (error || !data) { console.error(error); setMsg(msg, T().errSave); } else profile = data;
+      paintProfile();
+    });
+  }
+
+  // «Forgot password»: the new password, twice, at least 10 characters (TZ-BACKEND.md §8)
+  let recovering = null;
+  function runRecovery() {
+    if (recovering) return recovering;
+    recovering = new Promise((resolve) => {
+      const modal = $('#recover'), form = $('#recover-form'), p1 = $('#recover-pass'), p2 = $('#recover-pass2');
+      const btn = $('#recover-save'), msg = $('#recover-msg');
+      show(modal); p1.focus();
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        setMsg(msg, '');
+        if (p1.value.length < 10) { setMsg(msg, T().recShort); p1.focus(); return; }
+        if (p1.value !== p2.value) { setMsg(msg, T().recDiff); p2.focus(); return; }
+        btn.disabled = true;
+        const { error } = await sb.auth.updateUser({ password: p1.value });
+        btn.disabled = false;
+        if (error) {
+          console.error(error);
+          const m = error.message || '';
+          setMsg(msg, /different from the old|same_password/i.test(m) ? T().recSame : /at least|weak|short/i.test(m) ? T().recShort : T().errSave);
+          return;
+        }
+        recovery = false;
+        hide(modal); p1.value = p2.value = '';
+        const done = $('#cabinet-error');
+        if (done) { done.dataset.kind = 'ok'; setMsg(done, T().recDone); setTimeout(() => { done.dataset.kind = 'err'; paintPageErr(); }, 6000); }
+        resolve();
+      });
+    });
+    return recovering;
   }
 
   document.addEventListener('DOMContentLoaded', () => {

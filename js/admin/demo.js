@@ -9,7 +9,7 @@
 // number — campaign → click → sale attribution in the reports is internally consistent.
 // ---------------------------------------------------------------------------
 import { TOURS } from './demo-seed.js';
-import { salesStats, trafficStats, couponStats, refOf, refNorm, refOk, eventChannel, ymd } from './metrics.js';
+import { salesStats, trafficStats, couponStats, refOf, refNorm, refOk, eventChannel, ymd, phoneNorm } from './metrics.js';
 // Flight reminders (§4.12): the rules live in ./reminders.js, a mirror of 090_reminders.sql.
 // main.js hands that module to DemoApi — this file keeps its two imports, so the tests can
 // load it on its own.
@@ -37,6 +37,11 @@ const num = (x) => (x == null || x === '' ? null : Number(x));
 const sameTime = (a, b) => (a ? new Date(a).getTime() : null) === (b ? new Date(b).getTime() : null);
 export function guardLead(old, row, currency, now = Date.now()) {
   const n = { ...row }, ins = !old;
+  // the length checks of the leads table (002_admin.sql)
+  const len = (x) => String(x == null ? '' : x).length;
+  if (len(n.name) < 1 || len(n.name) > 120) fail('violates check constraint "leads_name_check"');
+  if (len(n.phone) < 5 || len(n.phone) > 40) fail('violates check constraint "leads_phone_check"');
+  if (len(n.message) > 2000) fail('violates check constraint "leads_message_check"');
   if (!ins) n.updated_at = iso(now);
   // typed in by a manager = the client is already being talked to
   if (MANUAL.includes(n.source)) {
@@ -311,7 +316,9 @@ function generate(REM) {
   // the reminders they produce. A separate generator, so the rest of the demo data stays as it was.
   const reminders = [];
   if (REM) {
-    REM.KINDS.forEach((kind, k) => ['ru', 'hy', 'en'].forEach((lang, i) => wa_templates.push({ id: uuid(), title: REM.KIND_NAME[kind], lang, body: REM.reminderDefault(kind, lang), sort: 100 + k * 3 + i, kind, created_at: iso(now - 2 * DAY) })));
+    REM.KINDS.forEach((kind, k) => ['ru', 'hy', 'en'].forEach((lang, i) => wa_templates.push({ id: uuid(), title: REM.KIND_NAME[kind], lang, body: REM.reminderDefault(kind, lang), sort: 100 + k * 3 + i, kind, variant: null, created_at: iso(now - 2 * DAY) })));
+    // the third text: on the day of the flight (110_fixes.sql)
+    ['ru', 'hy', 'en'].forEach((lang, i) => wa_templates.push({ id: uuid(), title: REM.VARIANT_NAME.today, lang, body: REM.reminderDefault('bon_voyage_today', lang), sort: 106 + i, kind: 'bon_voyage', variant: 'today', created_at: iso(now - 2 * DAY) }));
     const R9 = rng(9090), today = ymd(now);
     leads.forEach((l) => {
       l.wa_opt_in = R9() < 0.6; l.depart_on = null; l.return_on = null;
@@ -342,7 +349,7 @@ function generate(REM) {
   aud(12, OWNER, 'team', 'update', { ...team[0], i18n: { ...team[0].i18n, en: { name: 'Anna G.', role: 'Beach · 8 years' } } }, team[0]);
   audit.reverse();
 
-  return { v: 9, generated: now, me: OWNER, role: 'admin', users, campaigns, promos, events, leads, activity: {}, coupons, reviews, team, tours, settings, reels, wa_templates, reminders, audit };
+  return { v: 10, generated: now, me: OWNER, role: 'admin', users, campaigns, promos, events, leads, activity: {}, coupons, reviews, team, tours, settings, reels, wa_templates, reminders, audit };
 }
 
 // ------------------------------------------------------------------ public snapshot (same shape as public_site)
@@ -498,6 +505,7 @@ export class DemoApi {
     this.guard('leads');
     const l = this.st.leads.find((x) => x.id === id);
     await this.saleActivity(id);
+    if ('phone' in patch) patch = { ...patch, phone: phoneNorm(patch.phone) };   // leads_phone_norm
     const old = { ...l }, next = guardLead(old, attributeLead(old, this.REM.tripGuard(old, { ...l, ...patch }), this.lookup_()), this.currency);
     if (next.status !== old.status) this.logAct(id, 'status', next.status, { from: old.status, to: next.status });
     if ((next.assigned_to || null) !== (old.assigned_to || null)) this.logAct(id, 'assign', null, { to: next.assigned_to });
@@ -510,7 +518,7 @@ export class DemoApi {
   }
   async createSale(row) {
     this.guard('leads');
-    const base = { id: uuid(), created_at: iso(Date.now()), updated_at: iso(Date.now()), status: 'new', tags: [], details: {}, depart_on: null, return_on: null, wa_opt_in: false, ...row };
+    const base = { id: uuid(), created_at: iso(Date.now()), updated_at: iso(Date.now()), status: 'new', tags: [], details: {}, depart_on: null, return_on: null, wa_opt_in: false, ...row, phone: phoneNorm(row.phone) };
     const l = guardLead(null, attributeLead(null, this.REM.tripGuard(null, base), this.lookup_()), this.currency);
     this.st.leads.unshift(l); this.REM.syncReminders(this.st.reminders, null, l, this.today, uuid); this.st.activity[l.id] = [{ id: uuid(), lead_id: l.id, created_at: l.created_at, actor: this.st.me, kind: 'system', body: 'Продажа внесена', meta: {} }];
     this.recount(l.coupon_code);
@@ -621,7 +629,7 @@ export class DemoApi {
       if (rest({ ...cur, ...row }) !== rest(cur)) throw new Error('team_photo_only');
     }
     if (table === 'reels' && !REEL_RE.test(row.url || '')) throw new Error('violates check constraint "reels_url_check"');
-    if (table === 'wa_templates' && row.kind && list.some((x) => x.kind === row.kind && x.lang === row.lang && x.id !== row.id)) throw new Error('duplicate key wa_templates_kind_lang_idx');
+    if (table === 'wa_templates' && row.kind && list.some((x) => x.kind === row.kind && x.lang === row.lang && (x.variant || null) === (row.variant || null) && x.id !== row.id)) throw new Error('duplicate key wa_templates_kind_lang_idx');
     const now = iso(Date.now());
     if (row.id) {
       const cur = list.find((x) => x.id === row.id);
@@ -711,6 +719,13 @@ export class DemoApi {
   async sales(from, to) { this.guard('stats'); return this.wait(salesStats({ leads: this.st.leads, events: this.events_(), users: this.st.users, settings: this.st.settings, from, to }), 200); }
   async couponStats() { this.guard('stats'); return this.wait(couponStats(this.st.coupons, this.st.leads), 100); }
   async audit() { this.guard('audit'); return this.wait(this.st.audit, 100); }
+  /** notify_status(): the demo sends no letters — it answers as a set-up project whose last letter left this morning */
+  async notifyStatus() {
+    this.guard('write_owner');
+    const w = this.REM.waSettings(this.st.settings), mail = String((this.st.settings.contacts || {}).email || '').trim();
+    return this.wait({ last_sent_at: null, pending: 0, failed_7d: 0, last_error: null, last_error_at: null,
+      reminders: { enabled: w.enabled, mail_hour: w.mail_hour, mail_to: !!mail, schedule: true, secrets: true, last_sent_at: iso(Date.now() - 3 * 3600e3), last_day: this.today, pending: 0, failed_7d: 0, last_error: null } }, 60);
+  }
   async upload(file) {
     // the bucket is written by the owner, the marketer and the content role — not by a manager (100_security.sql)
     if (!['admin', 'marketer', 'content'].includes(this.st.role)) throw new Error('permission denied (media)');

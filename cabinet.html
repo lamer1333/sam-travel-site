@@ -33,22 +33,9 @@
     background:rgba(91,163,242,.18);color:var(--brand)}
   .lead{color:var(--ink-dim);font-size:14px;margin:0 0 28px}
   h2{font-size:15px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em;margin:0 0 14px}
-  .booking{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:12px}
-  .booking__head{display:flex;align-items:center;justify-content:space-between;gap:10px}
-  .booking h3{margin:0;font-size:16px}
-  .booking__status{font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:3px 9px;border-radius:999px}
-  .status--new{background:rgba(91,163,242,.18);color:var(--brand)}
-  .status--in_progress{background:rgba(255,193,7,.16);color:#ffce54}
-  .status--confirmed{background:rgba(84,209,140,.16);color:var(--ok)}
-  .status--cancelled{background:rgba(255,107,107,.14);color:var(--err)}
-  .booking__dates{margin:8px 0 0;font-size:13px}
-  .booking__details{margin:6px 0 0;font-size:13px;color:var(--ink-dim)}
-  .booking__meta{margin:6px 0 0;font-size:11px;color:var(--ink-dim);font-family:ui-monospace,monospace}
-  .booking__time{display:block;margin-top:10px;font-size:11px;color:var(--ink-dim)}
-  .empty{color:var(--ink-dim);font-size:14px;background:var(--card);border:1px dashed var(--line);
-    border-radius:14px;padding:22px;text-align:center}
   .msg{font-size:13px;padding:10px 12px;border-radius:10px}
   .msg[data-kind=err]{background:rgba(255,107,107,.12);color:var(--err)}
+  .msg[data-kind=ok]{background:rgba(84,209,140,.12);color:var(--ok)}
   /* onboarding / consent modal */
   .modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:grid;place-items:center;padding:22px;z-index:50}
   .modal[hidden]{display:none}
@@ -75,6 +62,18 @@
   .profile__edit[hidden]{display:none}
   .profile__edit .date-input{width:auto;margin:0;flex:1 1 170px}
   .profile .msg{margin:10px 0 0}
+  .profile__row + .profile__row,.profile__edit + .profile__row,.profile .msg + .profile__row{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+  .profile__note{margin:4px 0 0;font-size:12.5px;color:var(--ink-dim);max-width:46ch}
+  /* mailing consent: a switch, not a hidden checkbox */
+  .switch{position:relative;display:inline-flex;align-items:center;cursor:pointer;flex:none}
+  .switch input{position:absolute;opacity:0;width:1px;height:1px}
+  .switch i{width:44px;height:26px;border-radius:999px;background:rgba(255,255,255,.2);position:relative;transition:background .15s}
+  .switch i::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .15s}
+  .switch input:checked + i{background:var(--ok)}
+  .switch input:checked + i::after{transform:translateX(18px)}
+  .switch input:focus-visible + i{outline:2px solid var(--brand);outline-offset:2px}
+  .switch input:disabled + i{opacity:.5}
+  .modal .mfield .date-input[type=password]{color-scheme:dark}
   [hidden]{display:none !important}
   .top-right{display:flex;align-items:center;gap:10px}
   .lang{display:inline-flex;gap:2px;background:rgba(255,255,255,.06);border-radius:999px;padding:3px}
@@ -118,6 +117,13 @@
           <button id="birth-cancel" class="logout" type="button" data-i18n="cancel">Cancel</button>
         </form>
         <p id="birth-msg" class="msg" data-kind="err" role="alert" hidden></p>
+        <!-- mailing consent: asked once at sign-up; here it can be changed at any time -->
+        <div class="profile__row">
+          <dl><dt data-i18n="consentLabel">Deals and discounts by email</dt><dd id="consent-value">—</dd>
+            <p class="profile__note" data-i18n="consentNote">Offers, discounts and promo codes. You can switch it off at any time.</p></dl>
+          <label class="switch"><input id="consent-toggle" type="checkbox" aria-labelledby="consent-value"><i></i></label>
+        </div>
+        <p id="consent-msg" class="msg" data-kind="err" role="alert" hidden></p>
       </section>
     </main>
     <p id="cabinet-error" class="msg" data-kind="err" role="alert" hidden></p>
@@ -142,8 +148,26 @@
     </form>
   </div>
 
+  <!-- «Forgot password»: the link from the email opens this page; a new password is set here -->
+  <div id="recover" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="recover-title">
+    <form class="modal__card" id="recover-form" novalidate>
+      <h3 id="recover-title" data-i18n="recTitle">New password</h3>
+      <p data-i18n="recText">Choose a new password for your account — at least 10 characters.</p>
+      <label class="mfield">
+        <span data-i18n="recPass">New password</span>
+        <input id="recover-pass" class="date-input" type="password" autocomplete="new-password" minlength="10">
+      </label>
+      <label class="mfield">
+        <span data-i18n="recPass2">Repeat the password</span>
+        <input id="recover-pass2" class="date-input" type="password" autocomplete="new-password" minlength="10">
+      </label>
+      <p id="recover-msg" class="msg" data-kind="err" role="alert" hidden></p>
+      <button id="recover-save" class="primary" type="submit" data-i18n="recSave">Save the password</button>
+    </form>
+  </div>
+
   <script src="js/vendor/supabase-js-2.117.2.js"></script>
   <script src="js/supabase-config.js"></script>
-  <script src="js/auth.js?v=20261008a"></script>
+  <script src="js/auth.js?v=20261009a"></script>
 </body>
 </html>

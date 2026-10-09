@@ -17,7 +17,8 @@ const METRICS_URL = dataUrl(src('js/admin/metrics.js'));
 const M = await import(METRICS_URL);
 const D = await import(dataUrl(src('js/admin/demo.js').replace("'./metrics.js'", JSON.stringify(METRICS_URL)).replace("'./demo-seed.js'", JSON.stringify(dataUrl(src('js/admin/demo-seed.js'))))));
 const CSV = await import(dataUrl(src('js/admin/csv.js')));
-const API = await import(dataUrl(src('js/admin/api.js')));
+// api.js imports ./metrics.js (stage 11): a data: module has no folder, so the import is inlined the same way
+const API = await import(dataUrl(src('js/admin/api.js').replace("'./metrics.js'", JSON.stringify(dataUrl(src('js/admin/metrics.js'))))));
 
 const check = (cond, msg, got) => (cond ? ok(msg) : bad(msg + (got === undefined ? '' : ' — получено ' + JSON.stringify(got))));
 const one = async (sql, params) => (await db.query(sql, params)).rows[0];
@@ -440,7 +441,7 @@ console.log('  D — база');
   const k = (await as('owner', `select public.stats_sales($1, $2) s`, [from, to])).rows[0].s.kpi;
   check(Number.isFinite(Number(k.revenue)) && Number.isFinite(Number(k.profit)) && !JSON.stringify(k).includes('NaN'), 'D5: в сводке нет «NaN»', k.revenue);
   let demoErr = '';
-  try { D.guardLead(null, { status: 'won', source: 'phone', value: 'abc', created_at: new Date().toISOString() }, 'USD'); } catch (e) { demoErr = e.message; }
+  try { D.guardLead(null, { name: 'Клиент', phone: '+374 91 123456', status: 'won', source: 'phone', value: 'abc', created_at: new Date().toISOString() }, 'USD'); } catch (e) { demoErr = e.message; }
   check(demoErr === 'leads_money_not_nan', 'D5: демо-режим тоже не принимает «не число»', demoErr);
 }
 

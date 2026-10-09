@@ -4,7 +4,7 @@
 // hover tooltip on every plotted form, text in ink tokens — never series colour.
 // Rendered at the container's real pixel width and re-rendered on resize.
 // ---------------------------------------------------------------------------
-import { h, fmt, clear } from './ui.js';
+import { h, fmt, clear, toast } from './ui.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const s = (tag, attrs = {}) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
@@ -175,7 +175,7 @@ export function ring(v, { size = 120, label } = {}) {
 }
 
 /** KPI tile: label, value, delta vs previous (goodUp decides colour), sparkline */
-export function kpi({ label, value, unit, prev, cur, goodUp = true, spark, hint, hero, iconEl }) {
+export function kpi({ label, value, unit, prev, cur, goodUp = true, spark, hint, iconEl }) {
   let d = null;
   if (prev != null && cur != null) {
     if (!prev && !cur) d = h('span.delta.delta--flat', '—');
@@ -187,7 +187,9 @@ export function kpi({ label, value, unit, prev, cur, goodUp = true, spark, hint,
         (up ? '▲ ' : down ? '▼ ' : '') + fmt.pct(Math.abs(ch), 0));
     }
   }
-  return h('div.kpi' + (hero ? '.kpi--hero' : ''), { title: hint || '' },
+  // a phone has no hover, so the hint a mouse gets from `title` is shown by a tap
+  const tap = hint ? () => { if (matchMedia('(hover: none)').matches) toast(label + ': ' + hint, '', { ms: 6000 }); } : null;
+  return h('div.kpi', { title: hint || '', onclick: tap },
     h('span.kpi__label', iconEl || null, label),
     h('span.kpi__value', value, unit ? h('small', unit) : null),
     h('span.kpi__foot', d || h('span.delta.delta--flat', hint ? '' : ''), spark ? sparkline(spark) : null));

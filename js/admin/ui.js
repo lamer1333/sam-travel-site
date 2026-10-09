@@ -45,7 +45,6 @@ const P = {
   users: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
   layout: 'M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 9h18M9 21V9',
   phone: 'M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z',
-  settings: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
   message: 'M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z',
   history: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l4 2',
   check: 'M20 6 9 17l-5-5',
@@ -56,14 +55,12 @@ const P = {
   edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
   grip: 'M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01',
   eye: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
-  eyeoff: 'M17.9 17.9A10.1 10.1 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.1-5.9M9.9 4.2A9 9 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.2 3.2M1 1l22 22',
   external: 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3',
   copy: 'M20 9h-9a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2zM5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1',
   download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3',
   upload: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12',
   calendar: 'M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM16 2v4M8 2v4M3 10h18',
   clock: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2',
-  star: 'M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z',
   megaphone: 'M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13',
   tag: 'M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8zM7 7h.01',
   mail: 'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM22 6l-10 7L2 6',
@@ -73,15 +70,10 @@ const P = {
   qr: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14v.01M14 20h.01M17 17h4v4h-4',
   sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4',
   moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
-  bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0',
   logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
   menu: 'M3 12h18M3 6h18M3 18h18',
   wa: 'M3 21l1.7-5A8.5 8.5 0 1 1 8 19.3zM9 8.5c0 3.5 3 6.5 6.5 6.5l1-1.5-2-1-1 1c-1-.5-2.5-2-3-3l1-1-1-2z',
-  filter: 'M22 3H2l8 9.5V19l4 2v-8.5z',
-  kanban: 'M4 3h4v14H4zM10 3h4v9h-4zM16 3h4v18h-4z',
   list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
-  up: 'M12 19V5M5 12l7-7 7 7',
-  down: 'M12 5v14M19 12l-7 7-7-7',
   alert: 'M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01',
   spark: 'M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8',
   image: 'M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM21 15l-5-5L5 21',
@@ -92,7 +84,6 @@ const P = {
   target: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
   zap: 'M13 2 3 14h9l-1 8 10-12h-9z',
   refresh: 'M23 4v6h-6M1 20v-6h6M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15',
-  more: 'M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM19 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM5 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z',
 };
 export function icon(name, cls = '') {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -103,6 +94,8 @@ export function icon(name, cls = '') {
 
 // ---------- formatting ----------
 const LOC = 'ru-RU';
+// Every date in the panel is a Yerevan date (TZ-BACKEND.md §5), whatever the clock of the browser says.
+const TZ = 'Asia/Yerevan';
 // The panel counts money in one currency (company.currency in «Контакты и реквизиты»).
 let CUR = 'USD';
 export const currency = () => CUR;
@@ -117,17 +110,9 @@ export const fmt = {
     catch (e) { return fmt.num(n) + ' ' + cur; }   // a currency code the browser does not know
   },
   pct: (x, d = 1) => (x == null || isNaN(x) || !isFinite(x)) ? '—' : (x * 100).toLocaleString(LOC, { maximumFractionDigits: d }) + '%',
-  date: (d) => d ? new Date(d).toLocaleDateString(LOC, { day: 'numeric', month: 'short', year: 'numeric' }) : '—',
-  day: (d) => d ? new Date(d).toLocaleDateString(LOC, { day: 'numeric', month: 'short' }) : '—',
-  dt: (d) => d ? new Date(d).toLocaleString(LOC, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—',
-  time: (d) => d ? new Date(d).toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit' }) : '—',
-  dur(min) {
-    if (min == null || isNaN(min)) return '—';
-    if (min < 1) return '< 1 мин';
-    if (min < 60) return Math.round(min) + ' мин';
-    if (min < 60 * 24) return Math.floor(min / 60) + ' ч ' + (Math.round(min % 60) ? Math.round(min % 60) + ' мин' : '');
-    return Math.round(min / 60 / 24) + ' дн';
-  },
+  date: (d) => d ? new Date(d).toLocaleDateString(LOC, { day: 'numeric', month: 'short', year: 'numeric', timeZone: TZ }) : '—',
+  day: (d) => d ? new Date(d).toLocaleDateString(LOC, { day: 'numeric', month: 'short', timeZone: TZ }) : '—',
+  dt: (d) => d ? new Date(d).toLocaleString(LOC, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: TZ }) : '—',
   ago(d) {
     if (!d) return '—';
     const s = (Date.now() - new Date(d)) / 1000;
@@ -137,7 +122,6 @@ export const fmt = {
     if (s < 86400 * 7) return Math.floor(s / 86400) + ' дн назад';
     return fmt.date(d);
   },
-  phone: (p) => p || '—',
 };
 export function plural(n, one, few, many) {
   const a = Math.abs(n) % 100, b = a % 10;
@@ -366,25 +350,42 @@ export function langDots(i18n, fields) {
 export const pickLang = (o, l = 'ru') => (o && (o[l] || o.en || o.ru || o.hy)) || {};
 
 // ---------- tables ----------
-/** columns: [{key, label, render(row), sort: fn|true, align:'r', cls}] */
-export function table({ columns, rows, onRow, selectable, selected, onSelect, empty = 'Пусто', foot, initialSort }) {
+/**
+ * columns: [{key, label, render(row), sort: fn|true, align:'r', cls, primary, mlabel}]
+ * On a phone a row becomes a card (css: .tbl): the `primary` column (the first one unless
+ * marked) is its title, the rest are «label — value» lines; `mlabel` names a column whose
+ * header is empty on a computer (buttons). The header is hidden there, so the sorting
+ * moves to a select above the list.
+ */
+export function table({ columns, rows, onRow, empty = 'Пусто', foot, initialSort }) {
   let sortKey = initialSort ? initialSort[0] : null, dir = initialSort ? initialSort[1] : -1;
-  const sel = selected || new Set();
   const wrap = h('div.tbl-wrap');
+  const prim = Math.max(0, columns.findIndex((c) => c.primary));
+  const labelOf = (c) => c.label || c.mlabel || '';
+  const sortable = columns.filter((c) => c.sort && labelOf(c));
   function val(c, r) { return typeof c.sort === 'function' ? c.sort(r) : r[c.key]; }
+  const mark = (td, c, ci) => { if (ci === prim) td.setAttribute('data-primary', ''); else if (labelOf(c)) td.setAttribute('data-label', labelOf(c)); return td; };
   function paint() {
     let data = rows.slice();
     if (sortKey) { const c = columns.find((x) => x.key === sortKey) || { key: sortKey }; data.sort((a, b) => { const x = val(c, a), y = val(c, b); return (x > y ? 1 : x < y ? -1 : 0) * dir; }); }
-    const all = selectable ? h('input', { type: 'checkbox', 'aria-label': 'Выбрать все', checked: data.length && data.every((r) => sel.has(r.id)), onchange: (e) => { data.forEach((r) => e.target.checked ? sel.add(r.id) : sel.delete(r.id)); onSelect && onSelect(sel); paint(); } }) : null;
-    const head = h('tr', selectable ? h('th', { style: { width: '34px' } }, all) : null, columns.map((c) => h('th', {
+    const head = h('tr', columns.map((c) => h('th', {
       class: (c.align === 'r' ? 'r ' : '') + (sortKey === c.key ? 'is-sorted' : ''), dataset: c.sort ? { sort: c.key } : undefined,
       onclick: c.sort ? () => { if (sortKey === c.key) dir = -dir; else { sortKey = c.key; dir = -1; } paint(); } : null,
     }, c.label, sortKey === c.key ? (dir > 0 ? ' ↑' : ' ↓') : '')));
-    const body = data.length ? data.map((r) => h('tr', { class: (onRow ? 'is-click ' : '') + (sel.has(r.id) ? 'is-selected' : ''), onclick: onRow ? (e) => { if (!e.target.closest('input,button,a,select,label')) onRow(r); } : null },
-      selectable ? h('td', h('input', { type: 'checkbox', 'aria-label': 'Выбрать', checked: sel.has(r.id), onchange: (e) => { e.target.checked ? sel.add(r.id) : sel.delete(r.id); onSelect && onSelect(sel); paint(); } })) : null,
-      columns.map((c, ci) => { const v = c.render ? c.render(r) : r[c.key]; return h('td', { class: (c.align === 'r' ? 'r num ' : '') + (c.cls || ''), ...(ci === 0 ? { 'data-primary': '' } : c.label ? { 'data-label': c.label } : {}) }, v == null ? '—' : v); })))
-      : [h('tr', h('td', { colspan: columns.length + (selectable ? 1 : 0) }, h('div.empty', empty)))];
-    mount(wrap, h('table.tbl', h('thead', head), h('tbody', body), foot && data.length ? h('tfoot', foot(data)) : null));
+    const body = data.length ? data.map((r) => h('tr', { class: onRow ? 'is-click' : '', onclick: onRow ? (e) => { if (!e.target.closest('input,button,a,select,label')) onRow(r); } : null },
+      columns.map((c, ci) => { const v = c.render ? c.render(r) : r[c.key]; return mark(h('td', { class: (c.align === 'r' ? 'r num ' : '') + (c.cls || '') }, v == null ? '—' : v), c, ci); })))
+      : [h('tr', h('td', { colspan: columns.length }, h('div.empty', empty)))];
+    let tfoot = null;
+    if (foot && data.length) {
+      tfoot = h('tfoot', foot(data));
+      // the totals row is written by the view cell by cell: name the cells after their columns
+      $$('tr', tfoot).forEach((tr) => Array.from(tr.children).forEach((td, ci) => { if (columns[ci] && td.textContent.trim()) mark(td, columns[ci], ci); }));
+    }
+    const sorter = sortable.length > 1 && data.length > 1 ? h('div.tbl-sort',
+      h('span', 'Сортировка'),
+      select((sortable.some((c) => c.key === sortKey) ? [] : [['', 'как есть']]).concat(sortable.map((c) => [c.key, labelOf(c)])), sortable.some((c) => c.key === sortKey) ? sortKey : '', (v) => { if (v) { sortKey = v; paint(); } }),
+      h('button.btn.btn--sm', { type: 'button', 'aria-label': dir > 0 ? 'По возрастанию — сменить на убывание' : 'По убыванию — сменить на возрастание', onclick: () => { dir = -dir; paint(); } }, dir > 0 ? '↑' : '↓')) : null;
+    mount(wrap, sorter, h('table.tbl', h('thead', head), h('tbody', body), tfoot));
   }
   paint();
   wrap.refresh = (newRows) => { if (newRows) rows = newRows; paint(); };

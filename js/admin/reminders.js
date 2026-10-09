@@ -10,6 +10,11 @@
 
 export const KINDS = ['bon_voyage', 'welcome_back'];
 export const KIND_NAME = { bon_voyage: 'Накануне вылета', welcome_back: 'После возвращения' };
+// bon_voyage has a second text per language: on the day of the flight «Завтра ваш вылет» is
+// not true any more (wa_templates.variant = 'today', 110_fixes.sql)
+export const VARIANT_NAME = { today: 'В день вылета' };
+/** the name of a reminder text in «Шаблоны ответов» */
+export const templateName = (t) => (t.variant && VARIANT_NAME[t.variant]) || KIND_NAME[t.kind] || t.title;
 export const KIND_SHORT = { bon_voyage: 'Хорошего полёта', welcome_back: 'С возвращением' };
 export const WA_DEFAULTS = { enabled: true, mail_hour: 11, review_url: '', mode: 'remind' };
 const LANGS = ['en', 'ru', 'hy'];
@@ -20,6 +25,9 @@ const DEFAULT_TEXT = {
   'bon_voyage:ru': 'Здравствуйте, {name}! Завтра ваш вылет[ в {tour}]. Желаем хорошего полёта и отличного отдыха! SAM TRAVEL',
   'bon_voyage:en': 'Hello, {name}! Your flight[ to {tour}] is tomorrow. Have a great flight and a wonderful holiday! SAM TRAVEL',
   'bon_voyage:hy': 'Բարև ձեզ, {name}։ Վաղը ձեր թռիչքն է[՝ {tour}]։ Մաղթում ենք բարի թռիչք և հիանալի հանգիստ։ SAM TRAVEL',
+  'bon_voyage_today:ru': 'Здравствуйте, {name}! Сегодня ваш вылет[ в {tour}]. Желаем хорошего полёта и отличного отдыха! SAM TRAVEL',
+  'bon_voyage_today:en': 'Hello, {name}! Your flight[ to {tour}] is today. Have a great flight and a wonderful holiday! SAM TRAVEL',
+  'bon_voyage_today:hy': 'Բարև ձեզ, {name}։ Այսօր ձեր թռիչքն է[՝ {tour}]։ Մաղթում ենք բարի թռիչք և հիանալի հանգիստ։ SAM TRAVEL',
   'welcome_back:ru': 'С возвращением, {name}![ Надеемся, {tour} понравился.] Будем рады вашему отзыву[: {review}]',
   'welcome_back:en': 'Welcome back, {name}![ We hope you enjoyed {tour}.] We would be glad to hear your feedback[: {review}]',
   'welcome_back:hy': 'Բարի վերադարձ, {name}։[ Հուսով ենք՝ {tour} ուղևորությունը ձեզ դուր եկավ։] Ուրախ կլինենք ստանալ ձեր կարծիքը[՝ {review}]',
@@ -27,12 +35,13 @@ const DEFAULT_TEXT = {
 export const reminderDefault = (kind, lang) => DEFAULT_TEXT[kind + ':' + lang] || null;
 export const reminderLang = (lang) => (LANGS.includes(lang) ? lang : 'ru');
 
-/** reminder_body(): the owner's template for this kind and language, else the default text */
-export function reminderBody(templates, kind, lang) {
+/** reminder_text(): the owner's template for this kind, language and variant ('today' or none), else the default text */
+export function reminderBody(templates, kind, lang, variant = null) {
   const l = reminderLang(lang);
-  const t = (templates || []).filter((x) => x.kind === kind && x.lang === l && String(x.body || '').trim())
+  const t = (templates || []).filter((x) => x.kind === kind && (x.variant || null) === variant && x.lang === l && String(x.body || '').trim())
     .sort((a, b) => (a.sort || 0) - (b.sort || 0) || String(a.created_at).localeCompare(String(b.created_at)))[0];
-  return t ? t.body : reminderDefault(kind, l);
+  if (t) return t.body;
+  return variant ? reminderDefault(kind + '_' + variant, l) || reminderBody(templates, kind, lang) : reminderDefault(kind, l);
 }
 
 /** reminder_fill(): {name} — first word of the name, {tour}, {review}; a [bracketed piece] drops out when its placeholder is empty */
@@ -105,7 +114,7 @@ export function remindersList({ leads, reminders, tours, templates, settings, da
     if (!l || l.status !== 'won') continue;
     if (day > (r.kind === 'bon_voyage' ? l.depart_on : addDays(r.due_on, 7))) continue;
     const t = (tours || []).find((x) => x.slug === l.tour), lang = reminderLang(l.lang), digits = digitsOf(l.phone);
-    const text = reminderFill(reminderBody(templates, r.kind, lang), l.name, titleOf(t, lang) || titleOf(t, 'en'), r.kind === 'welcome_back' ? review : null);
+    const text = reminderFill(reminderBody(templates, r.kind, lang, r.kind === 'bon_voyage' && day >= l.depart_on ? 'today' : null), l.name, titleOf(t, lang) || titleOf(t, 'en'), r.kind === 'welcome_back' ? review : null);
     out.push({ id: r.id, lead_id: l.id, kind: r.kind, due_on: r.due_on, overdue: r.due_on < day, name: l.name, phone: l.phone, phone_digits: digits,
       tour: l.tour || null, tour_name: titleOf(t, 'ru') || titleOf(t, 'en') || l.tour || null, lang, depart_on: l.depart_on || null, return_on: l.return_on || null,
       wa_opt_in: !!l.wa_opt_in, text, wa_url: waUrl(digits, text) });

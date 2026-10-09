@@ -50,7 +50,7 @@ export default async function auditView(root, ctx) {
   function title(r) {
     const x = r.after || r.before || {};
     if (r.table_name === 'profiles') return (x.full_name || '') + ' → ' + (ROLE_NAMES[x.role] || x.role);
-    if (r.table_name === 'site_settings') return ({ contacts: 'контакты', company: 'реквизиты', hours: 'рабочее время', seo: 'SEO', analytics: 'ID аналитики', stats: 'цифры' }[x.key] || x.key);
+    if (r.table_name === 'site_settings') return ({ contacts: 'контакты', company: 'реквизиты', hours: 'рабочее время', seo: 'SEO', analytics: 'ID аналитики', stats: 'цифры', whatsapp: 'напоминания о вылетах' }[x.key] || x.key);
     return x.name || x.code || x.author || x.title || (x.i18n && ((x.i18n.ru && (x.i18n.ru.card_title || x.i18n.ru.name || x.i18n.ru.title)) || (x.i18n.en && (x.i18n.en.card_title || x.i18n.en.name)))) || x.url || x.slug || x.id || '';
   }
   paint();

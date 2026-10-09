@@ -1,6 +1,6 @@
 // Contacts & company details: one place, applied to every link on the site
 // (header, menu, contacts block, footer, floating WhatsApp, structured data).
-import { h, mount, icon, toast, field, input, select, toggle, chipsPick, pageHead, card, i18nEditor, setCurrency } from '../ui.js';
+import { h, icon, toast, field, input, select, toggle, pageHead, i18nEditor, setCurrency } from '../ui.js';
 import { waSettings } from '../reminders.js';
 
 const SAMPLE = { licence: '23-1057-2023', insurance: 'TRV-2026-0412' };
@@ -9,8 +9,8 @@ export default async function contactsView(root, ctx) {
   const s = await ctx.settings();
   const c = { phone: '', whatsapp: '', email: '', address: {}, instagram: '', facebook: '', telegram: '', ...(s.contacts || {}) };
   const co = { legal_name: '', licence: '', insurance: '', currency: 'USD', margin_pct: 10, ...(s.company || {}) };
-  const hr = { days: [1, 2, 3, 4, 5, 6], from: '10:00', to: '19:00', sla_min: 60, ...(s.hours || {}) };
-  const save = async (key, val, msg) => { try { await ctx.api.saveSetting(key, val); ctx.cache.settings[key] = val; toast(msg || 'Сохранено — сайт обновится при следующем открытии'); } catch (e) { ctx.err(e); } };
+  /** true when the database took the value */
+  const save = async (key, val, msg) => { try { await ctx.api.saveSetting(key, val); ctx.cache.settings[key] = val; toast(msg || 'Сохранено — сайт обновится при следующем открытии'); return true; } catch (e) { ctx.err(e); return false; } };
   const bad = (el, ok) => { el.classList.toggle('is-bad', !ok); return ok; };
 
   root.append(pageHead('Контакты и реквизиты', 'Меняете здесь — меняется на всём сайте: шапка, меню, блок контактов, подвал, кнопка WhatsApp, данные для Google.'));
@@ -42,14 +42,7 @@ export default async function contactsView(root, ctx) {
       h('div.grid2',
         field('Валюта панели', select(Array.from(new Set(['USD', 'EUR', 'AMD', 'RUB', co.currency])), co.currency, (v) => { co.currency = v; }), 'В ней вносятся продажи и считаются отчёты. Уже введённые суммы не пересчитываются'),
         field('Маржа агентства, %', input(co.margin_pct, { type: 'number', attrs: { min: 1, max: 100 }, oninput: (v) => { co.margin_pct = Math.max(1, Math.min(100, Number(v) || 10)); } }), 'Средняя комиссия с тура — для честного ROMI рекламы')),
-      h('div.btns', h('button.btn.btn--primary', { onclick: () => save('company', co).then(() => setCurrency(co.currency)) }, 'Сохранить реквизиты')))));
-
-  const days = [[1, 'Пн'], [2, 'Вт'], [3, 'Ср'], [4, 'Чт'], [5, 'Пт'], [6, 'Сб'], [7, 'Вс']];
-  g.append(h('section.card.c12', h('div.card__h', h('div', h('h3', 'Рабочее время'), h('p', 'На сайте обещано «ответим в течение часа в рабочие дни» — клиенты пишут вам в WhatsApp напрямую. В сводке видно, в какие часы пишут чаще всего.'))),
-    h('div.grid2',
-      h('div.field', h('span', 'Рабочие дни'), chipsPick(days, hr.days, (v) => { hr.days = v.map(Number).sort(); })),
-      h('div.grid2', field('С', input(hr.from, { type: 'time', oninput: (v) => { hr.from = v; } })), field('До', input(hr.to, { type: 'time', oninput: (v) => { hr.to = v; } })))),
-    h('div.btns', { style: { marginTop: '14px' } }, h('button.btn.btn--primary', { onclick: () => save('hours', hr, 'Рабочее время сохранено') }, 'Сохранить'))));
+      h('div.btns', h('button.btn.btn--primary', { onclick: () => save('company', co).then((ok) => { if (ok) setCurrency(co.currency); }) }, 'Сохранить реквизиты')))));
 
   // Flight reminders (TZ-BACKEND.md §4.12). The system prepares the list and the text; the
   // message is sent by a person. «Отправлять автоматически» is shown but locked: it needs the
@@ -70,7 +63,7 @@ export default async function contactsView(root, ctx) {
     h('div.btns', { style: { marginTop: '14px' } },
       h('button.btn.btn--primary', { onclick: () => {
         if (w.review_url && !/^https?:\/\/\S+$/.test(w.review_url)) { toast('Ссылка для отзыва должна начинаться с https://', 'bad'); rv.focus(); return; }
-        save('whatsapp', { ...w, mode: 'remind' }, 'Настройки напоминаний сохранены').then(() => ctx.reminders(true).catch(() => {}));
+        save('whatsapp', { ...w, mode: 'remind' }, 'Настройки напоминаний сохранены').then((ok) => { if (ok) ctx.reminders(true).catch(() => {}); });
       } }, 'Сохранить'),
       h('button.btn', { onclick: () => ctx.go('templates') }, 'Тексты сообщений'))));
 }
