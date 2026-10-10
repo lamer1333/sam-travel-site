@@ -682,6 +682,23 @@
   }
   function isoDay(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 
+  /* A link opened from Instagram, Facebook, Telegram, TikTok… runs in the app's own browser.
+     It has no Google accounts of the phone, so «Sign in with Google» shows an empty e-mail
+     field (and Google may refuse it altogether). Say so next to the button and give the link. */
+  function inAppBrowser() {
+    var ua = navigator.userAgent || '';
+    if (/Instagram|FBAN|FBAV|FB_IAB|Messenger|Line\/|Telegram|WhatsApp|Snapchat|TikTok|musical_ly|Bytedance|; wv\)/i.test(ua)) return true;
+    return /(iPhone|iPad|iPod)/.test(ua) && /AppleWebKit/.test(ua) && !/Safari\//.test(ua);   // an iOS web view
+  }
+  if (inAppBrowser()) $$('[data-inapp]', $('#auth')).forEach(function (el) { el.hidden = false; });
+  $$('[data-inapp-copy]', $('#auth')).forEach(function (b) {
+    b.addEventListener('click', function () {
+      var url = location.origin + location.pathname + '#auth', done = function () { b.textContent = aT().inappCopied; b.dataset.done = '1'; };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, function () { prompt('', url); });
+      else prompt('', url);
+    });
+  });
+
   function paintAuth() {
     var t = aT();
     paint($('#auth'), 'data-a', t);

@@ -399,7 +399,10 @@ window.SAM_I18N_AUTH = {
     "codeNeed": "This email is not confirmed yet. Enter the code from the email or request a new one.",
     "errCode": "Enter the 6 digits from the email.",
     "errCodeBad": "The code is wrong or has expired. Request a new email.",
-    "errWait": "Too soon — an email can be sent once a minute."
+    "errWait": "Too soon — an email can be sent once a minute.",
+    "inappHint": "You opened the site inside a messenger, so Google cannot show your accounts here. To choose an account, open the site in Chrome or Safari.",
+    "inappCopy": "Copy the link",
+    "inappCopied": "Link copied — paste it into your browser."
   },
   ru: {
     "birth": "Дата рождения",
@@ -417,7 +420,10 @@ window.SAM_I18N_AUTH = {
     "codeNeed": "Эта почта ещё не подтверждена. Введите код из письма или запросите новое.",
     "errCode": "Введите 6 цифр из письма.",
     "errCodeBad": "Код неверный или устарел. Запросите новое письмо.",
-    "errWait": "Слишком рано — письмо можно отправлять раз в минуту."
+    "errWait": "Слишком рано — письмо можно отправлять раз в минуту.",
+    "inappHint": "Вы открыли сайт внутри мессенджера, поэтому Google не покажет здесь ваши аккаунты. Чтобы выбрать аккаунт, откройте сайт в Chrome или Safari.",
+    "inappCopy": "Скопировать ссылку",
+    "inappCopied": "Ссылка скопирована — вставьте её в браузере."
   },
   hy: {
     "birth": "Ծննդյան ամսաթիվ",
@@ -435,6 +441,9 @@ window.SAM_I18N_AUTH = {
     "codeNeed": "Այս էլ. փոստը դեռ հաստատված չէ։ Մուտքագրեք նամակի կոդը կամ պահանջեք նոր նամակ։",
     "errCode": "Մուտքագրեք նամակի 6 թվանշանը։",
     "errCodeBad": "Կոդը սխալ է կամ ժամկետանց։ Պահանջեք նոր նամակ։",
-    "errWait": "Շատ շուտ է. նամակ կարելի է ուղարկել րոպեն մեկ անգամ։"
+    "errWait": "Շատ շուտ է. նամակ կարելի է ուղարկել րոպեն մեկ անգամ։",
+    "inappHint": "Դուք կայքը բացել եք մեսենջերի ներսում, ուստի Google-ն այստեղ չի ցուցադրի ձեր հաշիվները։ Հաշիվ ընտրելու համար բացեք կայքը Chrome կամ Safari դիտարկիչով։",
+    "inappCopy": "Պատճենել հղումը",
+    "inappCopied": "Հղումը պատճենված է՝ տեղադրեք այն դիտարկիչում։"
   }
 };

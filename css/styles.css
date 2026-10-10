@@ -1130,6 +1130,8 @@
     text-align: center; padding: 9px 12px; border-radius: 10px; }
   .amsg[data-kind="ok"] { background: rgba(46,160,102,0.12); color: #1E7A4B; }
   .amsg[data-kind="err"] { background: rgba(195,64,47,0.10); color: #C3402F; }
+  .ainapp { margin: 12px 0 0; max-width: 340px; width: 100%; font-size: 0.84rem; line-height: 1.4; color: #7A5200; background: rgba(250,178,25,0.16); border-radius: 12px; padding: 10px 12px; text-align: left; }
+  .ainapp .alink { display: inline; margin: 0; padding: 0; font-size: inherit; font-weight: 700; color: inherit; text-decoration: underline; }
   .asent { font-size: 0.92rem; color: var(--ink-2); text-align: center; margin-bottom: 14px; max-width: 320px; }
 
   .auth__panels { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
