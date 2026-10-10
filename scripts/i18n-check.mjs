@@ -39,6 +39,8 @@ body = body.replace(/<(\w+)[^>]*\sdata-i18n-ctx="([^"]+)"[^>]*>([\s\S]*?)<\/\1>/
   for (const m of ('>' + inner + '<').matchAll(/>([^<]+)</g)) { const k = norm(m[1]); if (k) found.set(ctx + '::' + k, 0); }
   return '';
 });
+// data-i18n="key" на самом элементе: у его текста свой ключ (заголовки услуг, разбитые на два узла)
+body = body.replace(/<(\w+)[^>]*\sdata-i18n="([^"]+)"[^>]*>([^<]*)/g, (all, tag, key) => { found.set(key, 0); return '<' + tag + '>'; });
 for (const m of body.matchAll(/>([^<]+)</g)) { const k = norm(m[1]); if (k && /\p{L}|\d/u.test(k)) found.set(k, 0); }
 for (const m of body.matchAll(/\s(aria-label|placeholder)="([^"]*)"/g)) { const k = norm(m[2]); if (k) found.set(m[1] + '::' + k, 0); }
 

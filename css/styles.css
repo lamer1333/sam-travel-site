@@ -128,10 +128,10 @@
     box-sizing: border-box;
   }
   .logo {
-    width: clamp(160px, 18vw, 240px);
+    width: min(84svh, 92vw);
     height: auto;
     max-width: 100%;
-    color: var(--ink);
+    color: var(--brand);
     display: block;
   }
 
@@ -454,7 +454,7 @@
   }
 
   /* ---------- trust strip (lives inside the black logo section) ---------- */
-  .parallax__content { min-height: 0; padding: 12vh 24px 10vh; gap: 56px; }
+  .parallax__content { min-height: 100vh; min-height: 100svh; padding: 8svh 4vw; gap: 56px; }
   .trust { width: 100%; max-width: var(--maxw); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; border-top: 1px solid rgba(255,255,255,0.12); padding-top: 40px; }
   .trust div { display: flex; flex-direction: column; gap: 4px; }
   .trust { --trust-num: clamp(1.8rem, 3.4vw, 2.6rem); }
@@ -592,6 +592,8 @@
   .svc:nth-child(4) { --card: #0F2547; --i: 3; }
   .svc h3 { font-size: clamp(2.6rem, 6.5vw, 5rem); line-height: 1.04; font-weight: 700; letter-spacing: -0.02em; color: #fff; }
   .svc h3 span { display: block; color: rgba(255,255,255,0.5); }
+  /* Russian and Armenian headings have longer words: scale down so they never break mid-word */
+  html[lang="ru"] .svc h3, html[lang="hy"] .svc h3 { font-size: clamp(1.6rem, 7.4vw, 5rem); }
   .svc__chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
   .svc__chip { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; padding: 7px 14px;
     border-radius: 999px; background: rgba(255,255,255,0.13); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.22); }
@@ -620,8 +622,8 @@
   .about-logo svg { width: 100%; height: auto; color: var(--brand-deep); fill: currentColor; }
   .about-logo img { width: 100%; height: auto; display: block; }
 
-  .about-panel { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: clamp(28px, 4vw, 56px); align-items: center; background: var(--paper-2); border-radius: 24px; padding: clamp(24px, 3.5vw, 48px); margin-bottom: clamp(48px, 7vw, 88px); }
-  .about-panel__photos { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-self: start; margin-top: calc(-1 * clamp(40px, 6vw, 72px) - clamp(24px, 3.5vw, 48px)); }
+  .about-panel { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: clamp(28px, 4vw, 56px); align-items: center; background: var(--paper-2); border-radius: 24px; padding: clamp(24px, 3.5vw, 48px); margin-bottom: clamp(48px, 7vw, 88px); }
+  .about-panel__photos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-self: start; margin-top: calc(-1 * clamp(40px, 6vw, 72px) - clamp(24px, 3.5vw, 48px)); }
   .about-panel__photos .person:nth-child(2) { margin-top: 30px; }
   .about-panel__photos .photo { box-shadow: 0 18px 40px -22px rgba(11,13,18,0.45); }
   .about-panel__body h3 { font-size: clamp(1.5rem, 2.4vw, 2.1rem); line-height: 1.2; margin: 8px 0 12px; }

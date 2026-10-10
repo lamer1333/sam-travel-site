@@ -536,8 +536,9 @@
       var el = n.parentElement; if (!el || el.closest('script, style, svg, [data-count]')) continue;
       if (!originals.has(n)) originals.set(n, n.nodeValue);
       var orig = originals.get(n), key = orig.replace(/\s+/g, ' ').trim(); if (!key) continue;
-      /* data-i18n-ctx on an ancestor: this text has its own key, «ctx::text» — for words that
-         are translated differently in different places («Travel Insurance» / «Corporate Travel») */
+      /* data-i18n on the element: its own key (headings split across nodes — «svc:visa-1»).
+         data-i18n-ctx on an ancestor: «ctx::text», for words translated differently in different places. */
+      key = el.getAttribute('data-i18n') || key;
       var cx = el.closest('[data-i18n-ctx]'), ck = cx ? cx.getAttribute('data-i18n-ctx') + '::' + key : '';
       var t = ck && tr(ck) !== ck ? tr(ck) : tr(key);
       n.nodeValue = (t === key) ? orig : orig.match(/^\s*/)[0] + t + orig.match(/\s*$/)[0];

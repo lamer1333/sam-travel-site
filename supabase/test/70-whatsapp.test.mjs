@@ -42,7 +42,7 @@ const DAY = 86400e3;
     ['general', 'hy', {}, 'Բարև ձեզ։ Ուզում եմ հարցնել տուրի մասին։'],
     ['service', 'ru', { topic: 'visa' }, 'Здравствуйте! Хочу спросить про: визовая поддержка.'],
     ['service', 'en', { topic: 'insurance' }, "Hello! I'd like to ask about: travel insurance."],
-    ['service', 'hy', { topic: 'corporate' }, 'Բարև ձեզ։ Հետաքրքրում է՝ կորպորատիվ ուղևորություններ։'],
+    ['service', 'hy', { topic: 'corporate' }, 'Բարև ձեզ։ Հետաքրքրում է՝ կորպորատիվ տուրեր։'],
     ['promo', 'ru', { coupon: 'AUTUMN7' }, 'Здравствуйте! Хочу спросить про тур.\nПромокод: AUTUMN7'],
     ['promo', 'en', { coupon: 'AUTUMN7' }, "Hello! I'd like to ask about a tour.\nPromo code: AUTUMN7"],
     ['promo', 'hy', { coupon: 'AUTUMN7' }, 'Բարև ձեզ։ Ուզում եմ հարցնել տուրի մասին։\nՊրոմոկոդ՝ AUTUMN7'],

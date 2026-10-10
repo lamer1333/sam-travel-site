@@ -148,7 +148,7 @@
     return k === 'inc' ? [] : '';
   }
   /* The tour type is picked in the panel from a fixed list; the label is printed in the visitor's language. */
-  var TYPES = { beach: { en: 'Beach', ru: 'Пляж', hy: 'Լողափ' }, city: { en: 'City', ru: 'Город', hy: 'Քաղաք' },
+  var TYPES = { beach: { en: 'Beach', ru: 'Пляж', hy: 'Ծովափնյա հանգիստ' }, city: { en: 'City', ru: 'Город', hy: 'Քաղաքային տուրեր' },
     nature: { en: 'Nature', ru: 'Природа', hy: 'Բնություն' }, family: { en: 'Family', ru: 'Семейный', hy: 'Ընտանեկան' } };
   function typeLabels(tags, l) {
     return (tags || []).filter(function (k) { return TYPES[k]; }).map(function (k) { return TYPES[k][l || lang()] || TYPES[k].en; });
