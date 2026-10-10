@@ -204,7 +204,7 @@
     if (error || !data) { console.error(error); pageErr = 'profileErr'; paintPageErr(); return; }
     profile = data;
 
-    // No date of birth (Google / Mail.ru) or the consent question was never asked:
+    // No date of birth (Google) or the consent question was never asked:
     // the cabinet does not open until the first-login screen is answered.
     if (!profile.onboarded || !profile.birth_date) await runOnboarding();
 

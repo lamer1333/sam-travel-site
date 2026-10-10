@@ -13,27 +13,30 @@ handles hashing, email confirmation and password reset.
 | File | Purpose |
 |---|---|
 | `supabase/migrations/001_schema.sql` | Tables, roles, consent fields, coupons, Row Level Security. Run first, then the other migrations in order. |
-| `index.html` `#auth` | Sign in / register form, in-page (email/password + Google + Mail.ru). Opened from the burger menu "Sign in". Logic lives in `js/app.js`; strings in `js/pages.js` (`AUI`, all three languages). |
-| `cabinet.html` | Client cabinet — the profile only: date of birth and the mailing consent (a switch). First-login screen for Google / Mail.ru users. The page the «Forgot password» link opens: the new password (at least 10 characters) is set here. The site has no request form and no bookings (TZ-BACKEND.md §0 п.20–22). |
+| `index.html` `#auth` | Sign in / register form, in-page (email/password + Google). Opened from the burger menu "Sign in". Logic lives in `js/app.js`; strings in `js/pages.js` (`AUI`, all three languages). |
+| `cabinet.html` | Client cabinet — the profile only: date of birth and the mailing consent (a switch). First-login screen for Google users. The page the «Forgot password» link opens: the new password (at least 10 characters) is set here. The site has no request form and no bookings (TZ-BACKEND.md §0 п.20–22). |
 | `js/supabase-config.js` | **Your public keys go here.** |
 | `js/auth.js` | Cabinet logic (the login form is in `js/app.js`). |
-| `supabase/functions/mailru-auth/index.ts` | Mail.ru login bridge (edge function). |
 
 The in-page form redirects to `cabinet.html` on success; the cabinet sends
 signed-out visitors back to `index.html#auth`.
 
 ---
 
-## Status (done on 2026-09-22)
+## Status (2026-10-09)
 
-- ✅ Supabase project **SamTravel** created — ref `kxbxbjkcvoeuyqyztqmw`, region Sydney.
+- ✅ Supabase project **SamTravel** created on the client's account (2026-10-09) — ref `zorcltqxulshhxgbvsim`, region Frankfurt. The old Sydney project `kxbxbjkcvoeuyqyztqmw` is not used.
 - ✅ Publishable key + URL inserted into `js/supabase-config.js`.
-- ✅ `001_schema.sql` (then named `schema.sql`) run in the SQL Editor (tables, RLS, triggers, view).
+- ✅ Migrations `supabase/migrations/*.sql` (001–110) applied with `supabase db push` on 2026-10-10.
 - ✅ Auth → URL Configuration: Site URL `https://samtravel.am`; redirect URLs for localhost preview + samtravel.am.
-- ✅ Verified end-to-end with a test user (`demo@samtravel.am`) — login, auto-profile, RLS, cabinet all work.
+- ✅ Google Cloud project `samtravel-site` (client's account): consent screen + OAuth client «SAM TRAVEL site».
+- ✅ Google: redirect URI `https://zorcltqxulshhxgbvsim.supabase.co/auth/v1/callback`, keys pasted into Supabase; sign-in verified locally on 2026-10-10 (Google → cabinet).
+- ⬜ Google: app published (Audience → Publish app) — until then only test users can sign in.
+- ✅ Email sign-up verified locally on 2026-10-10: custom SMTP is Mailjet (`in-v3.mailjet.com:587`, sender `samtravel.code@proton.me`), template «Confirm sign up» = `supabase/templates/confirm-signup.html`, Email OTP length 6, expiration 3600 s, minimum password length 10.
+- ✅ First owner promoted in the SQL Editor on 2026-10-10; `admin.html` opens. Further roles — in the panel, «Клиенты и команда».
+- ⬜ Before launch: send from an address on the site's own domain (verify the domain in the mail service) — mail «from proton.me» sent through a third-party service often lands in spam.
 
-Still to do (need your external accounts): **Google** (step 4), **Mail.ru** (step 5),
-promote your admin (step 6), plus **custom SMTP** and **deleting the demo user** (see bottom).
+Still to do: publish the Google app, deploy `lead-mail`, move the mail sender to the site's domain (see bottom).
 
 ---
 
@@ -78,33 +81,13 @@ and add `https://samtravel.am/cabinet.html` to **Redirect URLs**
 
 That's it — the "Continue with Google" button works.
 
-## 5. Mail.ru login (the bridge)
+## 5. Mail.ru login — removed
 
-Mail.ru isn't a built-in provider, so we deploy a small function.
-
-1. Register an app at <https://oauth.mail.ru/app/> (Mail.ru for Developers).
-   Set the **redirect URI** to:
-   `https://abcd1234.functions.supabase.co/mailru-auth`
-   Copy the **client_id** and **client_secret**.
-2. Install the CLI and deploy:
-   ```bash
-   npm i -g supabase
-   supabase login
-   supabase link --project-ref abcd1234
-   supabase functions deploy mailru-auth --no-verify-jwt
-   ```
-3. Set the function secrets (these stay server-side — never in the browser):
-   ```bash
-   supabase secrets set \
-     MAILRU_CLIENT_ID=xxx \
-     MAILRU_CLIENT_SECRET=xxx \
-     MAILRU_REDIRECT_URI=https://abcd1234.functions.supabase.co/mailru-auth \
-     SB_URL=https://abcd1234.supabase.co \
-     SB_SERVICE_ROLE_KEY=<service_role key from Settings → API> \
-     SITE_URL=https://samtravel.am
-   ```
-
-The "Continue with Mail.ru" button now works.
+Sign-in with Mail.ru was taken out on 2026-10-10: registering the Mail.ru app needs a
+mail.ru mailbox, and the project has none. The button, the client code and the edge function
+`mailru-auth` are gone (the last version is in git history before that date). Sign-in is
+email/password or Google. Migration `100_security.sql` still creates `auth_user_by_email()`;
+it is unused and closed to every API role.
 
 ## 6. Make yourself admin
 
@@ -130,7 +113,7 @@ the data plumbing is already here:
 
 - **Consent is stored, not assumed.** `profiles.marketing_consent` +
   `consent_at` + `consent_source`. The register form has an opt-in checkbox;
-  Google/Mail.ru users get the consent screen on first login.
+  Google users get the consent screen on first login.
 - **Your audience** = the `marketing_audience` view — only people who consented,
   with their email and language (en/ru/hy) so you can send in the right one.
 - **Send with a real ESP**, not your own server: **Brevo** or **Resend** (free
@@ -150,12 +133,11 @@ the data plumbing is already here:
 
 ## Before launch
 
-- **Custom SMTP.** Supabase's built-in email is rate-limited (~2–3/hour) and for
-  testing only, so email confirmation + password-reset links won't reliably reach
-  real clients. Connect an SMTP provider (Brevo / Resend — the same ESP you'll use
-  for mailings) in Authentication → Emails → SMTP before going live.
-- **Region.** The existing project is in Sydney. The launch is a new project in
-  Frankfurt with a clean database (stage 6, TZ-BACKEND.md §8.1) — nothing is moved over.
+- **Custom SMTP.** Connected (Mailjet). Supabase does not let you edit email templates or
+  send to real clients without it. What is left is the sender: move it from
+  `samtravel.code@proton.me` to an address on the site's domain once the domain works.
+- **Domain.** `samtravel.am` did not resolve on 2026-10-10. The site, the Google consent
+  screen links and the mail sender all depend on it.
 - **Promote your admin** (step 6) after you sign up with your real email.
 
 ## Test checklist
@@ -164,7 +146,6 @@ the data plumbing is already here:
 - [ ] Sign out → sign in again
 - [ ] Forgot password → the link from the email opens the cabinet with the «New password» form → a password shorter than 10 characters is refused → sign in with the new one
 - [ ] Google login → first-login consent screen shows → cabinet
-- [ ] Mail.ru login → cabinet
 - [ ] The mailing switch in the cabinet turns the consent off and on; the client leaves / returns to «Подписчики»
 - [ ] A client cannot read another client's profile (RLS)
 - [ ] `marketing_audience` lists only consented users

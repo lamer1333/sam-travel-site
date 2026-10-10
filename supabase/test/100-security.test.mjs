@@ -3,13 +3,11 @@
 //
 // На каждую находку с пометкой «Подтв.» здесь есть проверка, которая до исправления падала:
 // S1, S2, D1–D7. Остальные пункты S и D проверены тем же способом, где это возможно без
-// живого сервиса. Мост Mail.ru (S3) проверяется целиком на поддельных ответах Mail.ru и
-// Supabase Admin API — настоящих запросов нет.
+// живого сервиса.
 import fs from 'node:fs';
 import vm from 'node:vm';
 import crypto from 'node:crypto';
 import { db, U, as, ok, bad, expectErr } from './_db.mjs';
-import { handle as mailru, STATE_COOKIE } from '../functions/mailru-auth/handler.mjs';
 
 const src = (p) => fs.readFileSync(new URL('../../' + p, import.meta.url), 'utf8');
 const dataUrl = (code) => 'data:text/javascript;base64,' + Buffer.from(code).toString('base64');
@@ -81,145 +79,12 @@ console.log('  S — сайт, панель, функции');
   check(/csvText\(rows, columns\)/.test(src('js/admin/ui.js')), 'S2: выгрузки панели идут через эту функцию (js/admin/ui.js → csv())');
 }
 
-// ================================================================ S3: мост Mail.ru на поддельных ответах
+// ================================================================ S3: входа через Mail.ru на сайте нет
+// Мост Mail.ru снят (10.10.2026): функции и кнопки нет. auth_user_by_email из миграции 100 в базе
+// осталась — она по-прежнему закрыта для всех ролей API.
 {
-  const ENV = { MAILRU_CLIENT_ID: 'cid', MAILRU_CLIENT_SECRET: 'client-secret-xyz', MAILRU_REDIRECT_URI: 'https://proj.supabase.co/functions/v1/mailru-auth',
-    SB_URL: 'https://proj.supabase.co', SB_SERVICE_ROLE_KEY: 'service-key', SITE_URL: 'https://samtravel.am' };
-  const FN = 'https://proj.supabase.co/functions/v1/mailru-auth';
-  const TOKEN = 'mailru-access-token-SECRET';
-  const ERR_PAGE = 'https://samtravel.am/index.html?auth_error=mailru#auth';
-  let net, logs, adminCalls, mail;        // журнал одного сценария
-  const reset = (m = {}) => { net = []; logs = []; adminCalls = []; mail = { email: 'new.user@mail.ru', name: 'Анна Новая', bearer: true, tokenOk: true, createError: null, ...m }; };
-  // Mail.ru: /token и /userinfo
-  const fakeFetch = async (url, init = {}) => {
-    const u = new URL(String(url));
-    net.push({ url: String(url), auth: (init.headers || {}).Authorization || null, body: init.body ? String(init.body) : '' });
-    if (u.host !== 'oauth.mail.ru') throw new Error('настоящий запрос наружу: ' + url);
-    if (u.pathname === '/token') return new Response(JSON.stringify(mail.tokenOk ? { access_token: TOKEN } : { error: 'invalid_grant', error_description: 'secret detail ' + TOKEN }), { status: mail.tokenOk ? 200 : 400 });
-    if (u.pathname === '/userinfo') {
-      const viaHeader = (init.headers || {}).Authorization === 'Bearer ' + TOKEN, viaQuery = u.searchParams.get('access_token') === TOKEN;
-      if ((viaHeader && mail.bearer) || viaQuery) return new Response(JSON.stringify({ email: mail.email, name: mail.name }));
-      return new Response(JSON.stringify({ error: 'token not found' }), { status: 400 });
-    }
-    return new Response('{}', { status: 404 });
-  };
-  // Supabase: клиент с ключом service_role. Пользователи лежат в тестовой базе, поэтому
-  // auth_user_by_email() проверяется настоящая.
-  const admin = {
-    rpc: async (fn, args) => { adminCalls.push('rpc:' + fn); return { data: await val(`select public.${fn}($1)`, [args.p_email]), error: null }; },
-    auth: { admin: {
-      createUser: async (p) => {
-        adminCalls.push('createUser');
-        if (mail.createError) return { data: { user: null }, error: mail.createError };
-        const id = await val(`insert into auth.users(email, raw_user_meta_data) values ($1, $2) returning id`, [p.email, JSON.stringify(p.user_metadata)]);
-        return { data: { user: { id } }, error: null };
-      },
-      updateUserById: async (id, p) => { adminCalls.push({ update: id, ...p }); await db.query(`update auth.users set email_confirmed_at = now() where id = $1`, [id]); return { data: {}, error: null }; },
-      generateLink: async (p) => { adminCalls.push('generateLink'); return { data: { properties: { action_link: 'https://proj.supabase.co/auth/v1/verify?token=one-time&type=magiclink&redirect_to=' + encodeURIComponent(p.options.redirectTo) } }, error: null }; },
-    } },
-  };
-  const call = (url, { cookie, env = ENV, method = 'GET', withAdmin = true } = {}) =>
-    mailru(new Request(url, { method, headers: cookie ? { cookie } : {} }), env, { admin: withAdmin ? admin : null, fetch: fakeFetch, log: (c) => logs.push(c) });
-  const loc = (r) => r.headers.get('location');
-  /** пройти шаг 1 и вернуть то, с чем браузер придёт на шаг 2 */
-  const begin = async (redirectTo = 'https://samtravel.am/cabinet.html') => {
-    const r = await call(FN + '/start?redirect_to=' + encodeURIComponent(redirectTo));
-    const state = new URL(loc(r)).searchParams.get('state'), set = r.headers.get('set-cookie');
-    return { r, state, set, cookie: set.split(';')[0] };
-  };
-  const callback = (state, cookie, extra = '') => call(FN + '?code=the-code&state=' + encodeURIComponent(state) + extra, { cookie });
-
-  // c) настройки
-  reset();
-  for (const k of Object.keys(ENV)) {
-    const r = await call(FN + '/start', { env: { ...ENV, [k]: '' } });
-    if (r.status !== 500 || net.length) bad('S3: без ' + k + ' функция должна ответить 500 и никуда не ходить');
-  }
-  ok('S3c: без любой из шести переменных окружения — понятный ответ 500, без обращений наружу');
-  check((await call(FN + '/start', { env: { ...ENV, SITE_URL: 'not a url' } })).status === 500 && (await call(FN + '/start', { withAdmin: false })).status === 500 && logs.every((l) => l.startsWith('not_configured')),
-    'S3c: негодный SITE_URL и отсутствие клиента Supabase — тоже 500, а не необработанная ошибка', logs);
-  check((await call(FN + '/start', { method: 'POST' })).status === 405, 'S3: POST → 405');
-
-  // a) state привязан к браузеру
-  reset();
-  let b = await begin('https://samtravel.am/cabinet.html?from=mail');
-  const auth = new URL(loc(b.r));
-  check(b.r.status === 302 && auth.origin + auth.pathname === 'https://oauth.mail.ru/login' && auth.searchParams.get('client_id') === 'cid' && auth.searchParams.get('redirect_uri') === ENV.MAILRU_REDIRECT_URI,
-    'S3: шаг 1 ведёт на страницу согласия Mail.ru');
-  const st = JSON.parse(Buffer.from(b.state, 'base64url').toString());
-  check(/HttpOnly/.test(b.set) && /Secure/.test(b.set) && /SameSite=Lax/.test(b.set) && b.set.startsWith(STATE_COOKIE + '=') && st.n.length >= 40 && b.cookie === STATE_COOKIE + '=' + st.n,
-    'S3a: случайное число — в state и в cookie HttpOnly; Secure; SameSite=Lax', b.set);
-  check(st.r === 'https://samtravel.am/cabinet.html?from=mail' && (await begin()).state !== b.state, 'S3a: в state едет адрес возврата; число каждый раз новое');
-  check(JSON.parse(Buffer.from((await begin('https://evil.example/steal')).state, 'base64url').toString()).r === 'https://samtravel.am/cabinet.html', 'S3: чужой адрес возврата заменяется кабинетом');
-  let r = await call('https://proj.functions.supabase.co/mailru-auth/start?redirect_to=' + encodeURIComponent('https://samtravel.am/cabinet.html'));
-  check(loc(r).startsWith(FN + '?hop=1&redirect_to=') && !r.headers.get('set-cookie'), 'S3a: вход, начатый с другого адреса функции, сначала переходит на адрес возврата — cookie ставится там', loc(r));
-
-  reset(); b = await begin();
-  r = await callback(b.state, null);
-  check(loc(r) === ERR_PAGE && net.length === 0 && adminCalls.length === 0 && logs[0] === 'state', 'S3a: возврат без cookie (ссылку открыли в другом браузере) — отказ, к Mail.ru и Supabase никто не ходил', [loc(r), logs]);
-  const other = await begin();
-  r = await callback(b.state, other.cookie);
-  check(loc(r) === ERR_PAGE && net.length === 0 && adminCalls.length === 0, 'S3a: чужой state со своим cookie — отказ');
-  r = await callback(Buffer.from(JSON.stringify({ r: 'https://samtravel.am/' })).toString('base64url'), b.cookie);
-  check(loc(r) === ERR_PAGE, 'S3a: state без числа (старого вида) — отказ');
-  r = await callback('%%%не base64', b.cookie);
-  check(loc(r) === ERR_PAGE && r.status === 302, 'S3c: битый state — отказ, а не падение');
-
-  // новый пользователь
-  reset(); b = await begin('https://samtravel.am/cabinet.html?from=mail');
-  r = await callback(b.state, b.cookie);
-  check(r.status === 302 && loc(r).startsWith('https://proj.supabase.co/auth/v1/verify?token=one-time') && loc(r).endsWith(encodeURIComponent('https://samtravel.am/cabinet.html?from=mail')),
-    'S3: новый адрес → пользователь создан, браузер уходит по одноразовой ссылке с верным адресом возврата', loc(r));
-  check(adminCalls.join(',') === 'rpc:auth_user_by_email,createUser,generateLink' && /Max-Age=0/.test(r.headers.get('set-cookie')), 'S3: порядок обращений — поиск, создание, ссылка; cookie после входа стёрта', adminCalls);
-  check(net.length === 2 && net[1].auth === 'Bearer ' + TOKEN && !net.some((n) => n.url.includes(TOKEN)) && net[0].body.includes('client_secret=client-secret-xyz'),
-    'S3c: токен Mail.ru идёт в заголовке, а не в строке запроса', net.map((n) => n.url));
-  const created = await one(`select p.full_name, u.email from profiles p join auth.users u on u.id = p.id where u.email = 'new.user@mail.ru'`);
-  check(created && created.full_name === 'Анна Новая', 'S3: имя из Mail.ru попало в профиль');
-
-  // уже есть, подтверждён
-  reset(); b = await begin(); r = await callback(b.state, b.cookie);
-  check(adminCalls.join(',') === 'rpc:auth_user_by_email,generateLink' && loc(r).includes('/auth/v1/verify'), 'S3: подтверждённый пользователь — без создания и без сброса пароля', adminCalls);
-
-  // b) адрес заранее зарегистрировал кто-то другой и не подтвердил
-  const squat = await val(`insert into auth.users(email, email_confirmed_at, raw_user_meta_data) values ('Victim@Mail.ru', null, '{"full_name":"Не тот"}') returning id`);
-  check((await val(`select public.auth_user_by_email(' victim@mail.RU ')`)).confirmed === false, 'S3b: auth_user_by_email видит неподтверждённый адрес (без учёта регистра)');
-  reset({ email: 'victim@mail.ru' }); b = await begin(); r = await callback(b.state, b.cookie);
-  const upd = adminCalls.find((c) => c && c.update);
-  check(upd && upd.update === squat && typeof upd.password === 'string' && upd.password.length >= 40 && upd.email_confirm === true
-    && adminCalls.indexOf(upd) < adminCalls.indexOf('generateLink') && !adminCalls.includes('createUser'),
-    'S3b: у неподтверждённой учётной записи пароль сброшен на случайный ДО выпуска ссылки входа', adminCalls.map((c) => (c.update ? 'updateUserById' : c)));
-  check(logs.length === 0 && !loc(r).includes(upd.password), 'S3b: новый пароль никуда не уходит — ни в журнал, ни в адрес');
-  reset({ email: 'victim@mail.ru' }); b = await begin(); await callback(b.state, b.cookie);
-  check(!adminCalls.some((c) => c && c.update), 'S3b: после подтверждения пароль больше не трогают');
-
-  // b) ошибки createUser, кроме «уже существует», не глотаются
-  reset({ email: 'broken@mail.ru', createError: { message: 'Database error creating new user', status: 500 } }); b = await begin(); r = await callback(b.state, b.cookie);
-  check(loc(r) === ERR_PAGE && !adminCalls.includes('generateLink') && logs.join() === 'create', 'S3b: createUser упал не из-за «уже существует» — входа нет, ссылка не выпущена', [adminCalls, logs]);
-  // гонка: между поиском и созданием адрес зарегистрировали
-  reset({ email: 'race@mail.ru', createError: { message: 'A user with this email address has already been registered', code: 'email_exists', status: 422 } });
-  b = await begin();
-  const origRpc = admin.rpc; let first = true;
-  admin.rpc = async (fn, args) => { if (first) { first = false; adminCalls.push('rpc:' + fn); return { data: null, error: null }; } return origRpc(fn, args); };
-  await db.query(`insert into auth.users(email, email_confirmed_at) values ('race@mail.ru', null)`);
-  r = await callback(b.state, b.cookie); admin.rpc = origRpc;
-  check(loc(r).includes('/auth/v1/verify') && adminCalls.some((c) => c && c.update) && adminCalls.indexOf('createUser') < adminCalls.findIndex((c) => c && c.update),
-    'S3b: «уже существует» при создании — пользователь найден заново, неподтверждённому сброшен пароль', adminCalls.map((c) => (c.update ? 'updateUserById' : c)));
-
-  // c) ошибки Mail.ru
-  reset({ tokenOk: false }); b = await begin(); r = await callback(b.state, b.cookie);
-  check(loc(r) === ERR_PAGE && logs.join() === 'token' && !JSON.stringify(logs).includes(TOKEN) && adminCalls.length === 0,
-    'S3c: Mail.ru не выдал токен — возврат к форме входа на сайте (index.html#auth), в журнале только код шага', [loc(r), logs]);
-  check(!src('supabase/functions/mailru-auth/handler.mjs').includes('login.html') && !src('supabase/functions/mailru-auth/index.ts').includes('login.html'), 'S3c: несуществующей /login.html в функции больше нет');
-  reset({ bearer: false }); b = await begin(); r = await callback(b.state, b.cookie);
-  check(loc(r).includes('/auth/v1/verify') && net.length === 3 && net[1].auth && net[2].url.includes('access_token='), 'S3c: если Mail.ru не читает заголовок — запасной запрос по описанию Mail.ru, вход проходит');
-  reset({ email: '' }); b = await begin(); r = await callback(b.state, b.cookie);
-  check(loc(r) === ERR_PAGE && logs.join() === 'userinfo' && adminCalls.length === 0, 'S3: Mail.ru не вернул адрес — входа нет');
-  reset({ email: 'a@b.ru"><script>' }); b = await begin(); r = await callback(b.state, b.cookie);
-  check(loc(r) === ERR_PAGE && adminCalls.length === 0, 'S3: адрес с разметкой не принимается');
-  reset(); r = await call(FN + '?error=access_denied&state=x');
-  check(loc(r) === ERR_PAGE && logs.join() === 'denied' && net.length === 0, 'S3c: отказ на стороне Mail.ru возвращает на сайт, а не запускает вход по кругу');
-  const code = src('supabase/functions/mailru-auth/handler.mjs');
-  check(!/console\.error\([^)]*err\b/.test(code) && /Step\b/.test(code), 'S3c: сырой текст ошибки в журнал не пишется');
+  check(!fs.existsSync(new URL('../../supabase/functions/mailru-auth', import.meta.url)), 'S3: функции mailru-auth в репозитории нет');
+  check(!/mailru/i.test(src('index.html') + src('js/app.js') + src('cabinet.html') + src('js/auth.js')), 'S3: на сайте нет ни кнопки, ни перехода на вход через Mail.ru');
   for (const w of ['anon', 'cli', 'mgr', 'owner']) await expectErr(w, `select public.auth_user_by_email('owner@t.am')`, [], 'S3: auth_user_by_email закрыта для ' + w);
 }
 
@@ -235,7 +100,6 @@ console.log('  S — сайт, панель, функции');
     check(ext.length === 0, `S4: ${page} — у каждого чужого скрипта есть integrity`, ext.map((m) => m[1]));
   }
   check(!/cdnjs/.test(src('cabinet.html')), 'S4: в кабинете cdnjs нет совсем — qrcode ему не нужен');
-  check(/esm\.sh\/@supabase\/supabase-js@2\.117\.2'/.test(src('supabase/functions/mailru-auth/index.ts')), 'S4: функция Mail.ru тоже берёт точную версию');
 }
 
 // ================================================================ S5: адрес фото

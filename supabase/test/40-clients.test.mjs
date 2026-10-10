@@ -47,8 +47,8 @@ await signUpFails('future', { consent_source: 'signup_form', birth_date: tomorro
 await signUpFails('junk', { consent_source: 'signup_form', birth_date: 'not-a-date' }, 'мусор вместо даты — регистрация отклонена');
 check((await one(`select count(*)::int n from auth.users where email in ('kid@t.am','old@t.am','future@t.am','junk@t.am')`)).n === 0, 'отклонённые регистрации не оставили аккаунтов');
 
-// ---------------------------------------------------------------- первый вход (Google / Mail.ru)
-await signUp('soc', { full_name: 'Social', provider: 'mailru' });
+// ---------------------------------------------------------------- первый вход (Google)
+await signUp('soc', { full_name: 'Social', provider: 'google' });
 let me = (await as('soc', `select my_profile() p`)).rows[0].p;
 check(me.birth_date === null && me.onboarded === false && me.email === 'soc@t.am', 'вход через соцсеть: профиль без даты, экран первого входа ещё не пройден');
 await expectErr('soc', `select finish_onboarding(null, true)`, [], 'первый вход без даты рождения не завершается');

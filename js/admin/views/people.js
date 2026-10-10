@@ -56,7 +56,7 @@ export default async function peopleView(root, ctx, params) {
         h('div.card.card--flush', table({ rows: rows.slice(0, 400), initialSort: ['created_at', -1], columns: [
           { key: 'full_name', label: 'Клиент', sort: (u) => u.full_name || '', render: (u) => h('div.cell-main', h('b', u.full_name || '—'), h('small', u.email, u.email_confirmed === false ? h('span.muted', ' · не подтверждена') : null)) },
           { key: 'birth_date', label: 'Дата рождения', sort: (u) => u.birth_date || '', render: (u) => birthDate(u.birth_date) },
-          { key: 'provider', label: 'Вход', sort: true, render: (u) => ({ email: 'Email', google: 'Google', mailru: 'Mail.ru' }[u.provider] || u.provider) },
+          { key: 'provider', label: 'Вход', sort: true, render: (u) => ({ email: 'Email', google: 'Google' }[u.provider] || u.provider) },
           { key: 'lang', label: 'Язык', sort: true, render: (u) => (u.lang || '').toUpperCase() },
           { key: 'marketing_consent', label: 'Акции', sort: (u) => +u.marketing_consent, render: (u) => u.marketing_consent ? h('span.badge.badge--ok', 'да') : h('span.badge.badge--off', 'нет') },
           { key: 'created_at', label: 'Регистрация', sort: true, render: (u) => fmt.date(u.created_at) },

@@ -802,18 +802,15 @@
       var backBtn = f.querySelector('[data-code-back]');
       if (backBtn) backBtn.addEventListener('click', function () { err(f, ''); msg(f, ''); setStep(f, 1); });
 
-      /* Google (native) / Mail.ru (via edge function) */
+      /* Google (native Supabase provider) */
       $$('[data-oauth]', f).forEach(function (b) {
         b.addEventListener('click', function () {
           err(f, ''); msg(f, '');
           var prov = b.dataset.oauth;
           var back = cabinetUrl();
-          if (prov === 'mailru') {
-            var base = (window.SAM_SUPABASE && window.SAM_SUPABASE.url) || '';
-            location.href = base + '/functions/v1/mailru-auth/start?redirect_to=' + encodeURIComponent(back);
-            return;
-          }
-          sb.auth.signInWithOAuth({ provider: prov, options: { redirectTo: back } })
+          /* select_account: Google always shows the account chooser — otherwise after «Sign out»
+             it silently signs the same account back in and another one cannot be picked */
+          sb.auth.signInWithOAuth({ provider: prov, options: { redirectTo: back, queryParams: { prompt: 'select_account' } } })
             .then(function (r) { if (r.error) err(f, friendly(r.error)); });
         });
       });

@@ -157,7 +157,7 @@ function generate(REM) {
       i === 0 ? 'Demo User' : nm, 'client', wpick([['ru', 5], ['hy', 4], ['en', 1]]), {
         created_at: iso(created), marketing_consent: consent, consent_at: consent ? iso(created + R() * 3 * DAY) : null,
         consent_source: consent ? wpick([['signup_form', 3], ['onboarding_social', 2]]) : null,
-        provider: wpick([['email', 5], ['google', 4], ['mailru', 1]]), last_sign_in_at: iso(created + R() * (now - created)),
+        provider: wpick([['email', 5], ['google', 5]]), last_sign_in_at: iso(created + R() * (now - created)),
       }));
   }
   function slugMail(n) { const map = { а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ж:'zh',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'kh',ц:'ts',ч:'ch',ш:'sh',ы:'y',э:'e',ю:'yu',я:'ya' }; return n.toLowerCase().replace(/[а-я]/g, (c) => map[c] || '').replace(/[^a-z]+/g, '.').replace(/^\.|\.$/g, ''); }
