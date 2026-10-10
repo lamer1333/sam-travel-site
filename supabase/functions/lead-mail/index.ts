@@ -19,8 +19,8 @@
 //
 // Секреты (Supabase → Edge Functions → Secrets), в коде и в браузере их нет:
 //   WEBHOOK_SECRET        длинная случайная строка, та же, что в заголовке вебхука
-//   SB_URL                https://<project>.supabase.co
-//   SB_SERVICE_ROLE_KEY   <service_role key>
+//   SB_URL, SB_SERVICE_ROLE_KEY   не нужны: функция берёт SUPABASE_URL и SUPABASE_SERVICE_ROLE_KEY,
+//                         которые Supabase даёт ей сам
 //   SITE_URL              https://samtravel.am        ← для ссылки «Открыть в панели»
 //   MAIL_PROVIDER         resend (по умолчанию) | brevo
 //   MAIL_API_KEY          ключ почтового сервиса
@@ -29,4 +29,9 @@
 // ============================================================================
 import { handle } from './handler.mjs';
 
-Deno.serve((req) => handle(req, Deno.env.toObject()));
+// Supabase gives every function SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY by itself, so SB_URL and
+// SB_SERVICE_ROLE_KEY need not be set by hand (they still win when they are — for a test stand).
+Deno.serve((req) => {
+  const env = Deno.env.toObject();
+  return handle(req, { SB_URL: env.SUPABASE_URL, SB_SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY, ...env });
+});
