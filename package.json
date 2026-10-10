@@ -4,7 +4,8 @@
   "description": "SAM TRAVEL — статический сайт и панель; зависимости нужны только тестам базы",
   "scripts": {
     "test": "node supabase/test/run.mjs",
-    "build": "node build.mjs"
+    "build": "node build.mjs",
+    "deploy:preview": "node build.mjs && CLOUDFLARE_ACCOUNT_ID=32daa3e1a5e9cd65002f4ad68a8d2003 npx --yes wrangler@latest pages deploy dist --project-name samtravel-preview --branch main --commit-dirty=true"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.0"
