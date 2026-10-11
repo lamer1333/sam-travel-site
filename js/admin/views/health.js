@@ -49,7 +49,7 @@ export default async function healthView(root, ctx) {
 
   root.append(pageHead('Готовность сайта', 'Панель сама проверяет контент сайта и настройки. Пункты обновляются при каждом открытии.'));
   root.append(h('div.dash',
-    h('section.card.c4', { style: { display: 'grid', placeItems: 'center', textAlign: 'center', gap: '10px', alignSelf: 'start', position: 'sticky', top: '84px', padding: '28px 20px' } },
+    h('section.card.c4.health-score', { style: { display: 'grid', placeItems: 'center', textAlign: 'center', gap: '10px', alignSelf: 'start', padding: '28px 20px' } },
       ring(score, { size: 150 }),
       h('div', h('b', { style: { fontSize: '16px' } }, score >= 0.85 ? 'Можно запускать' : score >= 0.6 ? 'Почти готово' : 'Нужно доделать'),
         h('div.muted', oks.length + ' из ' + C.length + ' пунктов в порядке'))),
