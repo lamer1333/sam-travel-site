@@ -52,9 +52,18 @@ Cloudflare отдаёт те же страницы). Cloudflare Pages их от�
 
 По порядку; пункты 1, 3–5 делает владелец аккаунтов, пункт 2 — правка в репозитории.
 
-1. **Cloudflare** → проект `samtravel` → Custom domains: добавить `samtravel.am` и
-   `www.samtravel.am`, прописать у регистратора записи, которые покажет Cloudflare.
-   Сертификат выпустится сам.
+1. **Домен и Cloudflare.** Состояние на 11.10.2026: `samtravel.am` зарегистрирован в
+   name.am (до 15.06.2027) и направлен на серверы `hope.ns.cloudflare.com` и
+   `terin.ns.cloudflare.com`, но зоны на них нет (ответ `REFUSED`), а в реестре осталась
+   запись DS от прежней зоны — поэтому домен не открывается нигде.
+   - В аккаунте Cloudflare заказчика: Add a domain → `samtravel.am`, тариф Free.
+     Cloudflare назовёт два своих сервера имён.
+   - В name.am: поставить эти два сервера имён (если отличаются от нынешних) и удалить
+     запись DS (DNSSEC). Пока старая DS на месте, домен не заработает.
+   - Когда зона станет Active: Workers & Pages → `samtravel` → Custom domains → добавить
+     `samtravel.am` и `www.samtravel.am`. Записи и сертификат Cloudflare создаст сам.
+   - Проверка: `dig +short samtravel.am` отдаёт адреса, `curl -I https://samtravel.am/`
+     отвечает 200. DNSSEC можно включить заново уже в Cloudflare и внести новую DS в name.am.
 2. **Адрес в коде.** Заменить `samtravel-dny.pages.dev` на домен в `index.html`,
    `sitemap.xml`, `robots.txt`, `js/admin/views/campaigns.js`, `js/admin/views/seo.js`,
    `supabase/functions/lead-mail/index.ts` и в секрете `SITE_URL` функции `lead-mail`.
