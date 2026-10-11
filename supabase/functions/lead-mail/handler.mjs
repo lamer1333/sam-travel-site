@@ -99,7 +99,7 @@ async function sendMail(mail, to, key, env, fetchImpl) {
   } else if (provider === 'mailjet') {
     // ключ Mailjet — пара «API Key:Secret Key» одной строкой
     url = env.MAIL_API_URL || 'https://api.mailjet.com/v3.1/send';
-    headers = { Authorization: 'Basic ' + btoa(env.MAIL_API_KEY) };
+    headers = { Authorization: 'Basic ' + btoa(env.MAIL_API_KEY.replace(/\s+/g, '')) };   // пробел или перенос строки, попавший при вставке, ломает вход
     const m = /^\s*(.*?)\s*<([^>]+)>\s*$/.exec(env.MAIL_FROM);
     body = { Messages: [{ From: m ? { Name: m[1], Email: m[2] } : { Email: env.MAIL_FROM.trim() }, To: [{ Email: to }], Subject: mail.subject, HTMLPart: mail.html, TextPart: mail.text, CustomID: key }] };
   } else {

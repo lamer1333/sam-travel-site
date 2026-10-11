@@ -202,10 +202,10 @@ outbox.length === before + 1 && b.headers['api-key'] === 'mail-key' && b.sender.
   ? ok('другой почтовый сервис (brevo) включается переменной окружения') : bad('brevo ' + JSON.stringify(b).slice(0, 200));
 
 const L9 = await siteLead();
-r = await hook({ type: 'INSERT', table: 'leads', record: L9 }, { env: { ...ENV, MAIL_PROVIDER: 'mailjet', MAIL_API_KEY: 'pub:sec', MAIL_API_URL: 'http://mail.test/mailjet' } });
+r = await hook({ type: 'INSERT', table: 'leads', record: L9 }, { env: { ...ENV, MAIL_PROVIDER: 'mailjet', MAIL_API_KEY: ' pub: sec\n', MAIL_API_URL: 'http://mail.test/mailjet' } });
 const mj = outbox.at(-1), mjm = (mj.Messages || [])[0] || {};
 mj.headers.Authorization === 'Basic ' + btoa('pub:sec') && mjm.From.Email === 'leads@samtravel.am' && mjm.From.Name === 'SAM TRAVEL' && mjm.To[0].Email === 'new@samtravel.am' && mjm.HTMLPart && mjm.TextPart && mjm.Subject
-  ? ok('почтовый сервис mailjet: пара ключей уходит в Basic, письмо в формате Send API v3.1') : bad('mailjet ' + JSON.stringify(mj).slice(0, 200));
+  ? ok('почтовый сервис mailjet: пара ключей уходит в Basic (пробелы и перенос строки отброшены), письмо в формате Send API v3.1') : bad('mailjet ' + JSON.stringify(mj).slice(0, 200));
 
 // ---- кнопка «Отправить пробное письмо»: токен владельца вместо секрета вебхука ----
 {
