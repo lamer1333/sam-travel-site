@@ -34,7 +34,7 @@
   // ------- i18n (en is also the markup default) ------------------------------
   const I18N = {
     en: {
-      signOut: 'Sign out', panel: 'Control panel', hi: 'Hi', lead: 'Your details are below.',
+      signOut: 'Sign out', toSite: 'Back to site', panel: 'Control panel', hi: 'Hi', lead: 'Your details are below.',
       profileH: 'Profile', birthLabel: 'Date of birth', change: 'Change', save: 'Save', cancel: 'Cancel',
       onbTitle: 'One quick thing', onbText: 'We need your date of birth to open your account.',
       onbTextConsent: 'Would you like to hear about deals and discounts?',
@@ -55,7 +55,7 @@
       roles: { client: 'client', manager: 'manager', marketer: 'marketer', content: 'content', admin: 'owner' },
     },
     ru: {
-      signOut: 'Выйти', panel: 'Панель управления', hi: 'Привет', lead: 'Ваши данные — ниже.',
+      signOut: 'Выйти', toSite: 'На сайт', panel: 'Панель управления', hi: 'Привет', lead: 'Ваши данные — ниже.',
       profileH: 'Профиль', birthLabel: 'Дата рождения', change: 'Изменить', save: 'Сохранить', cancel: 'Отмена',
       onbTitle: 'Один момент', onbText: 'Чтобы открыть кабинет, укажите дату рождения.',
       onbTextConsent: 'Хотите получать акции и скидки?',
@@ -76,7 +76,7 @@
       roles: { client: 'клиент', manager: 'менеджер', marketer: 'маркетолог', content: 'контент', admin: 'владелец' },
     },
     hy: {
-      signOut: 'Ելք', panel: 'Կառավարման վահանակ', hi: 'Բարև', lead: 'Ձեր տվյալները՝ ստորև։',
+      signOut: 'Ելք', toSite: 'Դեպի կայք', panel: 'Կառավարման վահանակ', hi: 'Բարև', lead: 'Ձեր տվյալները՝ ստորև։',
       profileH: 'Պրոֆիլ', birthLabel: 'Ծննդյան ամսաթիվ', change: 'Փոխել', save: 'Պահպանել', cancel: 'Չեղարկել',
       onbTitle: 'Մեկ պահ', onbText: 'Անձնական էջը բացելու համար նշեք ձեր ծննդյան ամսաթիվը։',
       onbTextConsent: 'Ցանկանո՞ւմ եք ստանալ ակցիաներ և զեղչեր։',
