@@ -4,6 +4,23 @@
 (список публикуемых файлов — в начале `build.mjs`). Служебное — `supabase/`, инструкции,
 тесты — в `dist/` не попадает.
 
+## Боевой сайт
+
+Адрес: <https://samtravel-dny.pages.dev> — проект `samtravel` в аккаунте Cloudflare
+заказчика (`samvelharutyunyan708@gmail.com`). Своего домена пока нет; когда появится, он
+добавляется в этом же проекте (Custom domains), а адрес в `index.html`, `sitemap.xml`,
+`robots.txt`, `js/admin/views/campaigns.js`, `js/admin/views/seo.js` и в секрете `SITE_URL`
+функции `lead-mail` меняется на него.
+
+```bash
+npm run deploy:prod
+```
+
+Команда прогоняет тесты, собирает `dist/` и выкладывает его; если тесты не прошли,
+выкладки не будет. Нужен вход `npx wrangler login` в аккаунт заказчика. Рабочий порядок:
+правка → `npm run deploy:prod` → проверка на сайте → коммит. Выкладка идёт с компьютера;
+через GitHub сайт не выкладывается.
+
 ## Предпросмотр для заказчика
 
 Временный адрес: <https://samtravel-preview.pages.dev> — проект `samtravel-preview` в
@@ -55,20 +72,21 @@ Cloudflare Pages, как описано выше. До этого решения
 
 ## После первой выкладки проверить
 
-- `https://samtravel.am/` открывается, языки переключаются.
+- `https://samtravel-dny.pages.dev/` открывается, языки переключаются.
 - WhatsApp: кнопка на карточке тура открывает чат с текстом про этот тур и номером обращения; номер находится в `admin.html` → «Продажи» → «Продажа».
 - Вход (меню → Войти) и личный кабинет.
-- `curl -I https://samtravel.am/` показывает `x-frame-options: DENY`.
+- `curl -I https://samtravel-dny.pages.dev/` показывает `x-frame-options: DENY`.
 
-В Supabase (Auth → URL Configuration) домен `samtravel.am` уже прописан. Если проверяете
-на адресе `*.pages.dev`, добавьте его в Redirect URLs — иначе вход вернёт на боевой домен.
+В Supabase (Auth → URL Configuration) Site URL — `https://samtravel-dny.pages.dev`, в
+Redirect URLs — `https://samtravel-dny.pages.dev/**`. Адрес предпросмотра добавляется туда
+же, иначе вход с него вернёт на боевой сайт.
 
 ## Обновление сайта
 
 ```bash
+npm run deploy:prod
 git add -A
 git commit -m "что изменили"
-git push
 ```
 
 Тексты, туры, отзывы, контакты и промо меняются в панели без выкладки.
