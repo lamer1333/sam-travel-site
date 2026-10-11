@@ -75,6 +75,8 @@ export class LiveApi {
   async users() { return must(await this.sb.rpc('users_list')); }
   async setRole(id, role) { must(await this.sb.rpc('set_role', { p_user: id, p_role: role })); }
   async audience() { return must(await this.sb.rpc('audience_list')); }
+  /** what clients chose in the cabinet: the trip and the documents — owner and manager (160_trips.sql) */
+  async trips() { return must(await this.sb.rpc('client_trips')); }
   /** month 1–12; clients with consent and a confirmed address — owner and marketer only */
   async birthdays(month) { return must(await this.sb.rpc('birthdays', { p_month: month })); }
 

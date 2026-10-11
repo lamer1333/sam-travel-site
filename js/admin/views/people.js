@@ -1,18 +1,19 @@
-// People: the team and their roles, registered clients.
+// People: the team and their roles, registered clients, and what clients chose in the cabinet.
 import { h, $$, mount, icon, fmt, toast, confirmDlg, input, select, table, csv, debounce, pageHead, initials, plural } from '../ui.js';
 import { ROLE_NAMES } from '../main.js';
 import { birthDate } from './common.js';
+import { tripView } from '../trips.js';
 
 const ROLE_HINT = {
   admin: 'Всё: продажи, контент, роли, реквизиты, журнал',
-  manager: 'Сводка, журнал продаж и напоминания о вылетах; список команды. Без клиентов сайта и настроек',
+  manager: 'Сводка, журнал продаж, напоминания о вылетах и поездки клиентов из кабинета; список команды. Без остальных клиентов сайта и настроек',
   marketer: 'Аналитика, кампании, промо, промокоды, подписчики, туры и отзывы. Без телефонов клиентов',
   content: 'Только «Контент сайта»: туры, рилсы, отзывы, фото команды. Без продаж, клиентов и аналитики',
   client: 'Только свой личный кабинет',
 };
 export default async function peopleView(root, ctx, params) {
   const owner = ctx.can('owner');
-  const TABS = [['team', 'Команда'], owner ? ['clients', 'Клиенты'] : null].filter(Boolean);
+  const TABS = [['team', 'Команда'], ctx.can('sales') ? ['trips', 'Поездки'] : null, owner ? ['clients', 'Клиенты'] : null].filter(Boolean);
   const tab = TABS.some((t) => t[0] === params[0]) ? params[0] : 'team';
   root.append(pageHead('Клиенты и команда', owner ? 'Чтобы добавить сотрудника: он регистрируется на сайте обычным способом, а вы назначаете ему роль здесь.' : null),
     h('div.tabs', { role: 'tablist' }, TABS.map(([k, l]) => h('button', { role: 'tab', 'aria-selected': String(k === tab), onclick: () => ctx.go('people/' + k) }, l))));
@@ -39,6 +40,36 @@ export default async function peopleView(root, ctx, params) {
         : h('span.badge.badge--plain', ROLE_NAMES[u.role]) },
       { key: 'last_sign_in_at', label: 'Был в сети', render: (u) => fmt.ago(u.last_sign_in_at) },
     ] })));
+  }
+
+  // «Поездки»: what a signed-in client chose on «Спланируйте поездку» and in the document
+  // checklist (the cabinet shows the same as «Моя поездка» and «Мои документы»). Read-only.
+  if (tab === 'trips') {
+    const trips = (await ctx.api.trips()).map((r) => ({ ...r, v: tripView(r, window.SAM_PAGES) }));
+    const f = { q: '' };
+    const list = h('div');
+    const s = input('', { placeholder: 'Имя, email, направление', attrs: { type: 'search' } });
+    s.addEventListener('input', debounce(() => { f.q = s.value.trim().toLowerCase(); paint(); }, 150));
+    const data = () => trips.filter((r) => !f.q || [r.full_name, r.email, r.phone, r.v.dest, r.v.docs && r.v.docs.label].some((x) => (x || '').toLowerCase().includes(f.q)));
+    const soon = (d) => d == null || d < 0 ? null : h('small', d === 0 ? 'сегодня' : d === 1 ? 'завтра' : 'через ' + d + ' дн.');
+    box.append(h('p.muted', { style: { margin: '0 0 12px', maxWidth: '70ch' } }, 'Клиенты, которые вошли на сайте и выбрали поездку или страну для документов. Это их черновик, а не заявка: цену они ещё не спрашивали.'),
+      h('div.toolbar', s, h('span', { style: { flex: 1 } }),
+        h('button.btn', { onclick: () => csv('trips.csv', data(), [['Имя', (r) => r.full_name], ['Email', (r) => r.email], ['Телефон', (r) => r.phone], ['Язык', (r) => r.lang], ['Направление', (r) => r.v.dest], ['Даты', (r) => r.v.dates], ['Людей', (r) => r.v.people], ['Питание', (r) => r.v.meals], ['Документы', (r) => r.v.docs ? r.v.docs.label : ''], ['Собрано', (r) => r.v.docs ? r.v.docs.done + ' из ' + r.v.docs.total : ''], ['Обновлено', (r) => fmt.dt(r.updated_at)]]) }, icon('download'), 'CSV')), list);
+    function paint() {
+      const rows = data();
+      mount(list, h('div.muted', { style: { margin: '0 0 8px', fontSize: '12.5px' } }, fmt.num(rows.length) + ' ' + plural(rows.length, 'клиент', 'клиента', 'клиентов')),
+        h('div.card.card--flush', table({ rows, initialSort: ['updated_at', -1], empty: 'Пока никто из клиентов не сохранил поездку в кабинете', columns: [
+          { key: 'full_name', label: 'Клиент', sort: (r) => r.full_name || r.email || '', render: (r) => h('div.cell-main', h('b', r.full_name || '—'), h('small', h('a', { href: 'mailto:' + r.email }, r.email), r.phone ? ' · ' + r.phone : null)) },
+          { key: 'dest', label: 'Куда', sort: (r) => r.v.dest, render: (r) => r.v.dest ? h('b', r.v.dest) : h('span.muted', 'не выбрано') },
+          { key: 'dates', label: 'Когда', sort: (r) => (r.plan && r.plan.from) || '9', render: (r) => r.v.dates ? h('div.cell-main', h('span', { style: { display: 'block' } }, r.v.dates), soon(r.v.days)) : h('span.muted', '—') },
+          { key: 'people', label: 'Людей', sort: (r) => r.v.people || 0, render: (r) => r.v.dest || r.v.dates ? String(r.v.people || '—') : h('span.muted', '—') },
+          { key: 'meals', label: 'Питание', render: (r) => r.v.meals || h('span.muted', '—') },
+          { key: 'docs', label: 'Документы', sort: (r) => r.v.docs ? r.v.docs.done / (r.v.docs.total || 1) : -1, render: (r) => !r.v.docs ? h('span.muted', 'не начаты')
+            : h('div.cell-main', h('span', { style: { display: 'block' } }, r.v.docs.label), h('small', r.v.docs.total && r.v.docs.done >= r.v.docs.total ? h('span.badge.badge--ok', 'всё собрано') : 'собрано ' + r.v.docs.done + ' из ' + r.v.docs.total)) },
+          { key: 'updated_at', label: 'Обновлено', sort: true, render: (r) => fmt.ago(r.updated_at) },
+        ] })));
+    }
+    paint();
   }
 
   if (tab === 'clients') {

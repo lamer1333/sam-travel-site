@@ -573,6 +573,26 @@ export class DemoApi {
     const seesBirth = ROLE_OK.audience.includes(this.st.role);
     return this.wait(rows.map((u) => ({ ...u, birth_date: seesBirth ? u.birth_date : null, ...this.counts_(u.id) })), 120);
   }
+  // «Поездки»: as client_trips() in 160_trips.sql — owner and manager, clients only. The demo
+  // makes them up from the first clients of the list, the same every time.
+  async trips() {
+    this.guard('leads');
+    const at = (d) => { const x = new Date(Date.now() + d * 86400e3); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
+    const ticks = (key, n) => Object.fromEntries(Array.from({ length: n }, (_, i) => [key + '-' + i, true]));
+    const SAMPLES = [
+      [{ dest: 'greece', people: 2, from: at(12), to: at(21), meals: ['breakfast'] }, { dest: 'europe', type: 'tourist', checked: ticks('europe-tourist', 9) }, 0.1],
+      [{ dest: 'uae', people: 4, from: at(34), to: at(41), meals: ['breakfast', 'dinner'] }, {}, 0.6],
+      [{}, { dest: 'usa', type: 'tourist', checked: ticks('usa-tourist', 8) }, 1.5],
+      [{ dest: 'maldives', people: 2, from: at(70), to: at(79), meals: [] }, { dest: 'england', type: 'tourist', checked: ticks('england-tourist', 2) }, 3],
+      [{ dest: 'egypt', people: 3, from: '', to: '', meals: ['breakfast', 'lunch', 'dinner'] }, {}, 6],
+      [{ dest: 'georgia', people: 1, from: at(5), to: at(9), meals: [] }, { dest: 'japan', type: 'tourist', checked: {} }, 9],
+    ];
+    const clients = this.st.users.filter((u) => u.role === 'client');
+    return this.wait(SAMPLES.map(([plan, checklist, ago], i) => clients[i * 5 + 1] && ({
+      id: clients[i * 5 + 1].id, email: clients[i * 5 + 1].email, full_name: clients[i * 5 + 1].full_name, phone: clients[i * 5 + 1].phone, lang: clients[i * 5 + 1].lang,
+      plan, checklist, updated_at: new Date(Date.now() - ago * 86400e3).toISOString(),
+    })).filter(Boolean), 120);
+  }
   async setRole(id, role) {
     this.guard('write_owner');
     if (id === this.st.me) throw new Error('cannot_change_own_role');
