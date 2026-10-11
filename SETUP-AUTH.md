@@ -31,7 +31,7 @@ signed-out visitors back to `index.html#auth`.
 - ✅ Auth → URL Configuration: Site URL `https://samtravel.am`; redirect URLs for localhost preview + samtravel.am.
 - ✅ Google Cloud project `samtravel-site` (client's account): consent screen + OAuth client «SAM TRAVEL site».
 - ✅ Google: redirect URI `https://zorcltqxulshhxgbvsim.supabase.co/auth/v1/callback`, keys pasted into Supabase; sign-in verified locally on 2026-10-10 (Google → cabinet).
-- ⬜ Google: app published (Audience → Publish app) — until then only test users can sign in.
+- ✅ Google: app published — Audience shows «In production» (2026-10-11), anyone can sign in.
 - ✅ Email sign-up verified locally on 2026-10-10: custom SMTP is Mailjet (`in-v3.mailjet.com:587`, sender `samtravel.code@proton.me`), template «Confirm sign up» = `supabase/templates/confirm-signup.html`, Email OTP length 6, expiration 3600 s, minimum password length 10.
 - ✅ First owner promoted in the SQL Editor on 2026-10-10; `admin.html` opens. Further roles — in the panel, «Клиенты и команда».
 - ⬜ Before launch: send from an address on the site's own domain (verify the domain in the mail service) — mail «from proton.me» sent through a third-party service often lands in spam. Decision 2026-10-11: the sender stays `samtravel.code@proton.me` (Supabase SMTP and `MAIL_FROM` of `lead-mail`) until the client names another address.
