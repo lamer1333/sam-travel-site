@@ -23,7 +23,8 @@
 //                         которые Supabase даёт ей сам
 //   SITE_URL              https://samtravel-dny.pages.dev ← для ссылки «Открыть в панели»
 //   MAIL_PROVIDER         resend (по умолчанию) | brevo | mailjet
-//   MAIL_API_KEY          ключ почтового сервиса (для mailjet — «API Key:Secret Key» одной строкой)
+//   MAIL_API_KEY          ключ почтового сервиса (для mailjet — API Key)
+//   MAIL_API_SECRET       только для mailjet: Secret Key
 //   MAIL_FROM             SAM TRAVEL <leads@samtravel.am>   ← адрес на подтверждённом домене
 //   MAIL_API_URL          необязательно: другой адрес API (проверка на стенде)
 // ============================================================================

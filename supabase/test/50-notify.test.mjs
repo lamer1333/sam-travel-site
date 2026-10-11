@@ -236,6 +236,9 @@ mj.headers.Authorization === 'Basic ' + btoa('pub:sec') && mjm.From.Email === 'l
   mailDown = false;
   out.ok === false && /частей через двоеточие: 2 .*длины: 3 и 14/.test(out.error) && !out.error.includes('secret-value-1')
     ? ok('Mailjet отказал во входе → в ответе форма ключа (части и длины), самого ключа нет') : bad('форма ключа: ' + JSON.stringify(out));
+  r = await press('owner', { type: 'test' }, { ...ENV, MAIL_PROVIDER: 'mailjet', MAIL_API_KEY: 'pub\n', MAIL_API_SECRET: ' sec', MAIL_API_URL: 'http://mail.test/mailjet' }); out = await r.json();
+  out.ok === true && outbox.at(-1).headers.Authorization === 'Basic ' + btoa('pub:sec')
+    ? ok('Mailjet: ключи двумя секретами — MAIL_API_KEY и MAIL_API_SECRET') : bad('два секрета: ' + JSON.stringify(out));
   (await logN()) === log0 ? ok('пробное письмо в очередь notify_log не попадает') : bad('пробное письмо задело notify_log');
   r = await handle(new Request('http://fn.test/lead-mail', { method: 'OPTIONS' }), ENV, fakeFetch);
   r.status === 204 && /authorization/.test(r.headers.get('access-control-allow-headers') || '') ? ok('предзапрос браузера (OPTIONS) → 204 с CORS') : bad('OPTIONS: ' + r.status);

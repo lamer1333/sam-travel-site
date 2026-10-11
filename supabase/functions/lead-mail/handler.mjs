@@ -82,10 +82,15 @@ ${panel ? `<p style="margin:14px 0 0"><a href="${esc(panel)}" style="color:#6670
   return { subject, text, html };
 }
 
+/** Ключи Mailjet: либо два секрета — MAIL_API_KEY и MAIL_API_SECRET, либо пара «API Key:Secret Key» в одном MAIL_API_KEY. */
+const mailjetPair = (env) => (env.MAIL_API_SECRET ? env.MAIL_API_KEY + ':' + env.MAIL_API_SECRET : env.MAIL_API_KEY).replace(/\s+/g, '');
+
 /** Подсказка к отказу Mailjet во входе: как записан ключ — без самого ключа, только число частей и их длины. */
-function keyShape(key) {
-  const parts = key.replace(/\s+/g, '').split(':');
-  return ' · В MAIL_API_KEY частей через двоеточие: ' + parts.length + ' (нужно 2), длины: ' + parts.map((x) => x.length).join(' и ') + ' (у Mailjet оба ключа по 32 символа).';
+function keyShape(env) {
+  const parts = mailjetPair(env).split(':');
+  return env.MAIL_API_SECRET
+    ? ' · Длина MAIL_API_KEY: ' + env.MAIL_API_KEY.replace(/\s+/g, '').length + ', MAIL_API_SECRET: ' + env.MAIL_API_SECRET.replace(/\s+/g, '').length + ' (у Mailjet оба ключа по 32 символа).'
+    : ' · В MAIL_API_KEY частей через двоеточие: ' + parts.length + ' (нужно 2), длины: ' + parts.map((x) => x.length).join(' и ') + ' (у Mailjet оба ключа по 32 символа).';
 }
 
 /** Отправка через почтовый сервис из переменных окружения. Бросает ошибку с причиной. */
@@ -105,14 +110,14 @@ async function sendMail(mail, to, key, env, fetchImpl) {
   } else if (provider === 'mailjet') {
     // ключ Mailjet — пара «API Key:Secret Key» одной строкой
     url = env.MAIL_API_URL || 'https://api.mailjet.com/v3.1/send';
-    headers = { Authorization: 'Basic ' + btoa(env.MAIL_API_KEY.replace(/\s+/g, '')) };   // пробел или перенос строки, попавший при вставке, ломает вход
+    headers = { Authorization: 'Basic ' + btoa(mailjetPair(env)) };   // пробел или перенос строки, попавший при вставке, ломает вход
     const m = /^\s*(.*?)\s*<([^>]+)>\s*$/.exec(env.MAIL_FROM);
     body = { Messages: [{ From: m ? { Name: m[1], Email: m[2] } : { Email: env.MAIL_FROM.trim() }, To: [{ Email: to }], Subject: mail.subject, HTMLPart: mail.html, TextPart: mail.text, CustomID: key }] };
   } else {
     throw new Error('unknown MAIL_PROVIDER: ' + provider);
   }
   const res = await fetchImpl(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body), signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error('mail ' + res.status + ': ' + (await res.text().catch(() => '')).slice(0, 300) + (provider === 'mailjet' && res.status === 401 ? keyShape(env.MAIL_API_KEY) : ''));
+  if (!res.ok) throw new Error('mail ' + res.status + ': ' + (await res.text().catch(() => '')).slice(0, 300) + (provider === 'mailjet' && res.status === 401 ? keyShape(env) : ''));
 }
 
 /** `token` — токен вошедшего человека: тогда база выполняет вызов от его имени, со всеми его ограничениями. */

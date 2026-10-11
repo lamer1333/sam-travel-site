@@ -139,7 +139,7 @@
      (заведены; секрет сгенерирован в базе);
   4. секреты функции (Edge Functions → Secrets): `WEBHOOK_SECRET` — **та же строка**, что
      `lead_mail_secret` в Vault; `MAIL_PROVIDER` (`resend`, `brevo` или `mailjet`), `MAIL_API_KEY`
-     (для Mailjet — `API Key:Secret Key` одной строкой через двоеточие),
+     (для Mailjet это API Key, а Secret Key кладётся отдельным секретом `MAIL_API_SECRET`),
      `MAIL_FROM` (адрес на подтверждённом домене); `SITE_URL` — адрес панели
      (`https://samtravel-dny.pages.dev`). `SB_URL` и
      `SB_SERVICE_ROLE_KEY` задавать не нужно — функция берёт ключи проекта сама;
