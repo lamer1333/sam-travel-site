@@ -49,6 +49,8 @@ export default async function contactsView(root, ctx) {
   // paid WhatsApp Business Platform, and the database refuses the mode until then.
   const w = waSettings(s);
   const rv = input(w.review_url, { type: 'url', placeholder: 'https://g.page/r/…/review', oninput: (v) => { w.review_url = v.trim(); bad(rv, !w.review_url || /^https?:\/\/\S+$/.test(w.review_url)); } });
+  const okMail = (v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  const mt = input(w.mail_to, { type: 'email', placeholder: c.email || 'owner@example.com', oninput: (v) => { w.mail_to = v.trim(); bad(mt, okMail(w.mail_to)); } });
   const auto = toggle(false, 'Отправлять автоматически');
   auto.querySelector('input').disabled = true; auto.style.opacity = '.55'; auto.style.cursor = 'not-allowed';
   g.append(h('section.card.c12', h('div.card__h', h('div', h('h3', 'Напоминания о вылетах'), h('p', 'Накануне вылета и на следующий день после возвращения панель подсказывает, кому написать, и готовит текст на языке клиента. Сообщение отправляете вы — со своего WhatsApp, одним нажатием.'))),
@@ -56,13 +58,15 @@ export default async function contactsView(root, ctx) {
       h('div.stack',
         toggle(w.enabled, 'Напоминания включены', (v) => { w.enabled = v; }),
         field('Час письма со списком (по Еревану)', select(Array.from({ length: 24 }, (_, i) => [i, String(i).padStart(2, '0') + ':00']), w.mail_hour, (v) => { w.mail_hour = Number(v); }),
-          'Раз в день на ' + (c.email || 'почту агентства') + ' приходит письмо «Сегодня написать: …» с кнопками WhatsApp. Писать некому — письма нет')),
+          'Раз в день приходит письмо «Сегодня написать: …» с кнопками WhatsApp. Писать некому — письма нет'),
+        field('Куда слать письмо', mt, 'Этот адрес посетители сайта не видят. Пусто — письмо идёт на почту агентства' + (c.email ? ' (' + c.email + ')' : ''))),
       h('div.stack',
         field('Ссылка для отзыва', rv, 'Дописывается в сообщение «с возвращением» — например, ссылка на ваши отзывы в Google'),
         h('div.field', h('span', 'Автоматическая отправка'), auto, h('small', 'Станет доступно после подключения WhatsApp Business Platform')))),
     h('div.btns', { style: { marginTop: '14px' } },
       h('button.btn.btn--primary', { onclick: () => {
         if (w.review_url && !/^https?:\/\/\S+$/.test(w.review_url)) { toast('Ссылка для отзыва должна начинаться с https://', 'bad'); rv.focus(); return; }
+        if (!okMail(w.mail_to)) { toast('Адрес для письма с напоминаниями записан неверно', 'bad'); mt.focus(); return; }
         save('whatsapp', { ...w, mode: 'remind' }, 'Настройки напоминаний сохранены').then((ok) => { if (ok) ctx.reminders(true).catch(() => {}); });
       } }, 'Сохранить'),
       h('button.btn', { onclick: () => ctx.go('templates') }, 'Тексты сообщений'))));

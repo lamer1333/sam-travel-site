@@ -217,12 +217,13 @@ check((await rems(RU))[0].status === 'sent', 'возврат отправлен�
 
 // ================================================================ 5) настройки
 const ws = () => val(`select value from site_settings where key = 'whatsapp'`);
-check(same(sortKeys(await ws()), sortKeys({ enabled: true, mail_hour: 11, review_url: REVIEW, mode: 'remind' })), 'настройки: включено, письмо в 11:00, режим «пишет человек»', await ws());
+check(same(sortKeys(await ws()), sortKeys({ enabled: true, mail_hour: 11, review_url: REVIEW, mode: 'remind', mail_to: '' })), 'настройки: включено, письмо в 11:00, режим «пишет человек»', await ws());
 check(await val(`select not (public_site() -> 'settings' ? 'whatsapp')`), 'на публичный сайт настройки напоминаний не уходят');
 const setWa = (who, patch) => as(who, `update site_settings set value = value || $1 where key = 'whatsapp'`, [JSON.stringify(patch)]);
 await rejects('owner', `update site_settings set value = value || $1 where key = 'whatsapp'`, [JSON.stringify({ mode: 'auto' })], 'wa_auto_unavailable', 'автоотправку включить нельзя');
 for (const [patch, code] of [[{ mode: 'robot' }, 'bad_wa_mode'], [{ mail_hour: 24 }, 'bad_mail_hour'], [{ mail_hour: 11.5 }, 'bad_mail_hour'], [{ mail_hour: '11' }, 'bad_mail_hour'],
-  [{ review_url: 'javascript:alert(1)' }, 'bad_review_url'], [{ review_url: 'https://a b' }, 'bad_review_url'], [{ enabled: 'yes' }, 'bad_wa_enabled']]) {
+  [{ review_url: 'javascript:alert(1)' }, 'bad_review_url'], [{ review_url: 'https://a b' }, 'bad_review_url'], [{ enabled: 'yes' }, 'bad_wa_enabled'],
+  [{ mail_to: 'не почта' }, 'bad_mail_to'], [{ mail_to: 'a@b' }, 'bad_mail_to'], [{ mail_to: 'a b@c.am' }, 'bad_mail_to']]) {
   await rejects('owner', `update site_settings set value = value || $1 where key = 'whatsapp'`, [JSON.stringify(patch)], code, 'настройка ' + JSON.stringify(patch));
   let js = null; try { R.guardWaSettings({ ...(await ws()), ...patch }); } catch (e) { js = e.message; }
   check(js === code, 'демо-режим отклоняет её так же', js);
@@ -315,6 +316,24 @@ await db.query(`delete from notify_log where kind = 'reminders'`);
 await setWa('owner', { mail_hour: 9 });
 check(await queue(today, '08:59') === false && await queue(today, '09:10') === true, 'час письма берётся из настроек: 9 → уходит в 09:10, не дожидаясь 11');
 await setWa('owner', { mail_hour: 11 });
+
+// миграция 140: свой адрес для письма с напоминаниями
+await setWa('owner', { mail_to: '  boss@example.am ' });
+check((await ws()).mail_to === 'boss@example.am' && R.guardWaSettings({ ...(await ws()), mail_to: '  boss@example.am ' }).mail_to === 'boss@example.am', 'адрес для письма сохраняется без пробелов, в демо-режиме так же');
+check(await val(`select public.mail_to()`) === 'boss@example.am', 'свой адрес задан → письмо с напоминаниями идёт на него, а не на почту агентства');
+{
+  const st = (await as('owner', `select public.notify_status() v`)).rows[0].v;
+  check(st.reminders.mail_to === true && st.reminders.to === 'boss@example.am', 'notify_status показывает владельцу, куда уходит письмо', st.reminders);
+  check(!JSON.stringify(await val(`select public_site()`)).includes('boss@example.am'), 'на публичный сайт адрес для письма не уходит');
+  await db.query(`delete from notify_log where kind = 'reminders'`);
+  await queue(today, '11:10');
+  const job = (await val(`select public.notify_claim()`))[0];
+  check(job && job.to === 'boss@example.am', 'очередь отдаёт письмо дня на свой адрес', job && job.to);
+  await db.query(`delete from notify_log where kind = 'reminders'`);
+}
+await setWa('owner', { mail_to: '' });
+check(await val(`select public.mail_to()`) === agency, 'адрес пуст → как раньше, почта агентства');
+for (const w of ['anon', 'cli', 'mgr', 'owner']) await rejects(w, `select public.mail_to()`, [], 'permission denied', w + ': mail_to() напрямую не вызывается');
 
 // Этап 10 (100_security.sql, AUDIT D2): письма о заявке больше нет — запись с источником «form»
 // задания не получает, и notify_claim такие письма не отдаёт (раньше здесь проверялось обратное).

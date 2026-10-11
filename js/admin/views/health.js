@@ -13,7 +13,7 @@ export default async function healthView(root, ctx) {
   // the daily letter «Сегодня написать: …» (§4.12): is it set up, and does it leave
   const rm = (ns && ns.reminders) || null;
   const mailWhy = !rm ? 'База не ответила на notify_status() — накатите миграции из supabase/migrations/.'
-    : !rm.mail_to ? 'Не указана почта агентства — письму некуда идти.'
+    : !rm.mail_to ? 'Не указан адрес для письма: ни в «Напоминаниях о вылетах», ни почта агентства.'
     : !rm.secrets ? 'В Supabase Vault нет адреса функции почты и секрета (lead_mail_url, lead_mail_secret) — см. SETUP-ADMIN.md.'
     : !rm.schedule ? 'Не стоит расписание reminders-mail: включите pg_cron и накатите миграции ещё раз.'
     : +rm.failed_7d ? 'За неделю не доставлено писем: ' + rm.failed_7d + '. Причина: ' + (rm.last_error || 'неизвестна') + '.'
@@ -62,11 +62,11 @@ export default async function healthView(root, ctx) {
 // sender's address really work without waiting for a day with flights.
 const MAIL_ERR = {
   mail_not_configured: 'В секретах функции lead-mail нет MAIL_API_KEY или MAIL_FROM — см. SETUP-ADMIN.md.',
-  no_agency_email: 'Не указана почта агентства («Контакты и реквизиты») — письму некуда идти.',
+  no_agency_email: 'Не указан адрес: ни «Куда слать письмо» в напоминаниях, ни почта агентства («Контакты и реквизиты»).',
   db_unavailable: 'Функция почты не достучалась до базы. Попробуйте ещё раз через минуту.',
 };
 function mailTestCard(ctx) {
-  const out = h('small.muted', { role: 'status' }, 'Письмо уходит сразу на почту агентства и в журнал напоминаний не попадает.');
+  const out = h('small.muted', { role: 'status' }, 'Письмо уходит сразу — туда же, куда письмо с напоминаниями, — и в журнал не попадает.');
   const btn = h('button.btn', { onclick: async () => {
     btn.disabled = true; out.textContent = 'Отправляем…';
     try {

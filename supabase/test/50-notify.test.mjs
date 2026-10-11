@@ -239,6 +239,11 @@ mj.headers.Authorization === 'Basic ' + btoa('pub:sec') && mjm.From.Email === 'l
   r = await press('owner', { type: 'test' }, { ...ENV, MAIL_PROVIDER: 'mailjet', MAIL_API_KEY: 'pub\n', MAIL_API_SECRET: ' sec', MAIL_API_URL: 'http://mail.test/mailjet' }); out = await r.json();
   out.ok === true && outbox.at(-1).headers.Authorization === 'Basic ' + btoa('pub:sec')
     ? ok('Mailjet: ключи двумя секретами — MAIL_API_KEY и MAIL_API_SECRET') : bad('два секрета: ' + JSON.stringify(out));
+  await as('owner', `update site_settings set value = value || '{"mail_to":"boss@example.am"}' where key = 'whatsapp'`);
+  r = await press('owner'); out = await r.json();
+  await as('owner', `update site_settings set value = value || '{"mail_to":""}' where key = 'whatsapp'`);
+  out.ok === true && out.to === 'boss@example.am' && outbox.at(-1).to[0] === 'boss@example.am'
+    ? ok('пробное письмо идёт на адрес из «Куда слать письмо», если он задан') : bad('свой адрес: ' + JSON.stringify(out));
   (await logN()) === log0 ? ok('пробное письмо в очередь notify_log не попадает') : bad('пробное письмо задело notify_log');
   r = await handle(new Request('http://fn.test/lead-mail', { method: 'OPTIONS' }), ENV, fakeFetch);
   r.status === 204 && /authorization/.test(r.headers.get('access-control-allow-headers') || '') ? ok('предзапрос браузера (OPTIONS) → 204 с CORS') : bad('OPTIONS: ' + r.status);

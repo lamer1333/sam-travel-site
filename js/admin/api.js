@@ -179,6 +179,7 @@ export function errText(e) {
   if (/wa_auto_unavailable/.test(m)) return 'Автоматическая отправка станет доступна после подключения WhatsApp Business Platform';
   if (/bad_mail_hour/.test(m)) return 'Час письма — целое число от 0 до 23';
   if (/bad_review_url/.test(m)) return 'Ссылка для отзыва должна начинаться с https://';
+  if (/bad_mail_to/.test(m)) return 'Адрес для письма с напоминаниями записан неверно';
   if (/reminder_not_found/.test(m)) return 'Напоминание не найдено — обновите страницу';
   if (/duplicate key.*wa_templates_kind_lang/i.test(m)) return 'Текст этого напоминания на этом языке уже есть — правьте его';
   if (/leads_name_check/.test(m)) return 'Имя клиента — от 1 до 120 знаков';

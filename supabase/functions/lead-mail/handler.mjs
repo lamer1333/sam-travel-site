@@ -148,17 +148,21 @@ ${lines.map((l) => `<p style="margin:0 0 12px">${esc(l)}</p>`).join('')}${site ?
 /**
  * Кнопка «Отправить пробное письмо»: { type: 'test' } с токеном вошедшего владельца.
  * Владельца проверяет база — notify_status() никому другому не отвечает. Письмо уходит
- * на почту агентства сразу, мимо очереди notify_log; ответ — { ok, to } или { ok: false, error }.
+ * туда же, куда письмо с напоминаниями, сразу и мимо очереди notify_log; ответ — { ok, to } или { ok: false, error }.
  */
 async function testMail(req, env, fetchImpl) {
   const token = (/^Bearer\s+(\S+)$/i.exec(req.headers.get('authorization') || '') || [])[1];
   let p;
   try { p = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
   if (!token || !p || p.type !== 'test') return json({ error: 'forbidden' }, 401);
-  try { await rpc('notify_status', {}, env, fetchImpl, token); } catch { return json({ error: 'forbidden' }, 403); }
-  let to;
-  try { to = String((((await rpc('public_site', {}, env, fetchImpl)) || {}).settings || {}).contacts?.email || '').trim(); }
-  catch (e) { console.error('lead-mail:', e.message); return json({ ok: false, error: 'db_unavailable' }); }
+  let st;
+  try { st = await rpc('notify_status', {}, env, fetchImpl, token); } catch { return json({ error: 'forbidden' }, 403); }
+  // адрес письма с напоминаниями (миграция 140); в базе без неё — почта агентства
+  let to = String(((st || {}).reminders || {}).to || '').trim();
+  if (!to) {
+    try { to = String((((await rpc('public_site', {}, env, fetchImpl)) || {}).settings || {}).contacts?.email || '').trim(); }
+    catch (e) { console.error('lead-mail:', e.message); return json({ ok: false, error: 'db_unavailable' }); }
+  }
   if (!to) return json({ ok: false, error: 'no_agency_email' });
   try { await sendMail(buildTestMail(env), to, 'lead-mail/test/' + Date.now(), env, fetchImpl); }
   catch (e) { const err = String(e && e.message || e); console.error('lead-mail: test: ' + err); return json({ ok: false, error: err }); }

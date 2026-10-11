@@ -722,14 +722,14 @@ export class DemoApi {
   /** notify_status(): the demo sends no letters — it answers as a set-up project whose last letter left this morning */
   async notifyStatus() {
     this.guard('write_owner');
-    const w = this.REM.waSettings(this.st.settings), mail = String((this.st.settings.contacts || {}).email || '').trim();
+    const w = this.REM.waSettings(this.st.settings), mail = w.mail_to || String((this.st.settings.contacts || {}).email || '').trim();
     return this.wait({ last_sent_at: null, pending: 0, failed_7d: 0, last_error: null, last_error_at: null,
-      reminders: { enabled: w.enabled, mail_hour: w.mail_hour, mail_to: !!mail, schedule: true, secrets: true, last_sent_at: iso(Date.now() - 3 * 3600e3), last_day: this.today, pending: 0, failed_7d: 0, last_error: null } }, 60);
+      reminders: { enabled: w.enabled, mail_hour: w.mail_hour, mail_to: !!mail, to: mail || null, schedule: true, secrets: true, last_sent_at: iso(Date.now() - 3 * 3600e3), last_day: this.today, pending: 0, failed_7d: 0, last_error: null } }, 60);
   }
   /** the demo sends nothing: it answers as the function does when the letter has left */
   async mailTest() {
     this.guard('write_owner');
-    const mail = String((this.st.settings.contacts || {}).email || '').trim();
+    const mail = this.REM.waSettings(this.st.settings).mail_to || String((this.st.settings.contacts || {}).email || '').trim();
     return this.wait(mail ? { ok: true, to: mail } : { ok: false, error: 'no_agency_email' }, 400);
   }
   async upload(file) {

@@ -16,7 +16,7 @@ export const VARIANT_NAME = { today: 'В день вылета' };
 /** the name of a reminder text in «Шаблоны ответов» */
 export const templateName = (t) => (t.variant && VARIANT_NAME[t.variant]) || KIND_NAME[t.kind] || t.title;
 export const KIND_SHORT = { bon_voyage: 'Хорошего полёта', welcome_back: 'С возвращением' };
-export const WA_DEFAULTS = { enabled: true, mail_hour: 11, review_url: '', mode: 'remind' };
+export const WA_DEFAULTS = { enabled: true, mail_hour: 11, review_url: '', mode: 'remind', mail_to: '' };
 const LANGS = ['en', 'ru', 'hy'];
 const fail = (code) => { throw new Error(code); };
 
@@ -67,6 +67,8 @@ export function guardWaSettings(value) {
   if (typeof v.mail_hour !== 'number' || !Number.isInteger(v.mail_hour) || v.mail_hour < 0 || v.mail_hour > 23) fail('bad_mail_hour');
   v.review_url = String(v.review_url == null ? '' : v.review_url).trim();
   if (v.review_url && (!/^https?:\/\/\S+$/.test(v.review_url) || v.review_url.length > 300)) fail('bad_review_url');
+  v.mail_to = String(v.mail_to == null ? '' : v.mail_to).trim();
+  if (v.mail_to && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.mail_to) || v.mail_to.length > 254)) fail('bad_mail_to');
   if (v.mode === 'auto') fail('wa_auto_unavailable');
   if (v.mode !== 'remind') fail('bad_wa_mode');
   return v;
