@@ -5,7 +5,10 @@
 const MANUAL = ['manual', 'phone', 'walk_in', 'instagram'];
 const SECRET_HEADER = 'x-webhook-secret';
 
-const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+// Кнопку «Отправить пробное письмо» нажимают в панели, то есть из браузера: ответам нужен CORS.
+// Звёздочка безопасна — доступ даёт не адрес страницы, а токен владельца в Authorization.
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...CORS } });
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /** сравнение без утечки по времени: секрет нельзя подобрать по скорости ответа */
@@ -93,6 +96,12 @@ async function sendMail(mail, to, key, env, fetchImpl) {
     headers = { 'api-key': env.MAIL_API_KEY };
     const m = /^\s*(.*?)\s*<([^>]+)>\s*$/.exec(env.MAIL_FROM);
     body = { sender: m ? { name: m[1], email: m[2] } : { email: env.MAIL_FROM.trim() }, to: [{ email: to }], subject: mail.subject, htmlContent: mail.html, textContent: mail.text };
+  } else if (provider === 'mailjet') {
+    // ключ Mailjet — пара «API Key:Secret Key» одной строкой
+    url = env.MAIL_API_URL || 'https://api.mailjet.com/v3.1/send';
+    headers = { Authorization: 'Basic ' + btoa(env.MAIL_API_KEY) };
+    const m = /^\s*(.*?)\s*<([^>]+)>\s*$/.exec(env.MAIL_FROM);
+    body = { Messages: [{ From: m ? { Name: m[1], Email: m[2] } : { Email: env.MAIL_FROM.trim() }, To: [{ Email: to }], Subject: mail.subject, HTMLPart: mail.html, TextPart: mail.text, CustomID: key }] };
   } else {
     throw new Error('unknown MAIL_PROVIDER: ' + provider);
   }
@@ -100,10 +109,11 @@ async function sendMail(mail, to, key, env, fetchImpl) {
   if (!res.ok) throw new Error('mail ' + res.status + ': ' + (await res.text().catch(() => '')).slice(0, 300));
 }
 
-async function rpc(name, args, env, fetchImpl) {
+/** `token` — токен вошедшего человека: тогда база выполняет вызов от его имени, со всеми его ограничениями. */
+async function rpc(name, args, env, fetchImpl, token) {
   const res = await fetchImpl(env.SB_URL.replace(/\/+$/, '') + '/rest/v1/rpc/' + name, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', apikey: env.SB_SERVICE_ROLE_KEY, Authorization: 'Bearer ' + env.SB_SERVICE_ROLE_KEY },
+    headers: { 'Content-Type': 'application/json', apikey: env.SB_SERVICE_ROLE_KEY, Authorization: 'Bearer ' + (token || env.SB_SERVICE_ROLE_KEY) },
     body: JSON.stringify(args), signal: AbortSignal.timeout(10000),
   });
   if (!res.ok) throw new Error('db ' + name + ' ' + res.status + ': ' + (await res.text().catch(() => '')).slice(0, 300));
@@ -111,17 +121,53 @@ async function rpc(name, args, env, fetchImpl) {
   return t ? JSON.parse(t) : null;
 }
 
+/** Пробное письмо из панели. Экспортируется для тестов. */
+export function buildTestMail(env) {
+  const site = (env.SITE_URL || '').replace(/\/+$/, '');
+  const subject = 'Пробное письмо из панели SAM TRAVEL';
+  const lines = ['Это пробное письмо: его отправили кнопкой в панели, раздел «Готовность сайта».',
+    'Раз оно дошло, ключи почтового сервиса и адрес отправителя настроены верно — письмо с напоминаниями о вылетах будет приходить на этот же адрес.'];
+  const text = lines.join('\n\n') + (site ? '\n\nПанель: ' + site + '/admin.html' : '');
+  const html = `<div style="font:15px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1c2733;max-width:560px">
+${lines.map((l) => `<p style="margin:0 0 12px">${esc(l)}</p>`).join('')}${site ? `<p style="margin:0"><a href="${esc(site)}/admin.html">Открыть панель</a></p>` : ''}
+</div>`;
+  return { subject, text, html };
+}
+
+/**
+ * Кнопка «Отправить пробное письмо»: { type: 'test' } с токеном вошедшего владельца.
+ * Владельца проверяет база — notify_status() никому другому не отвечает. Письмо уходит
+ * на почту агентства сразу, мимо очереди notify_log; ответ — { ok, to } или { ok: false, error }.
+ */
+async function testMail(req, env, fetchImpl) {
+  const token = (/^Bearer\s+(\S+)$/i.exec(req.headers.get('authorization') || '') || [])[1];
+  let p;
+  try { p = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
+  if (!token || !p || p.type !== 'test') return json({ error: 'forbidden' }, 401);
+  try { await rpc('notify_status', {}, env, fetchImpl, token); } catch { return json({ error: 'forbidden' }, 403); }
+  let to;
+  try { to = String((((await rpc('public_site', {}, env, fetchImpl)) || {}).settings || {}).contacts?.email || '').trim(); }
+  catch (e) { console.error('lead-mail:', e.message); return json({ ok: false, error: 'db_unavailable' }); }
+  if (!to) return json({ ok: false, error: 'no_agency_email' });
+  try { await sendMail(buildTestMail(env), to, 'lead-mail/test/' + Date.now(), env, fetchImpl); }
+  catch (e) { const err = String(e && e.message || e); console.error('lead-mail: test: ' + err); return json({ ok: false, error: err }); }
+  return json({ ok: true, to });
+}
+
 /**
  * Принимает:
  *   • вебхук базы на вставку в leads  { type: 'INSERT', table: 'leads', record: {...} }
  *   • повтор неудачных (pg_cron)      { type: 'retry' }
- * Оба — только с заголовком x-webhook-secret. Что и кому слать, решает база
+ *   • пробное письмо из панели        { type: 'test' } — с токеном владельца, см. testMail
+ * Первые два — только с заголовком x-webhook-secret. Что и кому слать, решает база
  * (notify_claim): из тела вебхука берётся только id заявки. В режиме «повтор» база
  * отдаёт и письмо дня с напоминаниями о вылетах (job.kind === 'reminders').
  */
 export async function handle(req, env, fetchImpl = fetch) {
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
   if (!env.WEBHOOK_SECRET || !env.SB_URL || !env.SB_SERVICE_ROLE_KEY) return json({ error: 'not_configured' }, 500);
+  if (!req.headers.get(SECRET_HEADER) && req.headers.get('authorization')) return testMail(req, env, fetchImpl);
   if (!(await sameSecret(req.headers.get(SECRET_HEADER) || '', env.WEBHOOK_SECRET))) return json({ error: 'forbidden' }, 401);
 
   let p;

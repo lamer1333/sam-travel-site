@@ -5,7 +5,7 @@
 import { db, as, ok, bad, expectErr, formBack } from './_db.mjs';
 
 await formBack();   // форма заявки снята этапом 7; здесь проверяется то, что осталось в базе на случай её возврата
-import { handle, buildMail } from '../functions/lead-mail/handler.mjs';
+import { handle, buildMail, buildTestMail } from '../functions/lead-mail/handler.mjs';
 
 const ENV = {
   WEBHOOK_SECRET: 'test-secret-0123456789', SB_URL: 'http://db.test', SB_SERVICE_ROLE_KEY: 'service-key',
@@ -23,7 +23,12 @@ async function fakeFetch(url, init) {
   if (u.host === 'db.test') {
     if (init.headers.apikey !== ENV.SB_SERVICE_ROLE_KEY) return new Response('no key', { status: 401 });
     const fn = u.pathname.split('/').pop(), keys = Object.keys(body);
-    const r = await db.query(`select public.${fn}(${keys.map((k, i) => `${k} := $${i + 1}`).join(', ')}) as v`, keys.map((k) => body[k]));
+    const q = [`select public.${fn}(${keys.map((k, i) => `${k} := $${i + 1}`).join(', ')}) as v`, keys.map((k) => body[k])];
+    // токен человека («Bearer jwt-owner») → запрос от его имени, как это делает PostgREST
+    const who = /^Bearer jwt-(\w+)$/.exec(init.headers.Authorization || '');
+    let r;
+    if (who) { try { r = await as(who[1], ...q); } catch (e) { return new Response(JSON.stringify({ message: e.message }), { status: 403 }); } }
+    else r = await db.query(...q);
     return new Response(JSON.stringify(r.rows[0].v ?? null), { status: 200 });
   }
   if (u.host === 'mail.test') {
@@ -195,6 +200,41 @@ r = await hook({ type: 'retry' }, { env: { ...ENV, MAIL_PROVIDER: 'brevo', MAIL_
 const b = outbox.at(-1);
 outbox.length === before + 1 && b.headers['api-key'] === 'mail-key' && b.sender.email === 'leads@samtravel.am' && b.sender.name === 'SAM TRAVEL' && b.to[0].email === 'new@samtravel.am' && b.htmlContent
   ? ok('другой почтовый сервис (brevo) включается переменной окружения') : bad('brevo ' + JSON.stringify(b).slice(0, 200));
+
+const L9 = await siteLead();
+r = await hook({ type: 'INSERT', table: 'leads', record: L9 }, { env: { ...ENV, MAIL_PROVIDER: 'mailjet', MAIL_API_KEY: 'pub:sec', MAIL_API_URL: 'http://mail.test/mailjet' } });
+const mj = outbox.at(-1), mjm = (mj.Messages || [])[0] || {};
+mj.headers.Authorization === 'Basic ' + btoa('pub:sec') && mjm.From.Email === 'leads@samtravel.am' && mjm.From.Name === 'SAM TRAVEL' && mjm.To[0].Email === 'new@samtravel.am' && mjm.HTMLPart && mjm.TextPart && mjm.Subject
+  ? ok('почтовый сервис mailjet: пара ключей уходит в Basic, письмо в формате Send API v3.1') : bad('mailjet ' + JSON.stringify(mj).slice(0, 200));
+
+// ---- кнопка «Отправить пробное письмо»: токен владельца вместо секрета вебхука ----
+{
+  const press = (who, body = { type: 'test' }, env = ENV) => handle(new Request('http://fn.test/lead-mail', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...(who ? { Authorization: 'Bearer jwt-' + who } : {}) }, body: JSON.stringify(body),
+  }), env, fakeFetch);
+  const logN = async () => Number((await db.query(`select count(*) n from notify_log`)).rows[0].n);
+  const n0 = outbox.length, log0 = await logN();
+  r = await press('owner'); out = await r.json();
+  const t = outbox.at(-1);
+  r.status === 200 && out.ok === true && out.to === 'new@samtravel.am' && outbox.length === n0 + 1 && t.to[0] === 'new@samtravel.am' && t.subject === buildTestMail(ENV).subject && t.html.includes('/admin.html')
+    ? ok('пробное письмо: владелец нажал → письмо ушло на почту агентства, ответ { ok, to }') : bad('пробное письмо ' + r.status + ' ' + JSON.stringify(out));
+  r.headers.get('access-control-allow-origin') === '*' ? ok('пробное письмо: ответ читается из браузера (CORS)') : bad('нет CORS в ответе');
+  for (const w of ['mgr', 'mkt', 'cli', 'anon']) {
+    r = await press(w);
+    r.status === 403 && outbox.length === n0 + 1 ? ok('пробное письмо: ' + w + ' → 403, письма нет') : bad('пробное письмо от ' + w + ': ' + r.status);
+  }
+  r = await press('owner', { type: 'retry' });
+  r.status === 401 ? ok('токен владельца не заменяет секрет вебхука: { type: retry } → 401') : bad('retry с токеном: ' + r.status);
+  r = await press('owner', { type: 'test' }, { ...ENV, MAIL_API_KEY: '' }); out = await r.json();
+  out.ok === false && out.error === 'mail_not_configured' ? ok('пробное письмо без ключа почты → причина в ответе') : bad('без ключа: ' + JSON.stringify(out));
+  mailDown = true;
+  r = await press('owner'); out = await r.json();
+  mailDown = false;
+  out.ok === false && /503/.test(out.error) ? ok('почтовый сервис отказал → его ответ виден владельцу') : bad('отказ сервиса: ' + JSON.stringify(out));
+  (await logN()) === log0 ? ok('пробное письмо в очередь notify_log не попадает') : bad('пробное письмо задело notify_log');
+  r = await handle(new Request('http://fn.test/lead-mail', { method: 'OPTIONS' }), ENV, fakeFetch);
+  r.status === 204 && /authorization/.test(r.headers.get('access-control-allow-headers') || '') ? ok('предзапрос браузера (OPTIONS) → 204 с CORS') : bad('OPTIONS: ' + r.status);
+}
 
 const noSite = buildMail({ id: L1.id, name: 'A', phone: '12', phone_digits: '12' }, {});
 !noSite.text.includes('wa.me') && !noSite.text.includes('admin.html') ? ok('короткий номер / нет SITE_URL — битых ссылок в письме нет') : bad('битые ссылки');

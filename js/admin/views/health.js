@@ -1,7 +1,7 @@
 // Launch readiness: the panel checks the site's own data for placeholders,
 // missing translations and missing IDs — and links to the fix. The site has no request
 // form (§4.11), so there is nothing about requests or letters here.
-import { h, icon, pageHead, plural, fmt } from '../ui.js';
+import { h, icon, pageHead, plural, fmt, toast } from '../ui.js';
 import { ring } from '../charts.js';
 import { isFilled, LANGS } from '../ui.js';
 
@@ -55,7 +55,29 @@ export default async function healthView(root, ctx) {
         h('div.muted', oks.length + ' из ' + C.length + ' пунктов в порядке'))),
     h('section.card.c8', h('div.card__h', h('div', h('h3', 'Что исправить'), h('p', 'Сначала красное — это видят клиенты'))),
       fails.length ? fails.map((c) => row(c, ctx)) : h('div.empty', h('b', 'Всё готово'), 'Ни одного замечания')),
-    oks.length ? h('section.card.c12', h('div.card__h', h('div', h('h3', 'В порядке'))), oks.map((c) => row(c, ctx))) : null));
+    oks.length ? h('section.card.c12', h('div.card__h', h('div', h('h3', 'В порядке'))), oks.map((c) => row(c, ctx))) : null,
+    mailTestCard(ctx)));
+}
+// «Отправить пробное письмо»: the only way to see that the keys of the mail service and the
+// sender's address really work without waiting for a day with flights.
+const MAIL_ERR = {
+  mail_not_configured: 'В секретах функции lead-mail нет MAIL_API_KEY или MAIL_FROM — см. SETUP-ADMIN.md.',
+  no_agency_email: 'Не указана почта агентства («Контакты и реквизиты») — письму некуда идти.',
+  db_unavailable: 'Функция почты не достучалась до базы. Попробуйте ещё раз через минуту.',
+};
+function mailTestCard(ctx) {
+  const out = h('small.muted', { role: 'status' }, 'Письмо уходит сразу на почту агентства и в журнал напоминаний не попадает.');
+  const btn = h('button.btn', { onclick: async () => {
+    btn.disabled = true; out.textContent = 'Отправляем…';
+    try {
+      const r = await ctx.api.mailTest();
+      if (r && r.ok) { out.textContent = 'Отправлено на ' + r.to + (ctx.demo ? ' (демо: письмо не уходит).' : '. Проверьте входящие и «Спам».'); toast('Пробное письмо отправлено'); }
+      else { out.textContent = 'Не отправлено. ' + (MAIL_ERR[r && r.error] || 'Ответ почтового сервиса: ' + ((r && r.error) || 'неизвестная ошибка')); toast('Письмо не отправлено', 'bad'); }
+    } catch (e) { out.textContent = 'Не отправлено: функция почты не ответила. Проверьте, что lead-mail выложена (SETUP-ADMIN.md).'; toast('Письмо не отправлено', 'bad'); }
+    btn.disabled = false;
+  } }, 'Отправить пробное письмо');
+  return h('section.card.c12', h('div.card__h', h('div', h('h3', 'Проверка почты'), h('p', 'Показывает, что ключи почтового сервиса и адрес отправителя рабочие.'))),
+    h('div', { style: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 14px' } }, btn, out));
 }
 function row([, ok, title, detail, route, level], ctx) {
   return h('div.check', h('span.check__ic.check__ic--' + (ok ? 'ok' : level), icon(ok ? 'check' : level === 'bad' ? 'alert' : 'clock')),

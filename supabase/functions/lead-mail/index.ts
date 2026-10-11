@@ -21,9 +21,9 @@
 //   WEBHOOK_SECRET        длинная случайная строка, та же, что в заголовке вебхука
 //   SB_URL, SB_SERVICE_ROLE_KEY   не нужны: функция берёт SUPABASE_URL и SUPABASE_SERVICE_ROLE_KEY,
 //                         которые Supabase даёт ей сам
-//   SITE_URL              https://samtravel.am        ← для ссылки «Открыть в панели»
-//   MAIL_PROVIDER         resend (по умолчанию) | brevo
-//   MAIL_API_KEY          ключ почтового сервиса
+//   SITE_URL              https://samtravel-dny.pages.dev ← для ссылки «Открыть в панели»
+//   MAIL_PROVIDER         resend (по умолчанию) | brevo | mailjet
+//   MAIL_API_KEY          ключ почтового сервиса (для mailjet — «API Key:Secret Key» одной строкой)
 //   MAIL_FROM             SAM TRAVEL <leads@samtravel.am>   ← адрес на подтверждённом домене
 //   MAIL_API_URL          необязательно: другой адрес API (проверка на стенде)
 // ============================================================================

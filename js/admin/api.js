@@ -111,6 +111,8 @@ export class LiveApi {
   async couponStats() { return must(await this.sb.rpc('stats_coupons')); }
   /** «Готовность сайта»: is the daily letter with the flight reminders set up and leaving (owner only; 110_fixes.sql) */
   async notifyStatus() { return must(await this.sb.rpc('notify_status')); }
+  /** «Отправить пробное письмо»: the lead-mail function checks the owner and sends at once → { ok, to } or { ok: false, error } */
+  async mailTest() { return must(await this.sb.functions.invoke('lead-mail', { body: { type: 'test' } })); }
   async audit(limit = 300) { return must(await this.sb.from('audit_log').select('*').order('at', { ascending: false }).limit(limit)); }
 
   // ---- files ----
