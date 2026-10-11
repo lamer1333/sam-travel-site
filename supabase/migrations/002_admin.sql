@@ -737,7 +737,7 @@ grant execute on function public.check_coupon(text)     to anon, authenticated;
 insert into public.site_settings (key, value) values
   ('contacts', jsonb_build_object(
       'phone', '+374 55 957585', 'whatsapp', '37455957585', 'email', 'outgoingsamtravel@gmail.com',
-      'address', jsonb_build_object('en', 'Komitas 51, Yerevan', 'ru', 'Комитас 51, Ереван', 'hy', 'Կոմիտաս 51, Երևան'),
+      'address', jsonb_build_object('en', 'Komitas 51/2, Yerevan', 'ru', 'Комитас 51/2, Ереван', 'hy', 'Կոմիտաս 51/2, Երևան'),
       'instagram', 'https://www.instagram.com/samtravel.arm', 'facebook', 'https://www.facebook.com/samtravel', 'telegram', '')),
   ('company',  jsonb_build_object('licence', '23-1057-2023', 'insurance', 'TRV-2026-0412', 'legal_name', 'SAM TRAVEL', 'currency', 'USD', 'margin_pct', 12)),
   ('stats',    jsonb_build_object('years', '3+', 'trips', '500+', 'destinations', '25+', 'travellers', '3 000+')),

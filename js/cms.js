@@ -78,7 +78,7 @@
   }
 
   /* ---------- contacts & company ---------- */
-  var ORIG = { phone: '+374 55 957585', wa: '37455957585', email: 'outgoingsamtravel@gmail.com', address: 'Komitas 51, Yerevan', licence: '23-1057-2023', insurance: 'TRV-2026-0412' };
+  var ORIG = { phone: '+374 55 957585', wa: '37455957585', email: 'outgoingsamtravel@gmail.com', address: 'Komitas 51/2, Yerevan', licence: '23-1057-2023', insurance: 'TRV-2026-0412' };
   function applyContacts(c) {
     if (!c) return;
     if (/^\d{10,15}$/.test(c.whatsapp || '')) {
@@ -97,7 +97,7 @@
       var url = c[x[0]]; if (!/^https:\/\//.test(url || '')) return;
       $$('a[href]').forEach(function (a) { if (x[1].test(a.getAttribute('href')) && !a.closest('.reel')) a.setAttribute('href', url); });
     });
-    if (c.address && c.address.en) swapText([ORIG.address, 'Комитас 51, Ереван', 'Կոմիտաս 51, Երևան'], c.address);
+    if (c.address && c.address.en) swapText([ORIG.address, 'Комитас 51/2, Ереван', 'Կոմիտաս 51/2, Երևան'], c.address);
     /* the checklist page draws its address from its own dictionary every time it is opened */
     var CUI = window.SAM_PAGES && window.SAM_PAGES.CUI;
     if (c.address && CUI) {

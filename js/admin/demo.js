@@ -295,7 +295,7 @@ function generate(REM) {
   tours.find((t) => t.slug === 'dubai').price_from = 1150;
 
   const settings = {
-    contacts: { phone: '+374 55 957585', whatsapp: '37455957585', email: 'outgoingsamtravel@gmail.com', address: { en: 'Komitas 51, Yerevan', ru: 'Комитас 51, Ереван', hy: 'Կոմիտաս 51, Երևան' }, instagram: 'https://www.instagram.com/samtravel.arm', facebook: 'https://www.facebook.com/samtravel', telegram: '' },
+    contacts: { phone: '+374 55 957585', whatsapp: '37455957585', email: 'outgoingsamtravel@gmail.com', address: { en: 'Komitas 51/2, Yerevan', ru: 'Комитас 51/2, Ереван', hy: 'Կոմիտաս 51/2, Երևան' }, instagram: 'https://www.instagram.com/samtravel.arm', facebook: 'https://www.facebook.com/samtravel', telegram: '' },
     company: { licence: '23-1057-2023', insurance: 'TRV-2026-0412', legal_name: 'SAM TRAVEL', currency: 'USD', margin_pct: 12 },
     stats: { years: '3+', trips: '500+', destinations: '25+', travellers: '3 000+' },
     hours: { days: [1, 2, 3, 4, 5, 6], from: '10:00', to: '19:00', sla_min: 60 },
