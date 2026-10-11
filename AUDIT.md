@@ -59,7 +59,7 @@ localStorage. Чинить: собирать `<li>` через createElement/tex
 **S6. Низкая. Заголовки.** `_headers`: правила для `/admin` и `/cabinet` (Cloudflare
 отдаёт без `.html`) — `X-Robots-Tag`, `Cache-Control`. GitHub Pages `_headers` не читает:
 решение о хостинге принимает заказчик на этапе 6, здесь — только отметить в `DEPLOY.md`.
-→ **`_headers` — закрыто, 08.10.2026 (правила для `/admin` и `/cabinet`).** **GitHub Pages — не закрыто:** сайт сейчас публикуется там, `_headers` не читается; записано в `DEPLOY.md`, решение о хостинге — за заказчиком на этапе 6.
+→ **Закрыто, 11.10.2026.** `_headers` — правила для `/admin` и `/cabinet` (08.10.2026). Сайт переехал на Cloudflare Pages (`samtravel-dny.pages.dev`), заголовки отправляются — проверено на боевом адресе: `X-Frame-Options: DENY`, HSTS, `nosniff`, `X-Robots-Tag: noindex` у панели и кабинета. На GitHub Pages сайт не публикуется (`DEPLOY.md`, раздел «GitHub»).
 
 **S7. Низкая.** `?lang=constructor` и `#checklist/constructor` проходят проверку
 (`js/app.js:577`, `:307`) → `Object.prototype.hasOwnProperty.call`.

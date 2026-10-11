@@ -7,10 +7,8 @@
 ## Боевой сайт
 
 Адрес: <https://samtravel-dny.pages.dev> — проект `samtravel` в аккаунте Cloudflare
-заказчика (`samvelharutyunyan708@gmail.com`). Своего домена пока нет; когда появится, он
-добавляется в этом же проекте (Custom domains), а адрес в `index.html`, `sitemap.xml`,
-`robots.txt`, `js/admin/views/campaigns.js`, `js/admin/views/seo.js` и в секрете `SITE_URL`
-функции `lead-mail` меняется на него.
+заказчика (`samvelharutyunyan708@gmail.com`). Своего домена пока нет; что сделать, когда
+он появится, — в разделе «Подключение своего домена» ниже.
 
 ```bash
 npm run deploy:prod
@@ -37,38 +35,52 @@ npm run deploy:preview
 его адрес должен быть в Supabase → Authentication → URL Configuration → Redirect URLs.
 
 Старый адрес `sam-travel-preview.pages.dev` лежит в другом аккаунте и больше не
-обновляется.
+обновляется — его проект нужно удалить, чтобы заказчик не попал на устаревшую версию.
 
-## Cloudflare Pages (рекомендуется)
-
-1. Репозиторий — в приватный GitHub.
-2. Cloudflare → Workers & Pages → Create → Pages → Connect to Git → выбрать репозиторий.
-3. Настройки сборки:
-   - Framework preset: **None**
-   - Build command: `node build.mjs`
-   - Build output directory: `dist`
-4. Deploy. Сайт появится на адресе вида `sam-travel.pages.dev`.
-5. Custom domains → добавить `samtravel.am` и `www.samtravel.am`, прописать у регистратора
-   DNS-записи, которые покажет Cloudflare. Сертификат выпустится сам.
-6. Дальше каждый `git push` в `main` обновляет сайт за минуту.
+## Заголовки и страница 404
 
 Заголовки безопасности и кеширование — в `_headers` (запрет встраивания в рамку, HSTS,
 `noindex` для панели и кабинета — и для адресов `/admin`, `/cabinet` без `.html`, которыми
-Cloudflare отдаёт те же страницы).
+Cloudflare отдаёт те же страницы). Cloudflare Pages их отправляет; проверено на боевом
+адресе 11.10.2026 (AUDIT.md, S6).
 
-### GitHub Pages `_headers` не читает
+Несуществующий адрес отдаёт `404.html` с кодом 404 — Cloudflare Pages берёт этот файл из
+корня сам. Пока файла не было, любой адрес отвечал главной страницей с кодом 200. Пути в
+`404.html` — от корня (`/js/…`), потому что страницу показывают на любой глубине.
 
-Сейчас сайт публикуется на GitHub Pages (`.github/workflows/pages.yml`). Там файл
-`_headers` — обычный файл: **ни один заголовок из него не отправляется**. На GitHub Pages
-работает только то, что задано в самих страницах: политика CSP в `<meta>` и
-`<meta name="robots">` у панели и кабинета. Не работают: запрет встраивания сайта в чужую
-рамку (`X-Frame-Options`, `frame-ancestors` — через `<meta>` их задать нельзя), HSTS,
-`X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, правила кеша.
+## Подключение своего домена
 
-Где сайт живёт дальше — решает заказчик на этапе 6 (TZ-STAGES.md). Если остаётся GitHub
-Pages, заголовки можно получить, поставив перед сайтом Cloudflare (домен через его DNS
-с проксированием и правила Transform Rules → Response Headers) — либо перейти на
-Cloudflare Pages, как описано выше. До этого решения пункт остаётся открытым (AUDIT.md, S6).
+По порядку; пункты 1, 3–5 делает владелец аккаунтов, пункт 2 — правка в репозитории.
+
+1. **Cloudflare** → проект `samtravel` → Custom domains: добавить `samtravel.am` и
+   `www.samtravel.am`, прописать у регистратора записи, которые покажет Cloudflare.
+   Сертификат выпустится сам.
+2. **Адрес в коде.** Заменить `samtravel-dny.pages.dev` на домен в `index.html`,
+   `sitemap.xml`, `robots.txt`, `js/admin/views/campaigns.js`, `js/admin/views/seo.js`,
+   `supabase/functions/lead-mail/index.ts` и в секрете `SITE_URL` функции `lead-mail`.
+   Затем `npm run deploy:prod`.
+3. **Supabase** → Authentication → URL Configuration: Site URL — новый адрес, в Redirect
+   URLs добавить `https://samtravel.am/**`. Без этого после входа человека вернёт на
+   `pages.dev`.
+4. **Google Cloud** → Clients: домен в Authorized JavaScript origins; Branding: домен в
+   Authorized domains и ссылки на сайт. Приложение должно быть опубликовано (Audience →
+   Publish app), иначе войдут только тестовые адреса.
+5. **Почта.** В Mailjet подтвердить домен (записи SPF и DKIM у регистратора) и завести
+   отправителя на нём, например `info@samtravel.am`. Поменять отправителя в двух местах:
+   секрет `MAIL_FROM` функции `lead-mail` и Supabase → Authentication → SMTP Settings.
+   Проверка — панель → «Готовность сайта» → «Отправить пробное письмо».
+6. **Перенаправление и поиск.** В Cloudflare правило Bulk Redirects с
+   `samtravel-dny.pages.dev` на домен; домен добавить в Google Search Console и отправить
+   `sitemap.xml`.
+
+## GitHub
+
+Сайт выкладывается с компьютера командой `npm run deploy:prod`; GitHub в выкладке не
+участвует. В репозитории остался сценарий `.github/workflows/pages.yml` от первой
+публикации на GitHub Pages: он сработает при пуше в `main`.
+GitHub Pages `_headers` не читает, и страницы 404 там нет, поэтому публиковать сайт там не
+нужно — перед первым пушем
+сценарий удалить или отключить Pages в настройках репозитория.
 
 ## После первой выкладки проверить
 

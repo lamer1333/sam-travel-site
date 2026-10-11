@@ -16,7 +16,7 @@ const OUT = join(ROOT, 'dist');
 
 // Всё, что публикуется. Новый файл или папку сайта — дописать сюда.
 const PUBLISH = [
-  'index.html', 'cabinet.html', 'admin.html',
+  'index.html', 'cabinet.html', 'admin.html', '404.html',
   'css', 'js', 'img',
   'sam-logo.png', 'og-image.jpg',
   'favicon.ico', 'favicon-16.png', 'favicon-32.png', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png',
