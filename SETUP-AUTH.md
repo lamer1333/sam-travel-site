@@ -66,8 +66,8 @@ It creates the tables, the auto-profile trigger, and all RLS policies.
 
 Authentication → **Providers** → **Email**: keep enabled. For launch you may
 turn **"Confirm email"** on (recommended) or off (faster testing).
-Authentication → **URL Configuration** → set **Site URL** to `https://samtravel.am`
-and add `https://samtravel.am/cabinet.html` to **Redirect URLs**
+Authentication → **URL Configuration** → set **Site URL** to `https://samtravel-dny.pages.dev`
+and add `https://samtravel-dny.pages.dev/**` to **Redirect URLs**
 (plus `http://localhost:8931/...` while testing locally).
 
 ## 4. Google login
@@ -136,8 +136,8 @@ the data plumbing is already here:
 - **Custom SMTP.** Connected (Mailjet). Supabase does not let you edit email templates or
   send to real clients without it. What is left is the sender: move it from
   `samtravel.code@proton.me` to an address on the site's domain once the domain works.
-- **Domain.** `samtravel.am` did not resolve on 2026-10-10. The site, the Google consent
-  screen links and the mail sender all depend on it.
+- **Domain.** `samtravel.am` did not resolve on 2026-10-10, so since 2026-10-11 the live
+  site is `https://samtravel-dny.pages.dev`. The mail sender still needs a domain of its own.
 - **Promote your admin** (step 6) after you sign up with your real email.
 
 ## Test checklist

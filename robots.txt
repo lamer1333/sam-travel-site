@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://samtravel.am/sitemap.xml
+Sitemap: https://samtravel-dny.pages.dev/sitemap.xml

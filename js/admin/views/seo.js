@@ -3,7 +3,7 @@
 import { h, mount, icon, toast, field, input, textarea, pageHead, card, LANGS } from '../ui.js';
 
 const LIM = { title: [30, 60], description: [70, 160] };
-const HOST = { en: 'samtravel.am', ru: 'samtravel.am › ?lang=ru', hy: 'samtravel.am › ?lang=hy' };
+const HOST = { en: 'samtravel-dny.pages.dev', ru: 'samtravel-dny.pages.dev › ?lang=ru', hy: 'samtravel-dny.pages.dev › ?lang=hy' };
 
 export default async function seoView(root, ctx) {
   const settings = await ctx.settings();
@@ -54,7 +54,7 @@ export default async function seoView(root, ctx) {
       h('div.serp', h('div.serp__url', h('i'), h('div', h('div', { style: { color: '#202124' } }, 'SAM TRAVEL'), HOST[lang])),
         h('div.serp__t', cut(t, 60)), h('div.serp__d', cut(d, 160))),
       h('div.section-t', 'Так выглядит ссылка в мессенджерах'),
-      h('div.og', h('img', { src: 'og-image.jpg', alt: '' }), h('div.og__b', h('small', 'samtravel.am'), h('b', cut(t, 70)), h('p', cut(d, 110)))));
+      h('div.og', h('img', { src: 'og-image.jpg', alt: '' }), h('div.og__b', h('small', 'samtravel-dny.pages.dev'), h('b', cut(t, 70)), h('p', cut(d, 110)))));
   }
   paintTabs(); paintEd(); paintPv();
   g.append(h('section.card.c6', h('div.card__h', h('div', h('h3', 'Тексты для поиска'))), tabs, edBox,

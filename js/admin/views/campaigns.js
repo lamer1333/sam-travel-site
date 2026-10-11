@@ -16,7 +16,7 @@ const PRESETS = [
   ['offline_qr', 'Флаер / плакат с QR', 'offline', 'flyer', 'qr'],
 ];
 const LANDINGS = [['', 'Главная'], ['#hot', 'Горящие туры'], ['#plan', 'Подбор тура'], ['#checklist', 'Чек-лист документов'], ['#services', 'Услуги'], ['#b2b', 'Корпоративным'], ['#contacts', 'Контакты']];
-const BASE = 'https://samtravel.am/';
+const BASE = 'https://samtravel-dny.pages.dev/';
 
 export function buildUrl(c, lang) {
   const p = new URLSearchParams();

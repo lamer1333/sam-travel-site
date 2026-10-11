@@ -5,6 +5,7 @@
   "scripts": {
     "test": "node supabase/test/run.mjs",
     "build": "node build.mjs",
+    "deploy:prod": "npm test && node build.mjs && CLOUDFLARE_ACCOUNT_ID=cee2693d47d6e36f21e2db32a7e355a0 npx --yes wrangler@latest pages deploy dist --project-name samtravel --branch main --commit-dirty=true",
     "deploy:preview": "node build.mjs && CLOUDFLARE_ACCOUNT_ID=32daa3e1a5e9cd65002f4ad68a8d2003 npx --yes wrangler@latest pages deploy dist --project-name samtravel-preview --branch main --commit-dirty=true"
   },
   "devDependencies": {
