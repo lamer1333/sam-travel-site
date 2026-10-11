@@ -31,10 +31,13 @@ const session = () => {
   return { access_token: [b64({ alg: 'HS256', typ: 'JWT' }), b64({ sub: USER_ID, role: 'authenticated', exp, email: TEST_USER.email }), 'fake-signature'].join('.'),
     token_type: 'bearer', expires_in: 3600, expires_at: exp, refresh_token: 'fake-refresh-token', user: user() };
 };
+let travel = null;   // client_travel этого пользователя (150_travel.sql)
 const RPC = {
   public_site: () => ({ settings: {}, tours: [], reviews: [], team: [], reels: [], promos: [] }),
   track: () => null,
   my_profile: () => ({ id: USER_ID, email: TEST_USER.email, full_name: 'Тестовый Клиент', phone: null, role: TEST_USER.role, lang: 'ru', marketing_consent: false, onboarded: true, birth_date: '1990-05-05' }),
+  my_travel: () => travel,
+  save_travel: (b) => (travel = { checklist: b.p_checklist || {}, plan: b.p_plan || {}, updated_at: new Date().toISOString() }),
   whoami: () => ({ id: USER_ID, email: TEST_USER.email, full_name: 'Тестовый Клиент', role: TEST_USER.role, lang: 'ru' }),
 };
 const log = [];   // что спросили у «Supabase» — GET /__log

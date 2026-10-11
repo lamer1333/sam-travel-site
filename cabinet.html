@@ -4,131 +4,169 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; form-action 'self'; base-uri 'self'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#BBD5F3">
 <meta name="robots" content="noindex">
 <title>My account — SAM TRAVEL</title>
 <link rel="icon" href="favicon.ico" sizes="48x48">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<style>
-  :root{
-    --ground:#000; --ink:#fff; --ink-dim:rgba(255,255,255,.5);
-    --brand:#5ba3f2; --card:#0d1220; --line:rgba(255,255,255,.12);
-    --err:#ff6b6b; --ok:#54d18c;
-    --font-ui:'Manrope',system-ui,-apple-system,'Segoe UI',sans-serif;
-  }
-  *{box-sizing:border-box}
-  html,body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font-ui)}
-  .wrap{max-width:760px;margin:0 auto;padding:24px 20px 60px}
-  header.top{display:flex;align-items:center;justify-content:space-between;gap:12px 14px;flex-wrap:wrap;
-    padding:14px 0 22px;border-bottom:1px solid var(--line);margin-bottom:24px}
-  .brand{display:flex;align-items:center;gap:10px;color:inherit;text-decoration:none}
-  .brand img{height:24px}.brand span{font-weight:700;letter-spacing:.14em;font-size:13px}
-  .logout{padding:9px 14px;border:1px solid var(--line);border-radius:10px;background:transparent;
-    color:var(--ink);font:inherit;font-size:13px;cursor:pointer}
-  .logout:hover{background:rgba(255,255,255,.06)}
-  a.logout{text-decoration:none;display:inline-block}
-  h1{font-size:22px;margin:0 0 4px}
-  .hello{display:flex;align-items:center;gap:10px;margin-bottom:6px}
-  .badge{font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:3px 8px;border-radius:999px;
-    background:rgba(91,163,242,.18);color:var(--brand)}
-  .lead{color:var(--ink-dim);font-size:14px;margin:0 0 28px}
-  h2{font-size:15px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em;margin:0 0 14px}
-  .msg{font-size:13px;padding:10px 12px;border-radius:10px}
-  .msg[data-kind=err]{background:rgba(255,107,107,.12);color:var(--err)}
-  .msg[data-kind=ok]{background:rgba(84,209,140,.12);color:var(--ok)}
-  /* onboarding / consent modal */
-  .modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:grid;place-items:center;padding:22px;z-index:50}
-  .modal[hidden]{display:none}
-  .modal__card{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);
-    border-radius:18px;padding:26px}
-  .modal__card h3{margin:0 0 8px;font-size:18px}
-  .modal__card p{margin:0 0 16px;color:var(--ink-dim);font-size:14px}
-  .modal .consent{display:flex;gap:9px;align-items:flex-start;font-size:13px;margin-bottom:20px}
-  .modal .primary{width:100%;padding:12px;border:0;border-radius:11px;background:var(--brand);
-    color:#04121f;font:inherit;font-weight:700;cursor:pointer}
-  .modal .mfield{display:block;margin-bottom:16px;font-size:13px;color:var(--ink-dim)}
-  .date-input{display:block;width:100%;margin-top:6px;padding:11px 12px;border:1px solid var(--line);border-radius:11px;
-    background:rgba(255,255,255,.05);color:var(--ink);font:inherit;font-size:16px;color-scheme:dark}
-  .date-input:focus{outline:2px solid var(--brand);outline-offset:1px}
-  .modal .msg{margin:0 0 14px}
-  .modal .primary[disabled]{opacity:.6;cursor:default}
-  /* profile: date of birth */
-  .profile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 18px;margin-bottom:28px}
-  .profile__row{display:flex;align-items:center;justify-content:space-between;gap:10px 14px;flex-wrap:wrap}
-  .profile__row dt{font-size:12px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.06em}
-  .profile__row dd{margin:2px 0 0;font-size:15px}
-  .profile dl{margin:0}
-  .profile__edit{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
-  .profile__edit[hidden]{display:none}
-  .profile__edit .date-input{width:auto;margin:0;flex:1 1 170px}
-  .profile .msg{margin:10px 0 0}
-  .profile__row + .profile__row,.profile__edit + .profile__row,.profile .msg + .profile__row{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
-  .profile__note{margin:4px 0 0;font-size:12.5px;color:var(--ink-dim);max-width:46ch}
-  /* mailing consent: a switch, not a hidden checkbox */
-  .switch{position:relative;display:inline-flex;align-items:center;cursor:pointer;flex:none}
-  .switch input{position:absolute;opacity:0;width:1px;height:1px}
-  .switch i{width:44px;height:26px;border-radius:999px;background:rgba(255,255,255,.2);position:relative;transition:background .15s}
-  .switch i::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .15s}
-  .switch input:checked + i{background:var(--ok)}
-  .switch input:checked + i::after{transform:translateX(18px)}
-  .switch input:focus-visible + i{outline:2px solid var(--brand);outline-offset:2px}
-  .switch input:disabled + i{opacity:.5}
-  .modal .mfield .date-input[type=password]{color-scheme:dark}
-  [hidden]{display:none !important}
-  .top-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  .lang{display:inline-flex;gap:2px;background:rgba(255,255,255,.06);border-radius:999px;padding:3px}
-  .lang button{border:0;background:transparent;color:var(--ink-dim);font:inherit;font-size:12px;font-weight:600;
-    padding:5px 9px;border-radius:999px;cursor:pointer}
-  .lang button[aria-pressed=true]{background:var(--ink);color:#04121f}
-</style>
+<link rel="stylesheet" href="css/cabinet.css?v=20261011c">
 </head>
 <body data-page="cabinet">
-  <div class="wrap">
-    <header class="top">
-      <a class="brand" href="./"><img src="sam-logo.png" alt=""><span>SAM TRAVEL</span></a>
-      <div class="top-right">
-        <span class="lang" role="group" aria-label="Language">
-          <button type="button" data-lang="en" aria-pressed="true">EN</button>
-          <button type="button" data-lang="ru" aria-pressed="false">RU</button>
-          <button type="button" data-lang="hy" aria-pressed="false">HY</button>
-        </span>
-        <a class="logout" href="./" data-i18n="toSite">Back to site</a>
-        <a id="btn-panel" class="logout" href="admin.html" hidden data-i18n="panel">Control panel</a>
-        <button id="btn-logout" class="logout" data-i18n="signOut">Sign out</button>
-      </div>
-    </header>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <symbol id="wm" viewBox="0 0 889.1 81.4"><path fill="currentColor" fill-rule="evenodd" d="M4.65 77.00C4.48 76.89 4.38 74.73 4.43 72.00L4.53 67.19L37.76 67.03C63.72 66.90 71.08 66.77 71.41 66.44C71.64 66.21 72.04 66.03 72.31 66.03C73.04 66.03 75.64 63.77 76.48 62.40C77.43 60.88 78.36 57.95 78.36 56.53C78.36 55.10 77.43 52.17 76.48 50.65C75.62 49.25 73.41 47.42 71.61 46.60C70.47 46.09 68.23 46.03 46.77 46.02C26.47 46.01 22.87 45.94 20.86 45.48C18.72 44.99 16.96 44.37 15.69 43.64C15.42 43.48 14.97 43.26 14.69 43.14C13.98 42.82 11.73 41.04 10.54 39.85C6.32 35.63 4.38 30.98 4.37 25.06C4.35 19.24 6.53 14.37 11.13 9.94C12.03 9.07 13.16 8.15 13.65 7.88C16.59 6.29 18.92 5.30 20.44 5.01C21.50 4.81 33.97 4.68 52.49 4.68C76.59 4.68 82.87 4.77 83.08 5.10C83.43 5.66 83.43 13.40 83.08 13.95C82.86 14.30 77.06 14.38 54.00 14.39C32.67 14.39 24.67 14.50 23.19 14.80C19.49 15.56 17.21 17.30 15.47 20.69C14.66 22.27 14.53 22.91 14.55 25.19C14.57 28.58 15.37 30.44 17.83 32.85C19.30 34.28 20.07 34.74 21.97 35.32C24.25 36.01 24.80 36.03 48.05 36.03C74.17 36.03 73.46 35.98 77.12 38.10C82.66 41.31 86.03 45.57 87.83 51.65C88.88 55.19 88.34 61.61 86.73 64.59C86.55 64.92 86.32 65.42 86.20 65.69C85.46 67.52 82.95 70.73 80.89 72.48C79.90 73.33 79.01 74.03 78.90 74.03C78.80 74.03 78.00 74.45 77.12 74.96C73.39 77.14 74.95 77.05 38.24 77.12C19.94 77.16 4.82 77.11 4.65 77.00ZM286.65 77.00C286.46 76.88 286.34 64.65 286.35 46.17C286.35 27.25 286.23 15.34 286.04 15.03C285.46 14.12 276.36 14.52 272.86 15.60C271.41 16.04 268.27 17.48 265.47 18.98C264.20 19.66 259.58 24.33 258.49 26.04C257.39 27.77 255.64 31.31 255.03 33.03C254.14 35.59 253.93 39.88 253.82 57.69C253.76 67.87 253.70 76.38 253.70 76.61C253.69 76.92 252.50 77.03 248.86 77.03C246.20 77.03 244.03 76.91 244.02 76.78C244.02 76.64 243.97 67.90 243.90 57.36C243.77 36.29 243.64 34.61 241.82 30.92C241.57 30.40 241.36 29.78 241.36 29.55C241.36 29.32 240.93 28.54 240.41 27.82C239.89 27.10 239.41 26.33 239.33 26.12C238.90 24.87 233.65 19.60 232.26 19.03C232.04 18.93 231.23 18.45 230.45 17.94C229.67 17.44 228.90 17.03 228.73 17.03C228.55 17.03 227.99 16.82 227.47 16.56C225.06 15.38 222.44 14.91 215.93 14.47C211.17 14.16 211.68 10.35 211.69 45.83C211.70 62.53 211.70 76.38 211.70 76.62C211.69 76.95 210.56 77.02 206.61 76.95L201.53 76.86L201.45 41.19C201.40 21.58 201.49 5.33 201.64 5.10C201.86 4.76 203.98 4.67 211.39 4.69C223.05 4.72 225.70 5.01 230.36 6.77C236.32 9.02 244.28 15.29 247.36 20.16C248.00 21.17 248.68 21.99 248.86 21.99C249.04 21.99 249.70 21.19 250.32 20.21C251.38 18.55 254.71 14.90 256.89 13.03C259.25 11.01 264.59 7.82 267.36 6.77C272.02 5.01 274.67 4.72 286.33 4.69C293.74 4.67 295.86 4.76 296.08 5.10C296.23 5.33 296.32 21.58 296.27 41.19L296.19 76.86L291.58 77.03C289.04 77.12 286.82 77.11 286.65 77.00ZM379.65 77.00C379.46 76.88 379.34 64.81 379.35 46.17C379.35 27.22 379.23 15.34 379.04 15.03C378.76 14.59 376.29 14.52 360.66 14.45C350.73 14.41 342.54 14.31 342.46 14.24C342.28 14.06 342.27 5.00 342.45 4.82C342.67 4.61 425.71 4.66 426.05 4.88C426.47 5.13 426.45 13.93 426.03 14.19C425.85 14.30 417.62 14.38 407.74 14.37C391.53 14.35 389.75 14.40 389.57 14.88C389.45 15.17 389.36 29.28 389.36 46.22C389.36 63.16 389.25 77.03 389.11 77.04C385.91 77.17 379.88 77.14 379.65 77.00ZM436.69 77.08C436.25 76.94 436.23 5.15 436.67 4.87C437.08 4.62 497.28 4.63 499.10 4.88C501.90 5.27 507.53 7.52 508.43 8.61C508.62 8.84 508.95 9.03 509.15 9.03C510.31 9.03 517.36 16.87 517.36 18.16C517.36 18.38 517.54 18.74 517.75 18.95C518.26 19.46 518.91 21.27 519.71 24.36C520.86 28.84 520.46 35.76 518.83 39.53C518.29 40.79 516.98 43.50 516.46 44.46C515.40 46.42 510.53 51.29 508.86 52.06C508.49 52.23 507.74 52.67 507.19 53.03C506.64 53.39 505.97 53.77 505.69 53.88C505.42 53.98 504.74 54.27 504.19 54.51C503.64 54.75 502.29 55.22 501.19 55.55C500.09 55.89 499.08 56.26 498.94 56.37C498.80 56.48 501.12 58.91 504.10 61.76C507.09 64.61 511.62 68.99 514.18 71.49C516.74 73.98 518.96 76.03 519.10 76.03C519.54 76.03 519.39 77.03 518.94 77.04C518.71 77.05 515.77 77.05 512.40 77.05L506.26 77.04L503.90 74.79C502.59 73.54 500.68 71.70 499.64 70.69C490.81 62.11 485.81 57.43 484.92 56.94C483.95 56.40 482.59 56.35 468.39 56.37C456.02 56.39 452.86 56.31 452.63 55.96C452.27 55.42 452.43 46.85 452.80 46.47C452.96 46.32 463.23 46.16 475.64 46.12C499.77 46.04 498.38 46.12 502.03 44.42C504.42 43.30 507.51 40.05 508.74 37.36C510.35 33.84 510.82 29.22 509.86 26.31C508.49 22.14 506.88 19.87 503.61 17.46C499.62 14.53 499.56 14.53 471.26 14.53C450.06 14.53 446.96 14.59 446.68 15.03C446.49 15.34 446.37 27.22 446.37 46.16C446.38 63.00 446.32 76.85 446.24 76.92C446.07 77.09 437.16 77.24 436.69 77.08ZM815.69 77.08C815.21 76.92 815.23 5.14 815.71 4.85C816.25 4.52 824.72 4.59 825.06 4.93C825.23 5.09 825.39 18.57 825.44 36.04L825.53 66.86L854.85 66.95C871.43 66.99 884.29 67.16 884.46 67.33C884.69 67.55 884.85 73.79 884.71 76.69C884.69 76.99 816.58 77.38 815.69 77.08ZM99.58 76.80C99.46 76.68 99.36 68.18 99.36 57.92C99.36 42.36 99.45 38.75 99.89 36.22C100.51 32.70 101.23 29.92 101.89 28.58C102.15 28.06 102.36 27.37 102.36 27.04C102.36 26.71 102.58 26.25 102.86 26.03C103.13 25.80 103.36 25.35 103.36 25.03C103.36 24.70 103.58 24.25 103.86 24.03C104.13 23.80 104.36 23.39 104.36 23.12C104.36 22.85 104.81 22.05 105.36 21.36C105.91 20.67 106.36 19.95 106.36 19.77C106.36 19.58 107.97 17.78 109.94 15.76C113.29 12.34 117.50 9.03 118.51 9.03C118.75 9.03 119.13 8.80 119.36 8.53C119.59 8.25 120.04 8.03 120.36 8.03C120.68 8.03 121.13 7.80 121.36 7.53C121.59 7.25 122.10 7.03 122.50 7.03C122.90 7.03 123.38 6.88 123.56 6.69C124.02 6.24 127.05 5.41 129.69 5.03C132.37 4.63 183.04 4.57 183.42 4.96C183.62 5.16 183.81 55.25 183.70 76.62C183.69 76.95 182.56 77.02 178.61 76.95L173.53 76.86L173.46 67.19C173.42 61.88 173.32 57.26 173.24 56.94C173.09 56.38 171.54 56.35 144.35 56.37C128.54 56.37 115.53 56.31 115.45 56.23C115.24 56.02 115.34 46.66 115.56 46.30C115.66 46.15 128.65 46.02 144.43 46.03C160.21 46.04 173.18 45.98 173.25 45.91C173.52 45.64 173.36 14.89 173.09 14.63C172.71 14.24 135.12 14.53 131.86 14.95C124.02 15.95 116.42 21.49 112.56 29.03C109.87 34.28 109.67 36.27 109.69 57.81C109.70 67.92 109.71 76.38 109.70 76.61C109.70 76.92 108.48 77.03 104.75 77.03C102.03 77.03 99.70 76.93 99.58 76.80ZM533.02 76.62C532.93 67.71 533.06 37.64 533.20 36.20C533.74 30.43 537.31 22.29 541.36 17.56C544.06 14.42 548.18 10.91 550.86 9.47C554.69 7.41 555.51 7.03 556.01 7.03C556.31 7.03 556.71 6.88 556.90 6.69C557.41 6.18 560.56 5.37 563.36 5.03C566.50 4.65 616.05 4.58 616.42 4.96C616.62 5.16 616.81 55.53 616.70 76.61C616.69 76.92 615.50 77.03 611.86 77.03C608.22 77.03 607.02 76.92 607.01 76.61C607.00 76.38 607.01 72.01 607.03 66.90C607.05 58.57 607.00 57.54 606.48 56.98C605.93 56.37 604.96 56.35 577.41 56.37C561.74 56.37 548.79 56.25 548.63 56.09C548.47 55.94 548.38 53.64 548.43 51.00L548.53 46.19L577.69 46.03L606.86 45.86L606.95 30.72C607.03 16.87 606.99 15.53 606.47 14.96C605.92 14.36 605.16 14.34 586.71 14.48C568.18 14.62 563.85 14.83 561.36 15.71C560.30 16.08 556.61 17.84 554.47 18.98C553.17 19.67 548.54 24.35 547.49 26.03C546.97 26.85 546.27 28.13 545.93 28.86C545.59 29.59 545.16 30.47 544.97 30.82C543.57 33.44 543.55 33.65 543.37 55.69L543.19 76.86L538.11 76.95C534.16 77.02 533.03 76.95 533.02 76.62ZM665.49 76.44C665.39 76.12 665.18 75.64 665.02 75.36C664.86 75.09 664.14 73.73 663.42 72.36C662.70 70.98 661.39 68.51 660.52 66.86C659.65 65.21 658.50 63.03 657.97 62.03C657.43 61.02 656.87 59.97 656.70 59.69C656.54 59.42 656.32 58.97 656.22 58.69C656.12 58.42 655.86 57.89 655.64 57.53C655.43 57.16 655.14 56.63 654.99 56.36C654.85 56.09 654.14 54.74 653.42 53.36C652.70 51.99 651.39 49.51 650.52 47.86C649.65 46.21 648.27 43.59 647.46 42.03C645.92 39.08 645.57 38.42 645.05 37.44C644.87 37.12 644.11 35.66 643.35 34.19C641.28 30.19 636.15 20.46 635.70 19.69C635.54 19.42 635.32 18.97 635.22 18.69C635.12 18.42 634.88 17.93 634.70 17.61C634.24 16.81 633.93 16.25 632.42 13.36C628.15 5.26 627.92 4.71 628.78 4.68C632.25 4.55 639.17 4.71 639.37 4.92C639.52 5.07 640.35 6.54 641.21 8.19C644.28 14.04 644.79 15.00 645.75 16.69C645.90 16.97 646.12 17.42 646.22 17.69C646.32 17.97 646.54 18.42 646.70 18.69C646.86 18.97 647.58 20.32 648.30 21.69C649.02 23.07 650.33 25.54 651.20 27.19C652.07 28.84 653.22 31.02 653.75 32.03C654.83 34.06 655.20 34.75 655.70 35.61C655.88 35.93 656.12 36.42 656.22 36.69C656.32 36.97 656.54 37.42 656.70 37.69C656.86 37.97 657.58 39.32 658.30 40.69C659.02 42.07 660.33 44.54 661.20 46.19C662.07 47.84 663.22 50.02 663.75 51.03C664.83 53.06 665.20 53.75 665.70 54.61C665.88 54.93 666.10 55.38 666.20 55.61C666.59 56.62 666.80 57.02 668.35 59.86C669.25 61.51 670.33 63.57 670.75 64.44C671.61 66.20 672.02 66.39 672.56 65.27C673.17 64.00 675.85 58.94 676.75 57.36C676.90 57.09 677.12 56.63 677.22 56.36C677.32 56.09 677.54 55.63 677.70 55.36C677.87 55.09 678.43 54.04 678.97 53.03C679.50 52.02 680.65 49.84 681.52 48.19C682.39 46.54 683.70 44.07 684.42 42.69C685.91 39.84 686.23 39.26 686.70 38.44C686.88 38.12 687.12 37.63 687.22 37.36C687.32 37.09 687.54 36.63 687.70 36.36C687.87 36.09 688.43 35.04 688.96 34.03C689.48 33.02 690.71 30.69 691.69 28.86C692.66 27.03 693.97 24.55 694.59 23.36C695.22 22.17 695.86 20.97 696.02 20.69C696.18 20.42 696.40 19.97 696.50 19.69C696.60 19.42 696.84 18.93 697.02 18.61C697.74 17.36 698.63 15.68 701.79 9.61C704.65 4.11 703.82 4.64 709.58 4.65C712.30 4.66 714.71 4.67 714.94 4.68C715.42 4.70 715.52 6.22 715.06 6.50C714.90 6.61 714.13 7.93 713.34 9.44C710.82 14.33 709.75 16.35 709.02 17.61C708.84 17.93 708.60 18.42 708.50 18.69C708.40 18.97 708.18 19.42 708.02 19.69C707.85 19.97 707.29 21.02 706.76 22.03C706.24 23.04 705.01 25.36 704.03 27.19C703.06 29.03 701.75 31.50 701.13 32.69C699.86 35.11 699.51 35.76 699.02 36.61C698.84 36.93 698.60 37.42 698.50 37.69C698.40 37.97 698.18 38.42 698.02 38.69C697.85 38.97 697.29 40.02 696.76 41.03C696.24 42.04 695.01 44.36 694.03 46.19C693.06 48.03 691.75 50.50 691.13 51.69C689.86 54.11 689.51 54.76 689.02 55.61C688.84 55.93 688.60 56.42 688.50 56.69C688.40 56.97 688.18 57.42 688.02 57.69C687.85 57.97 687.29 59.02 686.75 60.03C686.22 61.03 685.07 63.21 684.20 64.86C683.33 66.51 682.02 68.98 681.30 70.36C680.58 71.73 679.86 73.09 679.70 73.36C679.54 73.64 679.32 74.09 679.22 74.36C679.12 74.64 678.89 75.09 678.72 75.36C678.55 75.64 678.33 76.12 678.23 76.44C678.06 76.97 677.46 77.03 671.86 77.03C666.26 77.03 665.66 76.97 665.49 76.44ZM726.58 76.81C726.26 76.49 726.32 5.61 726.64 5.11C727.03 4.49 801.69 4.49 802.08 5.11C802.43 5.66 802.43 13.40 802.08 13.95C801.86 14.29 795.46 14.38 769.87 14.37C740.49 14.35 737.87 14.40 737.31 14.91C736.72 15.44 736.69 16.61 736.69 41.08C736.69 55.17 736.73 66.73 736.78 66.77C736.82 66.82 751.56 66.93 769.53 67.02L802.19 67.19L802.19 72.03L802.19 76.86L764.50 76.94C743.77 76.99 726.71 76.93 726.58 76.81ZM742.58 45.81C742.21 45.44 742.32 36.03 742.69 36.02C742.88 36.02 754.20 36.02 767.86 36.02C781.52 36.02 792.85 36.02 793.04 36.02C793.26 36.03 793.35 37.74 793.29 40.94L793.19 45.86L768.00 45.95C754.15 45.99 742.71 45.93 742.58 45.81Z"/></symbol>
+    <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="i-wa" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9.2 8.6c.2-.5.5-.5.8-.5h.5c.2 0 .4.1.5.4l.7 1.7c.1.2 0 .4-.1.6l-.5.6c-.1.1-.2.3 0 .5a6.4 6.4 0 0 0 3 2.8c.2.1.4.1.5-.1l.7-.8c.2-.2.4-.2.6-.1l1.7.8c.3.1.4.3.4.5 0 .6-.3 1.4-.9 1.8-.6.4-1.2.5-1.9.3A9 9 0 0 1 9 11.4c-.4-.8-.3-1.9.2-2.8Z" fill="currentColor"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 0 0-14 0c0 4.8 7 11 7 11Z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.5" fill="none" stroke="currentColor" stroke-width="1.9"/></symbol>
+  </defs></svg>
 
-    <!-- hidden until the profile is loaded and the first-login screen (if any) is passed -->
-    <main id="cabinet" hidden>
-      <div class="hello">
-        <h1><span data-i18n="hi">Hi</span>, <span id="greet">…</span></h1>
-        <span id="role-badge" class="badge" hidden></span>
-      </div>
-      <p class="lead" data-i18n="lead">Your details are below.</p>
+  <header class="cab__bar">
+    <a class="cab__home" href="./" data-i18n-label="toSite" aria-label="Back to site">
+      <svg aria-hidden="true"><use href="#i-chev-l"/></svg>
+      <span class="cab__logo"><svg viewBox="0 0 889.1 81.4" aria-hidden="true"><use href="#wm"/></svg></span>
+    </a>
+    <div class="cab__tools">
+      <a id="btn-panel" class="pill" href="admin.html" hidden data-i18n="panel">Control panel</a>
+      <span class="lang" role="group" aria-label="Language">
+        <button type="button" data-lang="en" aria-pressed="true">EN</button>
+        <button type="button" data-lang="ru" aria-pressed="false">RU</button>
+        <button type="button" data-lang="hy" aria-pressed="false">HY</button>
+      </span>
+    </div>
+  </header>
 
-      <h2 data-i18n="profileH">Profile</h2>
-      <section class="profile">
-        <div class="profile__row">
-          <dl><dt data-i18n="birthLabel">Date of birth</dt><dd id="birth-value">—</dd></dl>
-          <button id="birth-change" class="logout" type="button" data-i18n="change">Change</button>
+  <!-- hidden until the profile is loaded and the first-login screen (if any) is passed -->
+  <main id="cabinet" class="cab__main" hidden>
+    <section class="hero">
+      <span class="hero__tag" data-i18n="tag">Your account</span>
+      <h1><span data-i18n="hi">Hi</span>, <span id="greet">…</span></h1>
+      <p id="hero-lead"></p>
+    </section>
+
+    <!-- where the person is on the way to the trip -->
+    <ol class="steps">
+      <li><a class="step" id="step-trip" href="#trip"><span class="step__n"><i>1</i><svg aria-hidden="true"><use href="#i-check"/></svg></span><span class="step__txt"><b data-i18n="stepTrip">Trip</b><span id="step-trip-sub"></span></span></a></li>
+      <li><a class="step" id="step-docs" href="#docs"><span class="step__n"><i>2</i><svg aria-hidden="true"><use href="#i-check"/></svg></span><span class="step__txt"><b data-i18n="stepDocs">Documents</b><span id="step-docs-sub"></span></span></a></li>
+      <li><a class="step" id="step-talk" href="#help"><span class="step__n"><i>3</i></span><span class="step__txt"><b data-i18n="stepTalk">Manager</b><span data-i18n="stepTalkSub">A real price for your dates</span></span></a></li>
+    </ol>
+
+    <div class="cols">
+      <!-- My trip: what was chosen on the «Plan your trip» page of the site -->
+      <section class="panel trip" id="trip" aria-labelledby="trip-h">
+        <div class="trip__photo">
+          <span class="trip__when" id="trip-when" hidden></span>
+          <h2 id="trip-h" data-i18n="tripH">My trip</h2>
+          <h3 id="trip-title"></h3>
         </div>
-        <form id="birth-form" class="profile__edit" hidden novalidate>
-          <input id="birth-input" class="date-input" type="date" autocomplete="bday" aria-labelledby="birth-value">
-          <button class="logout" type="submit" data-i18n="save">Save</button>
-          <button id="birth-cancel" class="logout" type="button" data-i18n="cancel">Cancel</button>
+        <div class="trip__body">
+          <p id="trip-empty" data-i18n="tripEmptyP" hidden>Pick a destination and dates — a manager replies with a real price, not a range.</p>
+          <dl class="facts" id="trip-facts" hidden>
+            <div class="facts__wide"><dt data-i18n="fDates">Dates</dt><dd id="trip-dates"></dd></div>
+            <div><dt data-i18n="fPeople">Travellers</dt><dd id="trip-people"></dd></div>
+            <div><dt data-i18n="fMeals">Meals</dt><dd id="trip-meals"></dd></div>
+          </dl>
+          <div class="actions">
+            <a class="btn btn--wa" id="trip-wa" href="#" target="_blank" rel="noopener" hidden><svg aria-hidden="true"><use href="#i-wa"/></svg><span data-i18n="tripAsk">Get the price on WhatsApp</span></a>
+            <a class="btn btn--ghost" id="trip-edit" href="index.html#plan"></a>
+          </div>
+        </div>
+      </section>
+
+      <!-- My documents: the checklist from the site, with the same ticks -->
+      <section class="panel docs" id="docs" aria-labelledby="docs-h">
+        <div class="panel__head"><h2 id="docs-h" data-i18n="docsH">My documents</h2><span class="panel__sub" id="docs-sub"></span></div>
+        <div id="docs-empty" hidden>
+          <h3 data-i18n="docsEmptyT">Which country?</h3>
+          <p data-i18n="docsEmptyP">Pick a country — we show exactly what to collect.</p>
+          <div class="chips" id="docs-chips"></div>
+        </div>
+        <div id="docs-full" hidden>
+          <div class="flight">
+            <div class="flight__top"><span class="flight__label" data-i18n="docsProgress">Collected</span><span class="flight__count" id="d-count"></span></div>
+            <div class="flight__track" id="d-track">
+              <svg viewBox="0 0 380 56" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+                <defs><linearGradient id="d-grad" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#5BA3F2"/><stop offset="100%" stop-color="#BFE0FF"/></linearGradient></defs>
+                <path id="d-path" class="flight__line" d="M 15 42 Q 190 4 365 42" fill="none"/>
+                <path id="d-fill" class="flight__fill" d="M 15 42 Q 190 4 365 42" fill="none" stroke="url(#d-grad)"/>
+                <circle class="flight__dot" cx="15" cy="42" r="4.5"/>
+                <circle class="flight__dot flight__dot--end" cx="365" cy="42" r="4.5"/>
+              </svg>
+              <div class="flight__plane" id="d-plane"><svg viewBox="0 0 120 44" width="52" height="19" aria-hidden="true">
+                <defs>
+                  <linearGradient id="d-fuse" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#D6E8FB"/><stop offset="48%" stop-color="#5BA3F2"/><stop offset="100%" stop-color="#1C5FA8"/></linearGradient>
+                  <linearGradient id="d-fin" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#F5F6F8"/><stop offset="100%" stop-color="#C7D0DB"/></linearGradient>
+                </defs>
+                <path d="M10,27 L25,27 L15,37 L6,37 Z" fill="url(#d-fin)"/>
+                <path d="M15,16 L27,16 L19,2 L13,2 Z" fill="url(#d-fin)"/>
+                <path d="M50,29 L78,29 L68,40 L46,40 Z" fill="url(#d-fin)" opacity="0.88"/>
+                <path d="M10,22 C10,16.5 15,13 24,13 L86,13 C99,13 108,17 115,22 C108,27 99,31 86,31 L24,31 C15,31 10,27.5 10,22 Z" fill="url(#d-fuse)"/>
+                <ellipse cx="103" cy="20" rx="6" ry="4" fill="#0B0D12" opacity="0.8"/>
+                <circle cx="40" cy="19" r="2" fill="#fff" opacity="0.9"/><circle cx="50" cy="19" r="2" fill="#fff" opacity="0.9"/>
+                <circle cx="60" cy="19" r="2" fill="#fff" opacity="0.9"/><circle cx="70" cy="19" r="2" fill="#fff" opacity="0.9"/>
+                <circle cx="80" cy="19" r="2" fill="#fff" opacity="0.9"/>
+              </svg></div>
+            </div>
+          </div>
+          <p class="docs__done" id="docs-done" role="status" hidden></p>
+          <div id="docs-todo">
+            <div class="docs__left" data-i18n="docsLeft">Still to collect</div>
+            <ul class="clist" id="d-list"></ul>
+            <p class="docs__more" id="d-more" hidden></p>
+          </div>
+          <div class="actions">
+            <a class="btn btn--brand" id="docs-open" href="index.html#checklist" data-i18n="docsAll">Open the full list</a>
+            <button class="btn btn--ghost" id="docs-other" type="button" data-i18n="docsOther">Another country</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="cols">
+      <section class="panel" id="help" aria-labelledby="help-h">
+        <div class="panel__head"><h2 id="help-h" data-i18n="helpH">Your manager</h2></div>
+        <h3 data-i18n="helpT">A person on the other end</h3>
+        <p data-i18n="helpP">Questions about a visa, dates or prices — write to us, we answer on WhatsApp.</p>
+        <div class="actions">
+          <a class="btn btn--wa" id="help-wa" href="https://wa.me/37455957585" target="_blank" rel="noopener"><svg aria-hidden="true"><use href="#i-wa"/></svg><span data-i18n="helpWa">Write on WhatsApp</span></a>
+        </div>
+        <div class="rows">
+          <a id="help-tel" href="tel:+37455957585"><svg aria-hidden="true"><use href="#i-phone"/></svg><span id="help-phone">+374 55 957585</span></a>
+          <span><svg aria-hidden="true"><use href="#i-pin"/></svg><span id="help-addr"></span></span>
+        </div>
+      </section>
+
+      <section class="panel" id="profile" aria-labelledby="profile-h">
+        <div class="panel__head"><h2 id="profile-h" data-i18n="profileH">Profile</h2></div>
+        <div class="who">
+          <span class="who__pic" id="who-pic" aria-hidden="true"></span>
+          <div class="who__txt">
+            <div class="who__name"><span id="who-name"></span><span id="role-badge" class="badge" hidden></span></div>
+            <div class="who__mail" id="who-mail"></div>
+          </div>
+        </div>
+        <div class="set">
+          <dl><dt data-i18n="birthLabel">Date of birth</dt><dd id="birth-value">—</dd></dl>
+          <button id="birth-change" class="btn btn--ghost btn--sm" type="button" data-i18n="change">Change</button>
+        </div>
+        <form id="birth-form" class="set__edit" hidden novalidate>
+          <input id="birth-input" class="field" type="date" autocomplete="bday" aria-labelledby="birth-value">
+          <button class="btn btn--brand btn--sm" type="submit" data-i18n="save">Save</button>
+          <button id="birth-cancel" class="btn btn--ghost btn--sm" type="button" data-i18n="cancel">Cancel</button>
         </form>
         <p id="birth-msg" class="msg" data-kind="err" role="alert" hidden></p>
         <!-- mailing consent: asked once at sign-up; here it can be changed at any time -->
-        <div class="profile__row">
+        <div class="set">
           <dl><dt data-i18n="consentLabel">Deals and discounts by email</dt><dd id="consent-value">—</dd>
-            <p class="profile__note" data-i18n="consentNote">Offers, discounts and promo codes. You can switch it off at any time.</p></dl>
+            <p class="set__note" data-i18n="consentNote">Offers, discounts and promo codes. You can switch it off at any time.</p></dl>
           <label class="switch"><input id="consent-toggle" type="checkbox" aria-labelledby="consent-value"><i></i></label>
         </div>
         <p id="consent-msg" class="msg" data-kind="err" role="alert" hidden></p>
+        <div class="panel__foot">
+          <button id="btn-logout" class="btn btn--ghost btn--sm" type="button" data-i18n="signOut">Sign out</button>
+        </div>
       </section>
-    </main>
-    <p id="cabinet-error" class="msg" data-kind="err" role="alert" hidden></p>
-  </div>
+    </div>
+  </main>
+  <p id="cabinet-error" class="msg msg--page" data-kind="err" role="alert" hidden></p>
 
   <!-- First login: Google users have not been asked for the date of birth or
        the mailing consent. The cabinet stays closed until this is answered. -->
@@ -138,14 +176,14 @@
       <p data-i18n="onbText">We need your date of birth to open your account.</p>
       <label class="mfield" id="onboard-birth-field">
         <span data-i18n="birthLabel">Date of birth</span>
-        <input id="onboard-birth" class="date-input" type="date" autocomplete="bday">
+        <input id="onboard-birth" class="field" type="date" autocomplete="bday">
       </label>
       <label class="consent">
         <input id="onboard-consent" type="checkbox">
         <span data-i18n="onbConsent">Yes, send me deals, discounts and coupons by email. I can unsubscribe anytime.</span>
       </label>
       <p id="onboard-msg" class="msg" data-kind="err" role="alert" hidden></p>
-      <button id="onboard-save" class="primary" type="submit" data-i18n="onbContinue">Continue</button>
+      <button id="onboard-save" class="btn btn--brand" type="submit" data-i18n="onbContinue">Continue</button>
     </form>
   </div>
 
@@ -156,19 +194,22 @@
       <p data-i18n="recText">Choose a new password for your account — at least 10 characters.</p>
       <label class="mfield">
         <span data-i18n="recPass">New password</span>
-        <input id="recover-pass" class="date-input" type="password" autocomplete="new-password" minlength="10">
+        <input id="recover-pass" class="field" type="password" autocomplete="new-password" minlength="10">
       </label>
       <label class="mfield">
         <span data-i18n="recPass2">Repeat the password</span>
-        <input id="recover-pass2" class="date-input" type="password" autocomplete="new-password" minlength="10">
+        <input id="recover-pass2" class="field" type="password" autocomplete="new-password" minlength="10">
       </label>
       <p id="recover-msg" class="msg" data-kind="err" role="alert" hidden></p>
-      <button id="recover-save" class="primary" type="submit" data-i18n="recSave">Save the password</button>
+      <button id="recover-save" class="btn btn--brand" type="submit" data-i18n="recSave">Save the password</button>
     </form>
   </div>
 
   <script src="js/vendor/supabase-js-2.117.2.js"></script>
   <script src="js/supabase-config.js"></script>
-  <script src="js/auth.js?v=20261011b"></script>
+  <script src="js/pages.js?v=20261011a"></script>
+  <script src="js/wa.js?v=20261011a"></script>
+  <script src="js/travel.js?v=20261011c"></script>
+  <script src="js/auth.js?v=20261011c"></script>
 </body>
 </html>

@@ -1284,6 +1284,15 @@
   .clx__title { font-size: clamp(1.9rem, 4.6vw, 3.4rem); font-weight: 800; letter-spacing: -0.02em; color: #fff;
     text-shadow: 0 4px 30px rgba(18,48,89,0.35); }
   .clx__lede { color: var(--sky-ink); margin-top: 8px; font-size: 1rem; }
+  /* the line that ties the checklist and the plan to the account (js/travel.js) */
+  .acct { display: inline-flex; align-items: center; gap: 8px; justify-self: center; margin: 12px auto 0; min-height: 36px; padding: 6px 14px;
+    border-radius: 999px; font-size: 0.86rem; font-weight: 600; color: #14396B; background: rgba(255,255,255,0.32);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.55); transition: background-color 160ms ease; }
+  .acct::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: rgba(20,57,107,0.35); flex: none; }
+  .acct.is-on::before { background: #1F9D61; }
+  .acct::after { content: "→"; }
+  .pcard--centred .acct { display: flex; width: fit-content; }
+  @media (hover: hover) and (pointer: fine) { .acct:hover { background: rgba(255,255,255,0.5); } }
   .clx__cols { display: grid; grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); gap: 22px; align-items: start; }
   .clx__rail { display: grid; gap: 20px; }
   @media (max-width: 900px) { .clx__cols { grid-template-columns: minmax(0, 1fr); } }

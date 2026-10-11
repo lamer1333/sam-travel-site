@@ -332,7 +332,7 @@
       b.addEventListener('click', function () {
         pMeals[k] = !pMeals[k];
         b.setAttribute('aria-pressed', String(pMeals[k]));
-        pWhatsapp();
+        pWhatsapp(); pSave();
       });
       row.appendChild(b);
     });
@@ -344,7 +344,7 @@
       var li = document.createElement('li'), b = document.createElement('button');
       b.type = 'button'; b.setAttribute('aria-pressed', String(key === pDest));
       b.innerHTML = '<span>' + L(P.PDEST[key]) + '</span><svg><use href="#i-check"/></svg>';
-      b.addEventListener('click', function () { pDest = key; closeSheet(); renderPrices(); });
+      b.addEventListener('click', function () { pDest = key; closeSheet(); renderPrices(); pSave(); });
       li.appendChild(b); list.appendChild(li);
     });
   }
@@ -394,9 +394,45 @@
     if (window.SAM_TRACK) window.SAM_TRACK('plan_send', { tour: pDest || '' });
   });
   $$('[data-dsheet-close]').forEach(function (b) { b.addEventListener('click', closeSheet); });
-  $('#p-people').addEventListener('input', pWhatsapp);
-  $('#p-from').addEventListener('change', pWhatsapp);
-  $('#p-to').addEventListener('change', pWhatsapp);
+  $('#p-people').addEventListener('input', function () { pWhatsapp(); pSave(); });
+  $('#p-from').addEventListener('change', function () { pWhatsapp(); pSave(); });
+  $('#p-to').addEventListener('change', function () { pWhatsapp(); pSave(); });
+
+  /* The plan and the checklist are remembered by js/travel.js: in this browser, and in the
+     account of a signed-in client — the cabinet shows them as «My trip» and «My documents». */
+  var TR = window.SAM_TRAVEL;
+  function pSave() {
+    if (!TR) return;
+    TR.setPlan({ dest: pDest || '', people: pPeople(), from: $('#p-from').value, to: $('#p-to').value,
+      meals: Object.keys(pMeals).filter(function (k) { return pMeals[k]; }) });
+  }
+  function cSave() { if (TR) TR.setChecklist({ dest: cDest, type: cType, checked: cChecked }); }
+  /* reads what is remembered into the two pages; a deep link (a QR at the office) keeps its own choice */
+  function loadTravel(keepSel) {
+    if (!TR) return;
+    var own = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
+    var s = TR.get(), c = s.checklist, p = s.plan;
+    cChecked = c.checked;
+    if (!keepSel && c.dest && own(P.CDATA, c.dest)) {
+      cDest = c.dest;
+      cType = own(P.CDATA[cDest].types, c.type) ? c.type : Object.keys(P.CDATA[cDest].types)[0];
+    }
+    pDest = (p.dest && own(P.PDEST, p.dest)) ? p.dest : null;
+    ['breakfast', 'lunch', 'dinner'].forEach(function (k) { pMeals[k] = p.meals.indexOf(k) > -1; });
+    if (p.people) $('#p-people').value = p.people;
+    $('#p-from').value = p.from; $('#p-to').value = p.to;
+  }
+  var acctUser = false;
+  function paintAcct() {
+    if (!TR) return;
+    var t = TR.HINT[cur] || TR.HINT.en;
+    $$('[data-acct]').forEach(function (a) {
+      a.textContent = acctUser ? t.user : t.guest;
+      a.setAttribute('href', acctUser ? 'cabinet.html' : '#auth');
+      a.classList.toggle('is-on', acctUser);
+      a.hidden = !sb;
+    });
+  }
 
   /* ============ Checklist ============ */
   var cDest = 'europe', cType = 'tourist', cChecked = {}, cWasComplete = false;
@@ -415,7 +451,7 @@
         cDest = key;
         var types = Object.keys(P.CDATA[key].types);
         if (types.indexOf(cType) === -1) cType = types[0];
-        renderChecklist();
+        renderChecklist(); cSave();
       });
       destRow.appendChild(b);
     });
@@ -425,7 +461,7 @@
       b.type = 'button'; b.className = 'chip chip--type';
       b.setAttribute('aria-pressed', String(key === cType));
       b.textContent = L(P.CDATA[cDest].types[key].label);
-      b.addEventListener('click', function () { cType = key; renderChecklist(); });
+      b.addEventListener('click', function () { cType = key; renderChecklist(); cSave(); });
       typeRow.appendChild(b);
     });
   }
@@ -453,7 +489,8 @@
       inp.addEventListener('change', function () {
         cChecked[id] = inp.checked;
         li.classList.toggle('is-done', inp.checked);
-        try { localStorage.setItem('sam-cl', JSON.stringify(cChecked)); } catch (e) {}
+        if (!inp.checked) delete cChecked[id];
+        if (TR) cSave(); else { try { localStorage.setItem('sam-cl', JSON.stringify(cChecked)); } catch (e) {} }
         cProgress();
       });
       lab.appendChild(inp); lab.appendChild(box); lab.appendChild(txt);
@@ -517,10 +554,13 @@
     cBuildChips(); cBuildList(); cQR();
   }
 
-  try {
-    var saved = JSON.parse(localStorage.getItem('sam-cl') || '{}');
-    if (saved && typeof saved === 'object') cChecked = saved;
-  } catch (e) {}
+  if (TR) loadTravel(location.hash.indexOf('#checklist/') === 0);
+  else {
+    try {
+      var savedCl = JSON.parse(localStorage.getItem('sam-cl') || '{}');
+      if (savedCl && typeof savedCl === 'object') cChecked = savedCl;
+    } catch (e) {}
+  }
 
   window.addEventListener('resize', measureTrack);
 
@@ -554,7 +594,7 @@
     $$('.lang button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.lang === cur)); });
     $$('[data-lang-cur]').forEach(function (e) { e.textContent = cur.toUpperCase(); });
     paintCounts();
-    renderPrices(); renderChecklist(); paintAuth(); paintWa();
+    renderPrices(); renderChecklist(); paintAuth(); paintWa(); paintAcct();
     try { localStorage.setItem('sam-lang', cur); } catch (err) {}
     document.dispatchEvent(new CustomEvent('sam:lang', { detail: cur }));
   }
@@ -848,6 +888,13 @@
     sb.auth.getSession().then(function (r) {
       if (r.data && r.data.session) {
         $$('a[href="#auth"]').forEach(function (a) { a.setAttribute('href', 'cabinet.html'); });
+        acctUser = true; paintAcct();
+        /* the account may hold a newer trip than this browser: take it and repaint both pages */
+        if (TR) TR.sync().then(function (changed) {
+          if (!changed) return;
+          loadTravel(curPage === 'checklist' && location.hash.indexOf('#checklist/') === 0);
+          renderPrices(); renderChecklist();
+        });
       }
     });
   }
@@ -1021,7 +1068,7 @@
   });
 
   /* first paint happens here, after the saved language has been applied */
-  renderPrices(); renderChecklist(); paintAuth();
+  renderPrices(); renderChecklist(); paintAuth(); paintAcct();
 
   /* ---------- router last: everything above must exist before a deep link opens a page ---------- */
   window.addEventListener('hashchange', route); route();
