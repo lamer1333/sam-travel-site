@@ -82,6 +82,12 @@ ${panel ? `<p style="margin:14px 0 0"><a href="${esc(panel)}" style="color:#6670
   return { subject, text, html };
 }
 
+/** Подсказка к отказу Mailjet во входе: как записан ключ — без самого ключа, только число частей и их длины. */
+function keyShape(key) {
+  const parts = key.replace(/\s+/g, '').split(':');
+  return ' · В MAIL_API_KEY частей через двоеточие: ' + parts.length + ' (нужно 2), длины: ' + parts.map((x) => x.length).join(' и ') + ' (у Mailjet оба ключа по 32 символа).';
+}
+
 /** Отправка через почтовый сервис из переменных окружения. Бросает ошибку с причиной. */
 async function sendMail(mail, to, key, env, fetchImpl) {
   const provider = (env.MAIL_PROVIDER || 'resend').toLowerCase();
@@ -106,7 +112,7 @@ async function sendMail(mail, to, key, env, fetchImpl) {
     throw new Error('unknown MAIL_PROVIDER: ' + provider);
   }
   const res = await fetchImpl(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body), signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error('mail ' + res.status + ': ' + (await res.text().catch(() => '')).slice(0, 300));
+  if (!res.ok) throw new Error('mail ' + res.status + ': ' + (await res.text().catch(() => '')).slice(0, 300) + (provider === 'mailjet' && res.status === 401 ? keyShape(env.MAIL_API_KEY) : ''));
 }
 
 /** `token` — токен вошедшего человека: тогда база выполняет вызов от его имени, со всеми его ограничениями. */

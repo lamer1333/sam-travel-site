@@ -32,7 +32,7 @@ async function fakeFetch(url, init) {
     return new Response(JSON.stringify(r.rows[0].v ?? null), { status: 200 });
   }
   if (u.host === 'mail.test') {
-    if (mailDown) return new Response('{"message":"provider is down"}', { status: 503 });
+    if (mailDown) return new Response('{"message":"provider is down"}', { status: mailDown === true ? 503 : mailDown });
     outbox.push({ headers: init.headers, ...body });
     return new Response('{"id":"m1"}', { status: 200 });
   }
@@ -231,6 +231,11 @@ mj.headers.Authorization === 'Basic ' + btoa('pub:sec') && mjm.From.Email === 'l
   r = await press('owner'); out = await r.json();
   mailDown = false;
   out.ok === false && /503/.test(out.error) ? ok('почтовый сервис отказал → его ответ виден владельцу') : bad('отказ сервиса: ' + JSON.stringify(out));
+  mailDown = 401;
+  r = await press('owner', { type: 'test' }, { ...ENV, MAIL_PROVIDER: 'mailjet', MAIL_API_KEY: 'abc:secret-value-1', MAIL_API_URL: 'http://mail.test/mailjet' }); out = await r.json();
+  mailDown = false;
+  out.ok === false && /частей через двоеточие: 2 .*длины: 3 и 14/.test(out.error) && !out.error.includes('secret-value-1')
+    ? ok('Mailjet отказал во входе → в ответе форма ключа (части и длины), самого ключа нет') : bad('форма ключа: ' + JSON.stringify(out));
   (await logN()) === log0 ? ok('пробное письмо в очередь notify_log не попадает') : bad('пробное письмо задело notify_log');
   r = await handle(new Request('http://fn.test/lead-mail', { method: 'OPTIONS' }), ENV, fakeFetch);
   r.status === 204 && /authorization/.test(r.headers.get('access-control-allow-headers') || '') ? ok('предзапрос браузера (OPTIONS) → 204 с CORS') : bad('OPTIONS: ' + r.status);
